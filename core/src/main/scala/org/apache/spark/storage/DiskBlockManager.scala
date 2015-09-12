@@ -159,7 +159,9 @@ private[spark] class DiskBlockManager(blockManager: BlockManager, conf: SparkCon
 
   private def doStop(): Unit = {
     // Only perform cleanup if an external service is not serving our shuffle files.
-    if (!blockManager.externalShuffleServiceEnabled || blockManager.blockManagerId.isDriver) {
+    // Also blockManagerId could be null if block manager is not initialized properly.
+    if (!blockManager.externalShuffleServiceEnabled ||
+      (blockManager.blockManagerId != null && blockManager.blockManagerId.isDriver)) {
       localDirs.foreach { localDir =>
         if (localDir.isDirectory() && localDir.exists()) {
           try {
