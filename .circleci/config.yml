@@ -416,16 +416,40 @@ jobs:
       - store_artifacts:
           path: /tmp/yarn-tests
 
-  deploy:
+  build-maven-versioned:
     <<: *defaults
+    docker:
+      - image: palantirtechnologies/circle-spark-r
     steps:
       - *checkout-code
-      - attach_workspace:
-          at: .
       - restore_cache:
           key: maven-dependency-cache-{{ checksum "pom.xml" }}
       - restore_cache:
           key: build-binaries-{{ checksum "build/mvn" }}-{{ checksum "build/sbt" }}
+      - run:
+          command: dev/set_version_and_package.sh
+      # This is potentially costly but we can't use the workspace as it would conflict with
+      # compilation results from build-sbt
+      - save_cache:
+          key: v1-maven-build-with-version-{{ .Branch }}-{{ .BuildNum }}
+          paths:
+            - .
+
+  deploy:
+    <<: *defaults
+    # Some part of the maven setup fails if there's no R, so we need to use the R image here
+    docker:
+      - image: palantirtechnologies/circle-spark-r
+    steps:
+      # This cache contains the whole project after version was set and mvn package was called
+      # Restoring first (and instead of checkout) as mvn versions:set mutates real source code...
+      - restore_cache:
+          key: v1-maven-build-with-version-{{ .Branch }}-{{ .BuildNum }}
+      - restore_cache:
+          key: maven-dependency-cache-{{ checksum "pom.xml" }}
+      - restore_cache:
+          key: build-binaries-{{ checksum "build/mvn" }}-{{ checksum "build/sbt" }}
+
       - run: echo "user=$BINTRAY_USERNAME" > .credentials
       - run: echo "password=$BINTRAY_PASSWORD" >> .credentials
       - run: echo "realm=Bintray API Realm" >> .credentials
@@ -433,8 +457,8 @@ jobs:
       - deploy:
           command: dev/publish.sh
       - store_artifacts:
-          path: /tmp/make-distribution.log
-          destination: make-distribution.log
+          path: /tmp/make-dist.log
+          destination: make-dist.log
       - store_artifacts:
           path: /tmp/publish_artifacts.log
           destination: publish_artifacts.log
@@ -476,6 +500,10 @@ workflows:
           requires:
             - build-sbt
           <<: *all-branches-and-tags
+      - build-maven-versioned:
+          requires:
+            - build-maven
+          <<: *deployable-branches-and-tags
       - deploy:
           requires:
             - build-maven
@@ -486,8 +514,13 @@ workflows:
             - run-scala-tests
             - run-python-tests
             - run-r-tests
+<<<<<<< HEAD
           filters:
             branches:
               only: 
                 - master
                 - yh/fix-publishing
+=======
+            - build-maven-versioned
+          <<: *deployable-branches-and-tags
+>>>>>>> 1372eb2... Prepackage deploy step (#331)
