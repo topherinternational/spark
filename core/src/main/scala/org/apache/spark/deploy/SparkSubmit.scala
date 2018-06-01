@@ -701,18 +701,10 @@ private[spark] class SparkSubmit extends Logging {
 
     if (isKubernetesCluster) {
       childMainClass = KUBERNETES_CLUSTER_SUBMIT_CLASS
-      if (args.isPython) {
-        childArgs ++= Array("--primary-py-file", args.primaryResource)
-        childArgs ++= Array("--main-class", "org.apache.spark.deploy.PythonRunner")
-        if (args.pyFiles != null) {
-          childArgs ++= Array("--other-py-files", args.pyFiles)
-        }
-      } else {
-        if (args.primaryResource != SparkLauncher.NO_RESOURCE) {
-          childArgs ++= Array("--primary-java-resource", args.primaryResource)
-        }
-        childArgs ++= Array("--main-class", args.mainClass)
+      if (args.primaryResource != SparkLauncher.NO_RESOURCE) {
+        childArgs ++= Array("--primary-java-resource", args.primaryResource)
       }
+      childArgs ++= Array("--main-class", args.mainClass)
       args.childArgs.foreach { arg =>
         childArgs += "--arg"
         childArgs += arg
