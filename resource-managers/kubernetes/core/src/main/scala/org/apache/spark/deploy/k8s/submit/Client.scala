@@ -68,9 +68,6 @@ private[spark] object ClientArguments {
   }
 }
 
-
-// YIFEI TOOD: Old - reconcile this
-
 private[spark] class Client(
     submissionSteps: Seq[DriverConfigurationStep],
     submissionSparkConf: SparkConf,
