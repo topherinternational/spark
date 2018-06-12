@@ -108,12 +108,6 @@ jobs:
     environment:
       BUILD_SBT_CACHE: "/home/circleci/build-sbt-cache"
     steps:
-      # Saves us from recompiling every time...
-      - restore_cache:
-          keys:
-            - v1-build-sbt-{{ .Branch }}-{{ .BuildNum }}
-            - v1-build-sbt-{{ .Branch }}-
-            - v1-build-sbt-master-
       - checkout
       - run:
           name: Hard link cache contents into current build directory
