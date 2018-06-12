@@ -35,6 +35,16 @@ jobs:
             - build-maven-{{ .Branch }}-
             - build-maven-master-
       - checkout
+      - restore_cache:
+          keys:
+            - maven-dependency-cache-{{ checksum "pom.xml" }}
+            # Fallback - see https://circleci.com/docs/2.0/configuration-reference/#example-2
+            - maven-dependency-cache-
+      # Given the build-maven cache, this is superfluous, but leave it in in case we will want to remove the former
+      - restore_cache:
+          keys:
+            - build-binaries-{{ checksum "build/mvn" }}-{{ checksum "build/sbt" }}
+            - build-binaries-
       - run: |
           ./build/mvn -T1C -DskipTests -Phadoop-cloud -Phadoop-palantir -Pkinesis-asl -Pkubernetes -Pyarn -Phive -Psparkr install \
             | tee -a "/tmp/mvn-install.log"
