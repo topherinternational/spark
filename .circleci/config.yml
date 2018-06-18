@@ -204,12 +204,6 @@ jobs:
     environment:
       BUILD_SBT_CACHE: "/home/circleci/build-sbt-cache"
     steps:
-      # Saves us from recompiling every time...
-      - restore_cache:
-          keys:
-            - v1-build-sbt-{{ .Branch }}-{{ .BuildNum }}
-            - v1-build-sbt-{{ .Branch }}-
-            - v1-build-sbt-master-
       - *checkout-code
       - run:
           name: Hard link cache contents into current build directory
@@ -218,15 +212,7 @@ jobs:
               rsync --info=stats2,misc1,flist0 -a --link-dest="$BUILD_SBT_CACHE" "$BUILD_SBT_CACHE/" .
             fi
       - restore_cache:
-          keys:
-            - v5-ivy-dependency-cache-{{ checksum "pom.xml" }}
-            # if cache for exact version of `pom.xml` is not present then load any most recent one
-            - v5-ivy-dependency-cache-
-      - restore_cache:
           key: maven-dependency-cache-{{ checksum "pom.xml" }}
-      - restore_cache:
-          keys:
-            - v2-home-sbt-{{ checksum "build/sbt" }}-{{ checksum "project/target/streams/$global/update/$global/streams/update_cache_2.10/inputs" }}
       # Given the build-sbt cache, this is superfluous, but leave it in in case we will want to remove the former
       - restore_cache:
           key: build-binaries-{{ checksum "build/mvn" }}-{{ checksum "build/sbt" }}
