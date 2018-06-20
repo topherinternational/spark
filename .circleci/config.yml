@@ -514,13 +514,5 @@ workflows:
             - run-scala-tests
             - run-python-tests
             - run-r-tests
-<<<<<<< HEAD
-          filters:
-            branches:
-              only: 
-                - master
-                - yh/fix-publishing
-=======
             - build-maven-versioned
           <<: *deployable-branches-and-tags
->>>>>>> 1372eb2... Prepackage deploy step (#331)
