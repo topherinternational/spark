@@ -22,7 +22,6 @@ publish_artifacts() {
   echo "</server></servers></settings>" >> $tmp_settings
 
   ./build/mvn -T 1C --settings $tmp_settings -DskipTests "${PALANTIR_FLAGS[@]}" deploy
-  ./gradlew --info bintrayUpload
 }
 
 make_dist() {
