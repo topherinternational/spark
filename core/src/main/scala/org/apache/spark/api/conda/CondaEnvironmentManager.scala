@@ -16,6 +16,7 @@
  */
 package org.apache.spark.api.conda
 
+import java.io.File
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
@@ -28,23 +29,20 @@ import scala.sys.process.BasicIO
 import scala.sys.process.Process
 import scala.sys.process.ProcessBuilder
 import scala.sys.process.ProcessIO
-
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
 import com.google.common.collect.ImmutableSet
 import org.json4s.JsonAST.JValue
 import org.json4s.jackson.Json4sScalaModule
 import org.json4s.jackson.JsonMethods
-
-import org.apache.spark.SparkConf
-import org.apache.spark.SparkEnv
-import org.apache.spark.SparkException
+import org.apache.spark._
 import org.apache.spark.api.conda.CondaEnvironment.CondaSetupInstructions
 import org.apache.spark.internal.Logging
 import org.apache.spark.internal.config.CONDA_BINARY_PATH
 import org.apache.spark.internal.config.CONDA_GLOBAL_PACKAGE_DIRS
 import org.apache.spark.internal.config.CONDA_VERBOSITY
 import org.apache.spark.util.Utils
+import org.apache.spark.util.Utils.executeAndGetOutput
 
 final class CondaEnvironmentManager(condaBinaryPath: String,
                                     verbosity: Int = 0,
@@ -77,7 +75,7 @@ final class CondaEnvironmentManager(condaBinaryPath: String,
               condaEnvVars: Map[String, String] = Map.empty): CondaEnvironment = {
     require(condaPackages.nonEmpty, "Expected at least one conda package.")
     require(condaChannelUrls.nonEmpty, "Can't have an empty list of conda channel URLs")
-    val name = "conda-env"
+    val envName = "conda-env"
 
     // must link in /tmp to reduce path length in case baseDir is very long...
     // If baseDir path is too long, this breaks conda's 220 character limit for binary replacement.
@@ -88,19 +86,45 @@ final class CondaEnvironmentManager(condaBinaryPath: String,
 
     val verbosityFlags = 0.until(verbosity).map(_ => "-v").toList
 
+    val isDriver = SparkEnv.get.executorId == SparkContext.DRIVER_IDENTIFIER
+    if (isDriver) {
     // Attempt to create environment
-    runCondaProcess(
-      linkedBaseDir,
-      List("create", "-n", name, "-y", "--no-default-packages")
-        ::: condaExtraArgs.toList
-        ::: verbosityFlags
-        ::: "--" :: condaPackages.toList,
-      description = "create conda env",
-      channels = condaChannelUrls.toList,
-      envVars = condaEnvVars
-    )
+      runCondaProcess(
+        linkedBaseDir,
+        List("create", "--name", envName)
+          ::: condaExtraArgs.toList
+          ::: verbosityFlags
+          ::: "--" :: condaPackages.toList,
+        description = "create conda env",
+        channels = condaChannelUrls.toList,
+        envVars = condaEnvVars
+      )
+      runCondaProcess(
+        linkedBaseDir,
+        List("pack", "-n", envName, "--directory", s"$baseDir"),
+        description = "Packing conda env",
+        channels = condaChannelUrls.toList,
+        envVars = condaEnvVars
+      )
+      SparkContext.getOrCreate().addFile(s"$baseDir/$envName.tar.gz")
+  } else {
+      unpack(baseDir, envName)
+  }
 
-    new CondaEnvironment(this, linkedBaseDir, name, condaPackages, condaChannelUrls, condaExtraArgs)
+    new CondaEnvironment(this, linkedBaseDir, envName,
+      condaPackages, condaChannelUrls, condaExtraArgs)
+  }
+
+  def unpack(baseDir: String, envName: String): Unit = {
+    val envFile = SparkFiles.get(s"$envName.tar.gz")
+    val envDirectory = new File(baseDir).toPath.resolve(s"envs/$envName")
+    Files.createDirectories(envDirectory)
+    logInfo("Unpacking env")
+    val extractOutput = executeAndGetOutput(Seq("tar", "-xzf", envFile, "--directory"),
+      envDirectory.toFile)
+    logInfo(s"Extracted env: Output $extractOutput")
+    val unpackOutput = executeAndGetOutput(Seq("./bin/conda-unpack"), envDirectory.toFile)
+    logInfo(s"Ran unpack: Output $unpackOutput")
   }
 
   /**
