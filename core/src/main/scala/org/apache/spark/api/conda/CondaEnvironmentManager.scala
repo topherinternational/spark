@@ -29,12 +29,14 @@ import scala.sys.process.BasicIO
 import scala.sys.process.Process
 import scala.sys.process.ProcessBuilder
 import scala.sys.process.ProcessIO
+
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
 import com.google.common.collect.ImmutableSet
 import org.json4s.JsonAST.JValue
 import org.json4s.jackson.Json4sScalaModule
 import org.json4s.jackson.JsonMethods
+
 import org.apache.spark._
 import org.apache.spark.api.conda.CondaEnvironment.CondaSetupInstructions
 import org.apache.spark.internal.Logging
@@ -99,14 +101,16 @@ final class CondaEnvironmentManager(condaBinaryPath: String,
         channels = condaChannelUrls.toList,
         envVars = condaEnvVars
       )
+
+      val packedEnvPath = s"$baseDir/$envName.tar.gz"
       runCondaProcess(
         linkedBaseDir,
-        List("pack", "-n", envName, "--directory", s"$baseDir"),
+        List("pack", "-n", envName, "--output", packedEnvPath),
         description = "Packing conda env",
         channels = condaChannelUrls.toList,
         envVars = condaEnvVars
       )
-      SparkContext.getOrCreate().addFile(s"$baseDir/$envName.tar.gz")
+      SparkContext.getOrCreate().addFile(packedEnvPath)
   } else {
       unpack(baseDir, envName)
   }
