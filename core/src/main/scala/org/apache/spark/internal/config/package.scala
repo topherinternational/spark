@@ -327,6 +327,26 @@ package object config {
     .toSequence
     .createWithDefault(Nil)
 
+  private[spark] val CONDA_USE_PACK = ConfigBuilder("spark.conda.pack")
+    .doc("Use conda-pack to initialize environment on executors")
+    .booleanConf
+    .createWithDefault(false)
+
+  private[spark] val CONDA_PACK_FORMAT = ConfigBuilder("spark.conda.pack.format")
+    .doc("Archival format to use for conda-pack. Supports .tar, .tar.gz")
+    .stringConf
+    .createWithDefault("tar.gz")
+
+  private[spark] val CONDA_PACK_COMPRESS_LEVEL = ConfigBuilder("spark.conda.pack.compressLevel")
+    .doc("Compression level to use for conda-pack")
+    .intConf
+    .createWithDefault(4)
+
+  private[spark] val CONDA_PACK_NUM_THREADS = ConfigBuilder("spark.conda.pack.numThreads")
+    .doc("Number of threads to use for conda-pack. -1 will use the number of cpus on the machine")
+    .intConf
+    .createWithDefault(1)
+
   // To limit how many applications are shown in the History Server summary ui
   private[spark] val HISTORY_UI_MAX_APPS =
     ConfigBuilder("spark.history.ui.maxApplications").intConf.createWithDefault(Integer.MAX_VALUE)

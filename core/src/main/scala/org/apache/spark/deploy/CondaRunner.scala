@@ -23,6 +23,7 @@ import org.apache.spark.SparkConf
 import org.apache.spark.SparkContext
 import org.apache.spark.api.conda.CondaEnvironment
 import org.apache.spark.api.conda.CondaEnvironmentManager
+import org.apache.spark.api.conda.CondaPackConfig
 import org.apache.spark.internal.Logging
 import org.apache.spark.internal.config._
 import org.apache.spark.util.Utils
@@ -57,13 +58,16 @@ object CondaRunner {
       val condaEnvVariables = extractEnvVariables(sparkConf)
       val condaBaseDir = Utils.createTempDir(Utils.getLocalDir(sparkConf), "conda").getAbsolutePath
       val condaEnvironmentManager = CondaEnvironmentManager.fromConf(sparkConf)
+      val condaPackConfig = CondaPackConfig.fromConf(sparkConf)
       val environment =
         condaEnvironmentManager.create(
           condaBaseDir,
           condaBootstrapDeps,
           condaChannelUrls,
           condaExtraArgs,
-          condaEnvVariables)
+          condaEnvVariables,
+          condaPackConfig
+        )
       setCondaEnvironment(environment)
       Some(environment)
     } else {

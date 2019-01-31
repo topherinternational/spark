@@ -74,7 +74,8 @@ final class CondaEnvironmentManager(condaBinaryPath: String,
               condaPackages: Seq[String],
               condaChannelUrls: Seq[String],
               condaExtraArgs: Seq[String] = Nil,
-              condaEnvVars: Map[String, String] = Map.empty): CondaEnvironment = {
+              condaEnvVars: Map[String, String] = Map.empty,
+              condaPackConfig: Option[CondaPackConfig]): CondaEnvironment = {
     require(condaPackages.nonEmpty, "Expected at least one conda package.")
     require(condaChannelUrls.nonEmpty, "Can't have an empty list of conda channel URLs")
     val envName = "conda-env"
@@ -89,8 +90,8 @@ final class CondaEnvironmentManager(condaBinaryPath: String,
     val verbosityFlags = 0.until(verbosity).map(_ => "-v").toList
 
     val isDriver = SparkEnv.get.executorId == SparkContext.DRIVER_IDENTIFIER
-    if (isDriver) {
-    // Attempt to create environment
+
+    def createVanillaEnv = {
       runCondaProcess(
         linkedBaseDir,
         List("create", "--name", envName)
@@ -101,27 +102,61 @@ final class CondaEnvironmentManager(condaBinaryPath: String,
         channels = condaChannelUrls.toList,
         envVars = condaEnvVars
       )
+    }
 
-      val packedEnvPath = s"$baseDir/$envName.tar.gz"
-      runCondaProcess(
-        linkedBaseDir,
-        List("pack", "-n", envName, "--output", packedEnvPath),
-        description = "Packing conda env",
-        channels = condaChannelUrls.toList,
-        envVars = condaEnvVars
-      )
-      SparkContext.getOrCreate().addFile(packedEnvPath)
-  } else {
-      unpack(baseDir, envName)
-  }
+    if (isDriver) {
+      createVanillaEnv
+      if (condaPackConfig.isDefined) {
+        try {
+          val packedEnvPath = pack(linkedBaseDir, envName, condaPackConfig.get)
+          SparkContext.getOrCreate().addFile(packedEnvPath)
+        } catch {
+          case e: SparkException =>
+            logInfo("Failed to pack the environment")
+        }
+      }
+
+      new CondaEnvironment(this, linkedBaseDir, envName,
+        condaPackages, condaChannelUrls, condaExtraArgs, condaEnvVars, condaPackConfig)
+    } else {
+      if (condaPackConfig.isDefined) {
+        try {
+          unpack(linkedBaseDir, envName, condaPackConfig.get)
+        } catch {
+          case e: Exception =>
+            logInfo("Failed to pack the environment, will attempt to initialize vanilla env", e)
+            createVanillaEnv
+        }
+      } else {
+        createVanillaEnv
+      }
+    }
 
     new CondaEnvironment(this, linkedBaseDir, envName,
-      condaPackages, condaChannelUrls, condaExtraArgs)
+      condaPackages, condaChannelUrls, condaExtraArgs, condaEnvVars, condaPackConfig)
   }
 
-  def unpack(baseDir: String, envName: String): Unit = {
-    val envFile = SparkFiles.get(s"$envName.tar.gz")
-    val envDirectory = new File(baseDir).toPath.resolve(s"envs/$envName")
+
+  /**
+   * Packs the environment and returns path of the archive.
+   */
+  def pack(linkBaseDirPath: Path, envName: String, condaPackConfig: CondaPackConfig): String = {
+    logInfo("Retrieving the conda installation's info")
+    val CondaPackConfig(format, compressLevel, numThreads) = condaPackConfig
+    val packedEnvPath = linkBaseDirPath.resolve(s"$envName.$format").toString
+    val command = Process(List(condaBinaryPath, "pack",
+      "-n", envName,
+      "--output", packedEnvPath.toString,
+      "--compress-level", compressLevel.toString,
+      "--n-threads", numThreads.toString), None)
+    val out = runOrFail(command, "retrieving the conda installation's info")
+    packedEnvPath
+  }
+
+  def unpack(linkBaseDirPath: Path, envName: String, config: CondaPackConfig): Unit = {
+    val format = config.format
+    val envFile = SparkFiles.get(s"$envName.$format")
+    val envDirectory = linkBaseDirPath.resolve(s"envs/$envName")
     Files.createDirectories(envDirectory)
     logInfo("Unpacking env")
     val extractOutput = executeAndGetOutput(Seq("tar", "-xzf", envFile, "--directory"),
@@ -270,7 +305,8 @@ object CondaEnvironmentManager extends Logging {
       val dirId = hash % localDirs.length
       Utils.createTempDir(localDirs(dirId).getAbsolutePath, "conda").getAbsolutePath
     }
-    condaEnvManager.create(envDir, condaPackages, instructions.channels, instructions.extraArgs)
+    condaEnvManager.create(envDir, condaPackages, instructions.channels, instructions.extraArgs,
+      instructions.envVars, instructions.condaPackConfig)
   }
 
   /**

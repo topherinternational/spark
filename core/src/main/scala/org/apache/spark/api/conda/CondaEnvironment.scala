@@ -39,7 +39,8 @@ final class CondaEnvironment(val manager: CondaEnvironmentManager,
                              bootstrapPackages: Seq[String],
                              bootstrapChannels: Seq[String],
                              extraArgs: Seq[String] = Nil,
-                             envVars: Map[String, String] = Map.empty) extends Logging {
+                             envVars: Map[String, String] = Map.empty,
+                             condaPackConfig: Option[CondaPackConfig]) extends Logging {
 
   import CondaEnvironment._
 
@@ -98,7 +99,7 @@ final class CondaEnvironment(val manager: CondaEnvironmentManager,
    * This is for sending the instructions to the executors so they can replicate the same steps.
    */
   def buildSetupInstructions: CondaSetupInstructions = {
-    CondaSetupInstructions(packages.toList, channels.toList, extraArgs, envVars)
+    CondaSetupInstructions(packages.toList, channels.toList, extraArgs, envVars, condaPackConfig)
   }
 }
 
@@ -158,7 +159,8 @@ object CondaEnvironment {
          packages: Seq[String],
          unauthenticatedChannels: Seq[UnauthenticatedChannel],
          extraArgs: Seq[String],
-         envVars: Map[String, String])
+         envVars: Map[String, String],
+         condaPackConfig: Option[CondaPackConfig])
         (userInfos: Map[UnauthenticatedChannel, String]) {
     require(unauthenticatedChannels.nonEmpty)
     require(packages.nonEmpty)
@@ -171,10 +173,10 @@ object CondaEnvironment {
 
   object CondaSetupInstructions {
     def apply(packages: Seq[String], channels: Seq[AuthenticatedChannel], extraArgs: Seq[String],
-              envVars: Map[String, String])
+              envVars: Map[String, String], condaPackConfig: Option[CondaPackConfig])
         : CondaSetupInstructions = {
       val ChannelsWithCreds(unauthed, userInfos) = unauthenticateChannels(channels)
-      CondaSetupInstructions(packages, unauthed, extraArgs, envVars)(userInfos)
+      CondaSetupInstructions(packages, unauthed, extraArgs, envVars, condaPackConfig)(userInfos)
     }
   }
 }
