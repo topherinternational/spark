@@ -89,8 +89,6 @@ final class CondaEnvironmentManager(condaBinaryPath: String,
 
     val verbosityFlags = 0.until(verbosity).map(_ => "-v").toList
 
-    val isDriver = SparkEnv.get.executorId == SparkContext.DRIVER_IDENTIFIER
-
     def createVanillaEnv = {
       runCondaProcess(
         linkedBaseDir,
@@ -104,7 +102,14 @@ final class CondaEnvironmentManager(condaBinaryPath: String,
       )
     }
 
-    if (isDriver) {
+    if (SparkEnv.get == null) {
+      logInfo("Creating spark context as it doesn't exist")
+      SparkContext.getOrCreate()
+    }
+    if (SparkContext.getActive.isDefined
+      && SparkEnv.get.executorId == SparkContext.DRIVER_IDENTIFIER
+      && SparkContext.getOrCreate().condaEnvironment().isEmpty) {
+      logInfo("Creating vanilla env on the driver")
       createVanillaEnv
       if (condaPackConfig.isDefined) {
         try {
@@ -120,6 +125,7 @@ final class CondaEnvironmentManager(condaBinaryPath: String,
         condaPackages, condaChannelUrls, condaExtraArgs, condaEnvVars, condaPackConfig)
     } else {
       if (condaPackConfig.isDefined) {
+        logInfo("Attempting to unpack conda-env")
         try {
           unpack(linkedBaseDir, envName, condaPackConfig.get)
         } catch {
@@ -128,6 +134,7 @@ final class CondaEnvironmentManager(condaBinaryPath: String,
             createVanillaEnv
         }
       } else {
+        logInfo("Creating vanilla env on the executor")
         createVanillaEnv
       }
     }
@@ -145,7 +152,7 @@ final class CondaEnvironmentManager(condaBinaryPath: String,
     val CondaPackConfig(format, compressLevel, numThreads) = condaPackConfig
     val packedEnvPath = linkBaseDirPath.resolve(s"$envName.$format").toString
     val command = Process(List(condaBinaryPath, "pack",
-      "-n", envName,
+      "-p", linkBaseDirPath.resolve(s"envs/$envName").toString,
       "--output", packedEnvPath.toString,
       "--compress-level", compressLevel.toString,
       "--n-threads", numThreads.toString), None)
@@ -159,8 +166,8 @@ final class CondaEnvironmentManager(condaBinaryPath: String,
     val envDirectory = linkBaseDirPath.resolve(s"envs/$envName")
     Files.createDirectories(envDirectory)
     logInfo("Unpacking env")
-    val extractOutput = executeAndGetOutput(Seq("tar", "-xzf", envFile, "--directory"),
-      envDirectory.toFile)
+    val extractOutput = executeAndGetOutput(Seq("tar", "-xzf", envFile, "--directory",
+      envDirectory.toFile.toString))
     logInfo(s"Extracted env: Output $extractOutput")
     val unpackOutput = executeAndGetOutput(Seq("./bin/conda-unpack"), envDirectory.toFile)
     logInfo(s"Ran unpack: Output $unpackOutput")
