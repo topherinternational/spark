@@ -18,20 +18,23 @@
 package org.apache.spark.api.conda
 
 import org.apache.spark.SparkConf
-import org.apache.spark.internal.config.{CONDA_PACK_COMPRESS_LEVEL, CONDA_PACK_FORMAT, CONDA_PACK_NUM_THREADS, CONDA_USE_PACK}
+import org.apache.spark.internal.config.{CONDA_PACK_COMPRESS_LEVEL, CONDA_PACK_ENABLED, CONDA_PACK_FALLBACK_ENABLED,
+  CONDA_PACK_FORMAT, CONDA_PACK_NUM_THREADS}
 
-final case class CondaPackConfig(format: String, compressLevel: Int, numThreads: Int) {
+final case class CondaPackConfig(format: String, compressLevel: Int, numThreads: Int,
+                                 fallbackEnabled: Boolean) {
 }
 
 object CondaPackConfig {
   def fromConf(sparkConf: SparkConf): Option[CondaPackConfig] = {
 
-    if (!sparkConf.get(CONDA_USE_PACK)) {
-      return Option.empty
+    if (!sparkConf.get(CONDA_PACK_ENABLED)) {
+      return None
     }
     val format = sparkConf.get(CONDA_PACK_FORMAT)
     val compressLevel = sparkConf.get(CONDA_PACK_COMPRESS_LEVEL)
     val numThreads = sparkConf.get(CONDA_PACK_NUM_THREADS)
-    Option(new CondaPackConfig(format, compressLevel, numThreads))
+    val fallbackEnabled = sparkConf.get(CONDA_PACK_FALLBACK_ENABLED)
+    Option(new CondaPackConfig(format, compressLevel, numThreads, fallbackEnabled))
   }
 }

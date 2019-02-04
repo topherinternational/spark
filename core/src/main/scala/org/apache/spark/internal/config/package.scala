@@ -327,10 +327,16 @@ package object config {
     .toSequence
     .createWithDefault(Nil)
 
-  private[spark] val CONDA_USE_PACK = ConfigBuilder("spark.conda.pack")
-    .doc("Use conda-pack to initialize environment on executors")
+  private[spark] val CONDA_PACK_ENABLED = ConfigBuilder("spark.conda.pack.enabled")
+    .doc("When true will use conda-pack to initialize environemnts on ")
     .booleanConf
     .createWithDefault(false)
+
+  private[spark] val CONDA_PACK_FALLBACK_ENABLED =
+    ConfigBuilder("spark.conda.pack.fallback.enabled")
+    .doc("Initialize environment from scratch if unpacking fails")
+    .booleanConf
+    .createWithDefault(true)
 
   private[spark] val CONDA_PACK_FORMAT = ConfigBuilder("spark.conda.pack.format")
     .doc("Archival format to use for conda-pack. Supports .tar, .tar.gz")

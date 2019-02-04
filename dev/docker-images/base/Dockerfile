@@ -112,6 +112,7 @@ RUN curl -sO https://repo.continuum.io/miniconda/Miniconda2-${MINICONDA2_VERSION
   && bash Miniconda2-${MINICONDA2_VERSION}-Linux-x86_64.sh -b -p ${CONDA_ROOT} \
   && $CONDA_BIN clean --all \
   && sudo mkdir -m 777 /home/.conda \
+  && $CONDA_BIN install conda-pack -c conda-forge
   && rm -f Miniconda2-${MINICONDA2_VERSION}-Linux-x86_64.sh
 
 # END IMAGE CUSTOMIZATIONS

@@ -24,6 +24,7 @@ import javax.ws.rs.core.UriBuilder
 
 import scala.collection.mutable
 
+import org.apache.spark.SparkContext
 import org.apache.spark.internal.Logging
 
 /**
@@ -40,12 +41,16 @@ final class CondaEnvironment(val manager: CondaEnvironmentManager,
                              bootstrapChannels: Seq[String],
                              extraArgs: Seq[String] = Nil,
                              envVars: Map[String, String] = Map.empty,
-                             condaPackLocation: Option[String]) extends Logging {
+                             maybeCondaPackConfig: Option[CondaPackConfig] = None)
+  extends Logging {
 
   import CondaEnvironment._
 
   private[this] val packages = mutable.Buffer(bootstrapPackages: _*)
   private[this] val channels = bootstrapChannels.iterator.map(AuthenticatedChannel.apply).toBuffer
+
+  val condaPackPaths: Map[List[String], Option[String]] = Map[List[String], Option[String]]()
+    .withDefault(condaPack)
 
   val condaEnvDir: Path = rootPath.resolve("envs").resolve(envName)
 
@@ -99,10 +104,41 @@ final class CondaEnvironment(val manager: CondaEnvironmentManager,
    * This is for sending the instructions to the executors so they can replicate the same steps.
    */
   def buildSetupInstructions: CondaSetupInstructions = {
-    CondaSetupInstructions(packages.toList, channels.toList, extraArgs, envVars, condaPackLocation)
+    CondaSetupInstructions(packages.toList, channels.toList, extraArgs, envVars,
+      condaPackPaths(packages.toList))
+  }
+
+  private def condaPack(packages: List[String]): Option[String] = {
+    if (maybeCondaPackConfig.isEmpty) {
+      logInfo("Conda pack is not enabled")
+      return None
+    }
+    // We only pack the env if there is an active context,
+    // otherwise it is not possible to transfer tha packed env.
+    if (SparkContext.getActive.isDefined) {
+      logInfo("Packing environment")
+      val condaPackConfig = maybeCondaPackConfig.get
+      try {
+        val packedEnvPath = manager.pack(rootPath.toFile.getAbsolutePath, envName,
+          condaPackConfig)
+        SparkContext.getOrCreate().addFile(packedEnvPath)
+        Some(packedEnvPath)
+      } catch {
+        case e: Exception =>
+          logInfo("Failed to pack the environment", e)
+          if (condaPackConfig.fallbackEnabled) {
+            None
+          } else {
+            throw e
+          }
+      }
+    } else {
+      logInfo("Not packing environment as no active context exists")
+      None
+    }
+
   }
 }
-
 object CondaEnvironment {
   private[this] case class ChannelWithCreds(unauthenticatedChannel: UnauthenticatedChannel,
                                             userInfo: Option[String])

@@ -227,6 +227,16 @@ class YarnClusterSuite extends BaseYarnClusterSuite {
     testCondaPySpark(false)
   }
 
+  test("run Python application within Conda using conda-pack in yarn-client mode") {
+    testCondaPySpark(true, Map(
+      "spark.conda.pack.enabled" -> "true"))
+  }
+
+  test("run Python application within Conda using conda-pack in yarn-cluster mode") {
+    testCondaPySpark(false, Map(
+      "spark.conda.pack.enabled" -> "true"))
+  }
+
   test("run Python application in yarn-cluster mode using " +
     "spark.yarn.appMasterEnv to override local envvar") {
     testPySpark(
@@ -359,7 +369,7 @@ class YarnClusterSuite extends BaseYarnClusterSuite {
 
   private def testCondaPySpark(
       clientMode: Boolean,
-      extraEnv: Map[String, String] = Map()): Unit = {
+      conf: Map[String, String] = Map()): Unit = {
     val primaryPyFile = new File(tempDir, "test.py")
     Files.write(TEST_CONDA_PYFILE, primaryPyFile, StandardCharsets.UTF_8)
 
@@ -370,15 +380,15 @@ class YarnClusterSuite extends BaseYarnClusterSuite {
     val pythonPath = Seq(
       s"$sparkHome/python/lib/py4j-0.10.8.1-src.zip",
       s"$sparkHome/python")
-    val extraEnvVars = Map(
+    val extraEnv = Map(
       "PYSPARK_ARCHIVES_PATH" -> pythonPath.map("local:" + _).mkString(File.pathSeparator),
-      "PYTHONPATH" -> pythonPath.mkString(File.pathSeparator)) ++ extraEnv
+      "PYTHONPATH" -> pythonPath.mkString(File.pathSeparator))
 
     val extraConf: Map[String, String] = Map(
       "spark.conda.binaryPath" -> sys.env("CONDA_BIN"),
       "spark.conda.channelUrls" -> "https://repo.continuum.io/pkgs/main",
       "spark.conda.bootstrapPackages" -> "python=3.6"
-    )
+    ) ++ conf
 
     val moduleDir =
       if (clientMode) {
@@ -400,7 +410,7 @@ class YarnClusterSuite extends BaseYarnClusterSuite {
     val finalState = runSpark(clientMode, primaryPyFile.getAbsolutePath(),
       sparkArgs = Seq("--py-files" -> pyFiles),
       appArgs = Seq(result.getAbsolutePath()),
-      extraEnv = extraEnvVars,
+      extraEnv = extraEnv,
       extraConf = extraConf,
       timeoutDuration = 4.minutes) // give it a bit longer
     checkResult(finalState, result)
