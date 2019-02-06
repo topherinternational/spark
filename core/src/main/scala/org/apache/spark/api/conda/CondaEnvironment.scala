@@ -105,7 +105,7 @@ final class CondaEnvironment(val manager: CondaEnvironmentManager,
    */
   def buildSetupInstructions: CondaSetupInstructions = {
     CondaSetupInstructions(packages.toList, channels.toList, extraArgs, envVars,
-      condaPackPaths(packages.toList))
+      maybeCondaPackConfig, condaPackPaths(packages.toList))
   }
 
   private def condaPack(packages: List[String]): Option[String] = {
@@ -120,6 +120,9 @@ final class CondaEnvironment(val manager: CondaEnvironmentManager,
       val condaPackConfig = maybeCondaPackConfig.get
       try {
         val packedEnvPath = manager.pack(rootPath.toFile.getAbsolutePath, envName,
+          channels.iterator.map(_.url).toList,
+          extraArgs,
+          envVars,
           condaPackConfig)
         SparkContext.getOrCreate().addFile(packedEnvPath)
         Some(packedEnvPath)
@@ -196,6 +199,7 @@ object CondaEnvironment {
          unauthenticatedChannels: Seq[UnauthenticatedChannel],
          extraArgs: Seq[String],
          envVars: Map[String, String],
+         maybeCondaPackConfig: Option[CondaPackConfig],
          maybeCondaPackLocation: Option[String])
         (userInfos: Map[UnauthenticatedChannel, String]) {
     require(unauthenticatedChannels.nonEmpty)
@@ -209,10 +213,11 @@ object CondaEnvironment {
 
   object CondaSetupInstructions {
     def apply(packages: Seq[String], channels: Seq[AuthenticatedChannel], extraArgs: Seq[String],
-              envVars: Map[String, String], maybeCondaPackLocation: Option[String])
+              envVars: Map[String, String], maybeCondaPackConfig: Option[CondaPackConfig],
+              maybeCondaPackLocation: Option[String])
         : CondaSetupInstructions = {
       val ChannelsWithCreds(unauthed, userInfos) = unauthenticateChannels(channels)
-      CondaSetupInstructions(packages, unauthed, extraArgs, envVars,
+      CondaSetupInstructions(packages, unauthed, extraArgs, envVars, maybeCondaPackConfig,
         maybeCondaPackLocation)(userInfos)
     }
   }

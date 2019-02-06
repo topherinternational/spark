@@ -104,17 +104,38 @@ final class CondaEnvironmentManager(condaBinaryPath: String,
   /**
    * Packs the environment and returns path of the archive.
    */
-  def pack(linkBaseDir: String, envName: String, condaPackConfig: CondaPackConfig): String = {
+  def pack(linkedBaseDir: String,
+           envName: String,
+           condaChannelUrls: Seq[String],
+           condaExtraArgs: Seq[String] = Nil,
+           condaEnvVars: Map[String, String] = Map.empty,
+           condaPackConfig: CondaPackConfig): String = {
     logInfo("Retrieving the conda installation's info")
     val CondaPackConfig(format, compressLevel, numThreads, fallbackEnabled) = condaPackConfig
     val uuid = UUID.randomUUID.toString
-    val packedEnvPath = Paths.get(linkBaseDir).resolve(s"$envName-$uuid.$format").toString
-    val command = Process(List(condaBinaryPath, "pack",
-      "-p", Paths.get(linkBaseDir).resolve(s"envs/$envName").toString,
-      "--output", packedEnvPath.toString,
-      "--compress-level", compressLevel.toString,
-      "--n-threads", numThreads.toString), None)
-    val out = runOrFail(command, "retrieving the conda installation's info")
+    val packedEnvPath = Paths.get(linkedBaseDir).resolve(s"$envName-$uuid.$format").toString
+    logInfo("Retrieving the conda installation's info")
+    val condaList = Process(List(condaBinaryPath, "list", "conda-pack", "--json"), None)
+    val condaListOut = runOrFail(condaList, "retrieving the conda installation's info")
+    implicit val jsonFormat = org.json4s.DefaultFormats
+    if (JsonMethods.parse(condaListOut).extract[List[JValue]].isEmpty) {
+      runCondaProcess(
+        Paths.get(linkedBaseDir),
+        List("install", "conda-pack", "-y", "--no-deps"),
+        description = "Install conda pack",
+        channels = condaChannelUrls.toList,
+        envVars = condaEnvVars
+      )
+    }
+    runCondaProcess(Paths.get(linkedBaseDir),
+      List("pack",
+        "-p", Paths.get(linkedBaseDir).resolve(s"envs/$envName").toString,
+        "--output", packedEnvPath.toString,
+        "--compress-level", compressLevel.toString,
+        "--n-threads", numThreads.toString),
+      description = "Run conda pack",
+      channels = condaChannelUrls.toList,
+      envVars = condaEnvVars)
     packedEnvPath
   }
 
@@ -126,13 +147,22 @@ final class CondaEnvironmentManager(condaBinaryPath: String,
              condaPackLocation: String): CondaEnvironment = {
     val name = "conda-env"
     val linkedBaseDir = createLinkBaseDir(baseDir)
-    val envDirectory = Paths.get(baseDir).resolve(s"envs/$name")
+    val envDirectory = linkedBaseDir.resolve(s"envs/$name")
     Files.createDirectories(envDirectory)
     logInfo("Unpacking env")
-    val extractOutput = executeAndGetOutput(Seq("tar", "-xzf", condaPackLocation,
-      "--directory", envDirectory.toString))
-    logInfo(s"Extracted env: Output $extractOutput")
-    val unpackOutput = executeAndGetOutput(Seq("./bin/conda-unpack"), envDirectory.toFile)
+    // Decompress the file if it's a .tar or .tar.gz
+    if (condaPackLocation.endsWith(".tar.gz") || condaPackLocation.endsWith(".tgz")) {
+      logInfo("Untarring " + condaPackLocation)
+      executeAndGetOutput(Seq("tar", "-xzf", condaPackLocation,
+        "--directory", envDirectory.toString))
+    } else if (condaPackLocation.endsWith(".tar")) {
+      logInfo("Untarring " + condaPackLocation)
+      executeAndGetOutput(Seq("tar", "-xf", condaPackLocation,
+        "--directory", envDirectory.toString))
+    }
+
+    val unpackOutput = executeAndGetOutput(
+      Seq(envDirectory.resolve("bin/conda-unpack").toString))
     logInfo(s"Ran unpack: Output $unpackOutput")
     new CondaEnvironment(this, linkedBaseDir, name, condaPackages, condaChannelUrls, condaExtraArgs,
       condaEnvVars)
@@ -289,8 +319,21 @@ object CondaEnvironmentManager extends Logging {
     }
     if (instructions.maybeCondaPackLocation.isDefined) {
       logInfo("Creating env using conda-unpack")
-      condaEnvManager.unpack(envDir, condaPackages, instructions.channels,
-        instructions.extraArgs, instructions.envVars, instructions.maybeCondaPackLocation.get)
+      try {
+        condaEnvManager.unpack(envDir, condaPackages, instructions.channels,
+          instructions.extraArgs, instructions.envVars, instructions.maybeCondaPackLocation.get)
+      } catch {
+        case e: Exception =>
+          logWarning("Failed to unpack environment", e)
+          if (instructions.maybeCondaPackConfig.isDefined
+            && instructions.maybeCondaPackConfig.get.fallbackEnabled) {
+            logInfo("Falling back, creating env from scratch")
+            condaEnvManager.create(envDir, condaPackages, instructions.channels,
+              instructions.extraArgs, instructions.envVars)
+          } else {
+            throw e
+          }
+      }
     } else {
       logInfo("Creating env from scratch")
       condaEnvManager.create(envDir, condaPackages, instructions.channels,

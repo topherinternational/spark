@@ -229,12 +229,14 @@ class YarnClusterSuite extends BaseYarnClusterSuite {
 
   test("run Python application within Conda using conda-pack in yarn-client mode") {
     testCondaPySpark(true, Map(
-      "spark.conda.pack.enabled" -> "true"))
+      "spark.conda.pack.enabled" -> "true",
+      "spark.conda.pack.fallback.enabled" -> "false"))
   }
 
   test("run Python application within Conda using conda-pack in yarn-cluster mode") {
     testCondaPySpark(false, Map(
-      "spark.conda.pack.enabled" -> "true"))
+      "spark.conda.pack.enabled" -> "true",
+      "spark.conda.pack.fallback.enabled" -> "false"))
   }
 
   test("run Python application in yarn-cluster mode using " +
