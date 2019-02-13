@@ -341,6 +341,7 @@ package object config {
   private[spark] val CONDA_PACK_FORMAT = ConfigBuilder("spark.conda.pack.format")
     .doc("Archival format to use for conda-pack. Supports .tar, .tar.gz")
     .stringConf
+    .checkValues(Set("tar.gz", "tar"))
     .createWithDefault("tar.gz")
 
   private[spark] val CONDA_PACK_COMPRESS_LEVEL = ConfigBuilder("spark.conda.pack.compressLevel")

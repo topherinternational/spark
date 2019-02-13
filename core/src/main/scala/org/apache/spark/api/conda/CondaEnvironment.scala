@@ -49,8 +49,8 @@ final class CondaEnvironment(val manager: CondaEnvironmentManager,
   private[this] val packages = mutable.Buffer(bootstrapPackages: _*)
   private[this] val channels = bootstrapChannels.iterator.map(AuthenticatedChannel.apply).toBuffer
 
-  val condaPackPaths: Map[List[String], Option[String]] = Map[List[String], Option[String]]()
-    .withDefault(condaPack)
+  val packedEnvForPackages: Map[List[String], Option[String]]
+  = Map[List[String], Option[String]]().withDefault(pack)
 
   val condaEnvDir: Path = rootPath.resolve("envs").resolve(envName)
 
@@ -105,21 +105,23 @@ final class CondaEnvironment(val manager: CondaEnvironmentManager,
    */
   def buildSetupInstructions: CondaSetupInstructions = {
     CondaSetupInstructions(packages.toList, channels.toList, extraArgs, envVars,
-      maybeCondaPackConfig, condaPackPaths(packages.toList))
+      maybeCondaPackConfig, packedEnvForPackages(packages.toList))
   }
 
-  private def condaPack(packages: List[String]): Option[String] = {
+  private def pack(packages: List[String]): Option[String] = {
     if (maybeCondaPackConfig.isEmpty) {
-      logInfo("Conda pack is not enabled")
+      logInfo("Packing conda environments is not enabled")
       return None
     }
     // We only pack the env if there is an active context,
     // otherwise it is not possible to transfer tha packed env.
     if (SparkContext.getActive.isDefined) {
-      logInfo("Packing environment")
+      logInfo("Packing conda environment")
       val condaPackConfig = maybeCondaPackConfig.get
       try {
-        val packedEnvPath = manager.pack(rootPath.toFile.getAbsolutePath, envName,
+        val packedEnvPath = manager.pack(
+          rootPath.toFile.getAbsolutePath,
+          envName,
           channels.iterator.map(_.url).toList,
           extraArgs,
           envVars,
@@ -128,7 +130,7 @@ final class CondaEnvironment(val manager: CondaEnvironmentManager,
         Some(packedEnvPath)
       } catch {
         case e: Exception =>
-          logInfo("Failed to pack the environment", e)
+          logInfo("Failed to pack conda environment", e)
           if (condaPackConfig.fallbackEnabled) {
             None
           } else {
@@ -136,10 +138,9 @@ final class CondaEnvironment(val manager: CondaEnvironmentManager,
           }
       }
     } else {
-      logInfo("Not packing environment as no active context exists")
+      logInfo("Not packing conda environment as no active context exists")
       None
     }
-
   }
 }
 object CondaEnvironment {

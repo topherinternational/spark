@@ -81,8 +81,7 @@ final class CondaEnvironmentManager(condaBinaryPath: String,
     require(condaChannelUrls.nonEmpty, "Can't have an empty list of conda channel URLs")
     val name = "conda-env"
 
-    val linkedBaseDir: Path = createLinkBaseDir(baseDir)
-
+    val linkedBaseDir = createLinkedBaseDir(baseDir)
     val verbosityFlags = 0.until(verbosity).map(_ => "-v").toList
 
     // Attempt to create environment
@@ -110,23 +109,10 @@ final class CondaEnvironmentManager(condaBinaryPath: String,
            condaExtraArgs: Seq[String] = Nil,
            condaEnvVars: Map[String, String] = Map.empty,
            condaPackConfig: CondaPackConfig): String = {
-    logInfo("Retrieving the conda installation's info")
     val CondaPackConfig(format, compressLevel, numThreads, fallbackEnabled) = condaPackConfig
     val uuid = UUID.randomUUID.toString
     val packedEnvPath = Paths.get(linkedBaseDir).resolve(s"$envName-$uuid.$format").toString
-    logInfo("Retrieving the conda installation's info")
-    val condaList = Process(List(condaBinaryPath, "list", "conda-pack", "--json"), None)
-    val condaListOut = runOrFail(condaList, "retrieving the conda installation's info")
-    implicit val jsonFormat = org.json4s.DefaultFormats
-    if (JsonMethods.parse(condaListOut).extract[List[JValue]].isEmpty) {
-      runCondaProcess(
-        Paths.get(linkedBaseDir),
-        List("install", "conda-pack", "-y", "--no-deps"),
-        description = "Install conda pack",
-        channels = condaChannelUrls.toList,
-        envVars = condaEnvVars
-      )
-    }
+    installCondaPackIfRequired(linkedBaseDir, condaChannelUrls, condaEnvVars)
     runCondaProcess(Paths.get(linkedBaseDir),
       List("pack",
         "-p", Paths.get(linkedBaseDir).resolve(s"envs/$envName").toString,
@@ -139,6 +125,23 @@ final class CondaEnvironmentManager(condaBinaryPath: String,
     packedEnvPath
   }
 
+  private def installCondaPackIfRequired(linkedBaseDir: String,
+                                         condaChannelUrls: Seq[String],
+                                         condaEnvVars: Map[String, String]): Unit = {
+    val condaList = Process(List(condaBinaryPath, "list", "conda-pack", "--json"), None)
+    val condaListOut = runOrFail(condaList, "retrieving installed conda packages")
+    implicit val jsonFormat = org.json4s.DefaultFormats
+    if (JsonMethods.parse(condaListOut).extract[List[JValue]].isEmpty) {
+      runCondaProcess(
+        Paths.get(linkedBaseDir),
+        List("install", "conda-pack", "-y", "--no-deps"),
+        description = "Install conda pack",
+        channels = condaChannelUrls.toList,
+        envVars = condaEnvVars
+      )
+    }
+  }
+
   def unpack(baseDir: String,
              condaPackages: Seq[String],
              condaChannelUrls: Seq[String],
@@ -146,17 +149,16 @@ final class CondaEnvironmentManager(condaBinaryPath: String,
              condaEnvVars: Map[String, String] = Map.empty,
              condaPackLocation: String): CondaEnvironment = {
     val name = "conda-env"
-    val linkedBaseDir = createLinkBaseDir(baseDir)
+    val linkedBaseDir = createLinkedBaseDir(baseDir)
     val envDirectory = linkedBaseDir.resolve(s"envs/$name")
     Files.createDirectories(envDirectory)
-    logInfo("Unpacking env")
+
     // Decompress the file if it's a .tar or .tar.gz
+    logInfo("Untarring " + condaPackLocation)
     if (condaPackLocation.endsWith(".tar.gz") || condaPackLocation.endsWith(".tgz")) {
-      logInfo("Untarring " + condaPackLocation)
       executeAndGetOutput(Seq("tar", "-xzf", condaPackLocation,
         "--directory", envDirectory.toString))
     } else if (condaPackLocation.endsWith(".tar")) {
-      logInfo("Untarring " + condaPackLocation)
       executeAndGetOutput(Seq("tar", "-xf", condaPackLocation,
         "--directory", envDirectory.toString))
     }
@@ -168,7 +170,7 @@ final class CondaEnvironmentManager(condaBinaryPath: String,
       condaEnvVars)
   }
 
-  private def createLinkBaseDir(baseDir: String) = {
+  private def createLinkedBaseDir(baseDir: String) = {
     // must link in /tmp to reduce path length in case baseDir is very long...
     // If baseDir path is too long, this breaks conda's 220 character limit for binary replacement.
     // Don't even try to use java.io.tmpdir - yarn sets this to a very long path
@@ -317,14 +319,15 @@ object CondaEnvironmentManager extends Logging {
       val dirId = hash % localDirs.length
       Utils.createTempDir(localDirs(dirId).getAbsolutePath, "conda").getAbsolutePath
     }
+
     if (instructions.maybeCondaPackLocation.isDefined) {
-      logInfo("Creating env using conda-unpack")
+      logInfo("Creating conda environment using conda-unpack")
       try {
         condaEnvManager.unpack(envDir, condaPackages, instructions.channels,
           instructions.extraArgs, instructions.envVars, instructions.maybeCondaPackLocation.get)
       } catch {
         case e: Exception =>
-          logWarning("Failed to unpack environment", e)
+          logWarning("Failed to unpack conda environment", e)
           if (instructions.maybeCondaPackConfig.isDefined
             && instructions.maybeCondaPackConfig.get.fallbackEnabled) {
             logInfo("Falling back, creating env from scratch")
@@ -335,7 +338,7 @@ object CondaEnvironmentManager extends Logging {
           }
       }
     } else {
-      logInfo("Creating env from scratch")
+      logInfo("Creating conda environment from scratch")
       condaEnvManager.create(envDir, condaPackages, instructions.channels,
         instructions.extraArgs, instructions.envVars)
     }
