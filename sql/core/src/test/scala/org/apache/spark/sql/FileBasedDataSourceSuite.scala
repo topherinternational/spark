@@ -334,7 +334,7 @@ class FileBasedDataSourceSuite extends QueryTest with SharedSQLContext with Befo
   test("SPARK-24204 error handling for unsupported Interval data types - csv, json, parquet, orc") {
     withTempDir { dir =>
       val tempDir = new File(dir, "files").getCanonicalPath
-      Seq(true, false).foreach { useV1 =>
+      Seq(true).foreach { useV1 =>
         val useV1List = if (useV1) {
           "orc"
         } else {
@@ -379,7 +379,7 @@ class FileBasedDataSourceSuite extends QueryTest with SharedSQLContext with Befo
   }
 
   test("SPARK-24204 error handling for unsupported Null data types - csv, parquet, orc") {
-    Seq(true, false).foreach { useV1 =>
+    Seq(true).foreach { useV1 =>
       val useV1List = if (useV1) {
         "orc"
       } else {
