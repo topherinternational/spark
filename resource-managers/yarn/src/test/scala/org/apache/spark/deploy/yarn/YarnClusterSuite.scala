@@ -18,7 +18,6 @@
 package org.apache.spark.deploy.yarn
 
 import java.io.File
-import java.net.URL
 import java.nio.charset.StandardCharsets
 import java.util.{HashMap => JHashMap}
 
@@ -78,6 +77,43 @@ class YarnClusterSuite extends BaseYarnClusterSuite {
     |    sc.stop()
     """.stripMargin
 
+  private val TEST_CONDA_PYFILE = """
+    |import mod1, mod2
+    |import sys
+    |from operator import add
+    |
+    |from pyspark import SparkConf , SparkContext
+    |if __name__ == "__main__":
+    |    if len(sys.argv) != 2:
+    |        print >> sys.stderr, "Usage: test.py [result file]"
+    |        exit(-1)
+    |    sc = SparkContext(conf=SparkConf())
+    |
+    |    sc.addCondaPackages('numpy=1.14.0')
+    |    import numpy
+    |
+    |    status = open(sys.argv[1],'w')
+    |
+    |    # Addict exists only in external-conda-forge, not anaconda
+    |    sc.addCondaChannel("https://conda.anaconda.org/conda-forge")
+    |    sc.addCondaPackages('addict=2.2.0')
+    |
+    |    def numpy_multiply(x):
+    |        # Ensure package from non-base channel is installed
+    |        import addict
+    |        numpy.multiply(x, mod1.func() * mod2.func())
+    |
+    |    rdd = sc.parallelize(range(10)).map(numpy_multiply)
+    |    cnt = rdd.count()
+    |    if cnt == 10:
+    |        result = "success"
+    |    else:
+    |        result = "failure"
+    |    status.write(result)
+    |    status.close()
+    |    sc.stop()
+  """.stripMargin
+
   private val TEST_PYMODULE = """
     |def func():
     |    return 42
@@ -122,6 +158,26 @@ class YarnClusterSuite extends BaseYarnClusterSuite {
       ))
   }
 
+  test("run Spark in yarn-client mode with dynamic allocation") {
+    testBasicYarnApp(true,
+      Map(
+        "spark.dynamicAllocation.enabled" -> "true",
+        // Start with 0 executors to at least test that we will request more to run the job.
+        "spark.dynamicAllocation.initialExecutors" -> "0",
+        "spark.dynamicAllocation.maxExecutors" -> "1"
+      ))
+  }
+
+  test("run Spark in yarn-cluster mode with dynamic allocation") {
+    testBasicYarnApp(false,
+      Map(
+        "spark.dynamicAllocation.enabled" -> "true",
+        // Start with 0 executors to at least test that we will request more to run the job.
+        "spark.dynamicAllocation.initialExecutors" -> "0",
+        "spark.dynamicAllocation.maxExecutors" -> "1"
+      ))
+  }
+
   test("yarn-cluster should respect conf overrides in SparkHadoopUtil (SPARK-16414, SPARK-23630)") {
     // Create a custom hadoop config file, to make sure it's contents are propagated to the driver.
     val customConf = Utils.createTempDir()
@@ -139,8 +195,9 @@ class YarnClusterSuite extends BaseYarnClusterSuite {
     val finalState = runSpark(false,
       mainClassName(YarnClusterDriverUseSparkHadoopUtilConf.getClass),
       appArgs = Seq("key=value", "spark.test.key=testvalue", result.getAbsolutePath()),
-      extraConf = Map("spark.hadoop.key" -> "value"),
-      extraEnv = Map("SPARK_TEST_HADOOP_CONF_DIR" -> customConf.getAbsolutePath()))
+      extraConf = Map(
+        "spark.hadoop.key" -> "value",
+        "spark.yarn.conf.dir" -> customConf.getAbsolutePath))
     checkResult(finalState, result)
   }
 
@@ -169,6 +226,14 @@ class YarnClusterSuite extends BaseYarnClusterSuite {
 
   test("run Python application in yarn-cluster mode") {
     testPySpark(false)
+  }
+
+  test("run Python application within Conda in yarn-client mode") {
+    testCondaPySpark(true)
+  }
+
+  test("run Python application within Conda in yarn-cluster mode") {
+    testCondaPySpark(false)
   }
 
   test("run Python application in yarn-cluster mode using " +
@@ -299,6 +364,55 @@ class YarnClusterSuite extends BaseYarnClusterSuite {
       extraConf = extraConf,
       outFile = outFile)
     checkResult(finalState, result, outFile = outFile)
+  }
+
+  private def testCondaPySpark(
+      clientMode: Boolean,
+      extraEnv: Map[String, String] = Map()): Unit = {
+    val primaryPyFile = new File(tempDir, "test.py")
+    Files.write(TEST_CONDA_PYFILE, primaryPyFile, StandardCharsets.UTF_8)
+
+    // When running tests, let's not assume the user has built the assembly module, which also
+    // creates the pyspark archive. Instead, let's use PYSPARK_ARCHIVES_PATH to point at the
+    // needed locations.
+    val sparkHome = sys.props("spark.test.home")
+    val pythonPath = Seq(
+      s"$sparkHome/python/lib/py4j-0.10.8.1-src.zip",
+      s"$sparkHome/python")
+    val extraEnvVars = Map(
+      "PYSPARK_ARCHIVES_PATH" -> pythonPath.map("local:" + _).mkString(File.pathSeparator),
+      "PYTHONPATH" -> pythonPath.mkString(File.pathSeparator)) ++ extraEnv
+
+    val extraConf: Map[String, String] = Map(
+      "spark.conda.binaryPath" -> sys.env("CONDA_BIN"),
+      "spark.conda.channelUrls" -> "https://repo.continuum.io/pkgs/main",
+      "spark.conda.bootstrapPackages" -> "python=3.6"
+    )
+
+    val moduleDir =
+      if (clientMode) {
+        // In client-mode, .py files added with --py-files are not visible in the driver.
+        // This is something that the launcher library would have to handle.
+        tempDir
+      } else {
+        val subdir = new File(tempDir, "pyModules")
+        subdir.mkdir()
+        subdir
+      }
+    val pyModule = new File(moduleDir, "mod1.py")
+    Files.write(TEST_PYMODULE, pyModule, StandardCharsets.UTF_8)
+
+    val mod2Archive = TestUtils.createJarWithFiles(Map("mod2.py" -> TEST_PYMODULE), moduleDir)
+    val pyFiles = Seq(pyModule.getAbsolutePath(), mod2Archive.getPath()).mkString(",")
+    val result = File.createTempFile("result", null, tempDir)
+
+    val finalState = runSpark(clientMode, primaryPyFile.getAbsolutePath(),
+      sparkArgs = Seq("--py-files" -> pyFiles),
+      appArgs = Seq(result.getAbsolutePath()),
+      extraEnv = extraEnvVars,
+      extraConf = extraConf,
+      timeoutDuration = 4.minutes) // give it a bit longer
+    checkResult(finalState, result)
   }
 
   private def testUseClassPathFirst(clientMode: Boolean): Unit = {
@@ -477,9 +591,6 @@ private object YarnClusterDriver extends Logging with Matchers {
         val driverAttributes = listener.driverAttributes.get
         val expectationAttributes = Map(
           "HTTP_SCHEME" -> YarnContainerInfoHelper.getYarnHttpScheme(yarnConf),
-          "NM_HOST" -> YarnContainerInfoHelper.getNodeManagerHost(container = None),
-          "NM_PORT" -> YarnContainerInfoHelper.getNodeManagerPort(container = None),
-          "NM_HTTP_PORT" -> YarnContainerInfoHelper.getNodeManagerHttpPort(container = None),
           "NM_HTTP_ADDRESS" -> YarnContainerInfoHelper.getNodeManagerHttpAddress(container = None),
           "CLUSTER_ID" -> YarnContainerInfoHelper.getClusterId(yarnConf).getOrElse(""),
           "CONTAINER_ID" -> ConverterUtils.toString(containerId),
