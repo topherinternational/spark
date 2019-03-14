@@ -357,9 +357,9 @@ jobs:
       - *restore-home-sbt-cache
       - restore_cache:
           keys:
-            - v1-test-results-{{ .Branch }}-{{ .BuildNum }}
-            - v1-test-results-{{ .Branch }}-
-            - v1-test-results-master-
+            - v2-test-results-{{ .Branch }}-{{ .BuildNum }}
+            - v2-test-results-{{ .Branch }}-
+            - v2-test-results-master-
       - run:
           name: Merge cached test results with results provided by circle (if any)
           command: |
