@@ -40,22 +40,22 @@ step_templates:
   restore-ivy-cache: &restore-ivy-cache
     restore_cache:
       keys:
-        - v9-ivy-dependency-cache-{{ .Branch }}-{{ checksum "pom.xml" }}
+        - v7-ivy-dependency-cache-{{ .Branch }}-{{ checksum "pom.xml" }}
         # if cache for exact version of `pom.xml` is not present then load any most recent one
-        - v9-ivy-dependency-cache-{{ .Branch }}-
-        - v9-ivy-dependency-cache-master-{{ checksum "pom.xml" }}
-        - v9-ivy-dependency-cache-master-
+        - v7-ivy-dependency-cache-{{ .Branch }}-
+        - v7-ivy-dependency-cache-master-{{ checksum "pom.xml" }}
+        - v7-ivy-dependency-cache-master-
   restore-gradle-wrapper-cache: &restore-gradle-wrapper-cache
-    restore_cache: { key: 'gradle-wrapper-v3-{{ checksum "gradle/wrapper/gradle-wrapper.properties" }}' }
+    restore_cache: { key: 'gradle-wrapper-v2-{{ checksum "gradle/wrapper/gradle-wrapper.properties" }}' }
   restore-gradle-cache: &restore-gradle-cache
-    restore_cache: { key: 'gradle-cache-v3-{{ checksum "versions.props" }}-{{ checksum "build.gradle" }}' }
+    restore_cache: { key: 'gradle-cache-v2-{{ checksum "versions.props" }}-{{ checksum "build.gradle" }}' }
   restore-home-sbt-cache: &restore-home-sbt-cache
     restore_cache:
       keys:
-        - v4-home-sbt-{{ checksum "build/sbt" }}-{{ checksum "project/target/streams/$global/update/$global/streams/update_cache_2.10/inputs" }}
+        - v2-home-sbt-{{ checksum "build/sbt" }}-{{ checksum "project/target/streams/$global/update/$global/streams/update_cache_2.10/inputs" }}
   restore-build-sbt-cache: &restore-build-sbt-cache
     restore_cache:
-      key: v4-build-sbt-{{ .Branch }}-{{ .Revision }}
+      key: v1-build-sbt-{{ .Branch }}-{{ .Revision }}
   link-in-build-sbt-cache: &link-in-build-sbt-cache
     run:
       name: Hard link cache contents into current build directory
@@ -135,34 +135,34 @@ jobs:
       # Saves us from recompiling every time...
       - restore_cache:
           keys:
-            - build-maven-v1-{{ .Branch }}-{{ .BuildNum }}
-            - build-maven-v1-{{ .Branch }}-
-            - build-maven-v1-master-
+            - build-maven-{{ .Branch }}-{{ .BuildNum }}
+            - build-maven-{{ .Branch }}-
+            - build-maven-master-
       - *checkout-code
       - restore_cache:
           keys:
-            - maven-dependency-cache-v1-{{ checksum "pom.xml" }}
+            - maven-dependency-cache-{{ checksum "pom.xml" }}
             # Fallback - see https://circleci.com/docs/2.0/configuration-reference/#example-2
-            - maven-dependency-cache-v1
+            - maven-dependency-cache-
       # Given the build-maven cache, this is superfluous, but leave it in in case we will want to remove the former
       - restore_cache:
           keys:
-            - build-binaries-v1-{{ checksum "build/mvn" }}-{{ checksum "build/sbt" }}
-            - build-binaries-v1
+            - build-binaries-{{ checksum "build/mvn" }}-{{ checksum "build/sbt" }}
+            - build-binaries-
       - run: ./build/mvn -DskipTests -Psparkr install
       # Get sbt to run trivially, ensures its launcher is downloaded under build/
       - run: ./build/sbt -h || true
       - save_cache:
-          key: build-binaries-v1-{{ checksum "build/mvn" }}-{{ checksum "build/sbt" }}
+          key: build-binaries-{{ checksum "build/mvn" }}-{{ checksum "build/sbt" }}
           paths:
             - "build"
       - save_cache:
-          key: maven-dependency-cache-v1-{{ checksum "pom.xml" }}
+          key: maven-dependency-cache-{{ checksum "pom.xml" }}
           paths:
             - "~/.m2"
       # And finally save the whole project directory
       - save_cache:
-          key: build-maven-v1-{{ .Branch }}-{{ .BuildNum }}
+          key: build-maven-{{ .Branch }}-{{ .BuildNum }}
           paths: .
   build-spark-docker-gradle-plugin:
     <<: *defaults
@@ -172,10 +172,10 @@ jobs:
       - *restore-gradle-cache
       - run: ./gradlew --info --stacktrace check -x test
       - save_cache:
-          key: 'gradle-wrapper-v3-{{ checksum "gradle/wrapper/gradle-wrapper.properties" }}'
+          key: 'gradle-wrapper-v2-{{ checksum "gradle/wrapper/gradle-wrapper.properties" }}'
           paths: [ ~/.gradle/wrapper ]
       - save_cache:
-          key: 'gradle-cache-v3-{{ checksum "versions.props" }}-{{ checksum "build.gradle" }}'
+          key: 'gradle-cache-v2-{{ checksum "versions.props" }}-{{ checksum "build.gradle" }}'
           paths: [ ~/.gradle/caches ]
 
   run-style-tests:
@@ -238,14 +238,14 @@ jobs:
       - store_artifacts:
           path: /tmp/heap.bin
       - save_cache:
-          key: v9-ivy-dependency-cache-{{ .Branch }}-{{ checksum "pom.xml" }}
+          key: v7-ivy-dependency-cache-{{ .Branch }}-{{ checksum "pom.xml" }}
           paths:
             - "~/.ivy2"
       - store_artifacts:
           path: /tmp/build-apache-spark.log
           destination: build-apache-spark.log
       - save_cache:
-          key: v4-home-sbt-{{ checksum "build/sbt" }}-{{ checksum "project/target/streams/$global/update/$global/streams/update_cache_2.10/inputs" }}
+          key: v2-home-sbt-{{ checksum "build/sbt" }}-{{ checksum "project/target/streams/$global/update/$global/streams/update_cache_2.10/inputs" }}
           paths: ~/.sbt
       # Also hard link all the things so we can save it as a cache and restore it in future builds
       - run:
@@ -255,7 +255,7 @@ jobs:
             --exclude '***/*.jar' --include 'target/***'
             --include '**/' --exclude '*' . "$BUILD_SBT_CACHE/"
       - save_cache:
-          key: v4-build-sbt-{{ .Branch }}-{{ .Revision }}
+          key: v1-build-sbt-{{ .Branch }}-{{ .Revision }}
           paths:
             - "~/build-sbt-cache"
       # Also save all the assembly jars directories to the workspace - need them for spark submitting
@@ -357,9 +357,9 @@ jobs:
       - *restore-home-sbt-cache
       - restore_cache:
           keys:
-            - v3-test-results-{{ .Branch }}-{{ .BuildNum }}
-            - v3-test-results-{{ .Branch }}-
-            - v3-test-results-master-
+            - v2-test-results-{{ .Branch }}-{{ .BuildNum }}
+            - v2-test-results-{{ .Branch }}-
+            - v2-test-results-master-
       - run:
           name: Merge cached test results with results provided by circle (if any)
           command: |
