@@ -20,7 +20,5 @@ package org.apache.spark.shuffle.sort.io;
 import java.io.OutputStream;
 
 public abstract class DefaultShuffleBlockOutputStream extends OutputStream {
-
-    public abstract int getCount();
-
+  public abstract int getCount();
 }

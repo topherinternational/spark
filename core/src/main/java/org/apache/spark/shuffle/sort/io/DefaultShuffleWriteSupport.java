@@ -30,9 +30,9 @@ public class DefaultShuffleWriteSupport implements ShuffleWriteSupport {
   private final ShuffleWriteMetricsReporter metrics;
 
   public DefaultShuffleWriteSupport(
-          SparkConf sparkConf,
-          IndexShuffleBlockResolver blockResolver,
-          ShuffleWriteMetricsReporter metrics) {
+      SparkConf sparkConf,
+      IndexShuffleBlockResolver blockResolver,
+      ShuffleWriteMetricsReporter metrics) {
     this.sparkConf = sparkConf;
     this.blockResolver = blockResolver;
     this.metrics = metrics;
