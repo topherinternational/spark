@@ -58,6 +58,10 @@ singleTableIdentifier
     : tableIdentifier EOF
     ;
 
+singleMultipartIdentifier
+    : multipartIdentifier EOF
+    ;
+
 singleFunctionIdentifier
     : functionIdentifier EOF
     ;
@@ -537,6 +541,10 @@ rowFormat
       (MAP KEYS TERMINATED BY keysTerminatedBy=STRING)?
       (LINES TERMINATED BY linesSeparatedBy=STRING)?
       (NULL DEFINED AS nullDefinedAs=STRING)?                                       #rowFormatDelimited
+    ;
+
+multipartIdentifier
+    : parts+=identifier ('.' parts+=identifier)*
     ;
 
 tableIdentifier
