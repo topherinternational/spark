@@ -19,8 +19,7 @@ package org.apache.spark.shuffle.sort
 
 import org.apache.spark.SparkConf
 import org.apache.spark.benchmark.Benchmark
-import org.apache.spark.shuffle.sort.io.{DefaultShuffleExecutorComponents, DefaultShuffleWriteSupport}
-import org.apache.spark.util.Utils
+import org.apache.spark.shuffle.sort.io.{DefaultShuffleWriteSupport}
 
 /**
  * Benchmark to measure performance for aggregate primitives.

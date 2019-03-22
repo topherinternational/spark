@@ -46,7 +46,6 @@ public class DefaultShuffleMapOutputWriter implements ShuffleMapOutputWriter {
   private final long[] partitionLengths;
   private final int bufferSize;
   private int currPartitionId = 0;
-  private boolean successfulWrite = false;
 
   private final File outputFile;
   private final File outputTempFile;
@@ -85,7 +84,7 @@ public class DefaultShuffleMapOutputWriter implements ShuffleMapOutputWriter {
   public void commitAllPartitions() throws IOException {
     cleanUp();
     blockResolver.writeIndexFileAndCommit(shuffleId, mapId, partitionLengths, outputTempFile);
-    if (!successfulWrite) {
+    if (!outputFile.exists()) {
       if (!outputFile.getParentFile().isDirectory() && !outputFile.getParentFile().mkdirs()) {
         throw new IOException(
           String.format(
@@ -102,13 +101,17 @@ public class DefaultShuffleMapOutputWriter implements ShuffleMapOutputWriter {
 
   @Override
   public void abort(Throwable error) throws IOException {
+    try {
+      cleanUp();
+    } catch (Exception e) {
+      log.error("Unable to close appropriate underlying file stream", e);
+    }
     if (!outputTempFile.delete() && outputTempFile.exists()) {
       log.warn("Failed to delete temporary shuffle file at {}", outputTempFile.getAbsolutePath());
     }
     if (!outputFile.delete() && outputFile.exists()) {
       log.warn("Failed to delete outputshuffle file at {}", outputFile.getAbsolutePath());
     }
-    cleanUp();
   }
 
   private void cleanUp() throws IOException {
@@ -143,8 +146,8 @@ public class DefaultShuffleMapOutputWriter implements ShuffleMapOutputWriter {
   private class DefaultShufflePartitionWriter implements ShufflePartitionWriter {
 
     private final int partitionId;
-    private DefaultShuffleBlockOutputStream stream = null;
-    private DefaultShuffleBlockByteChannel channel = null;
+    private PartitionWriterStream stream = null;
+    private PartitionWriterChannel channel = null;
 
     private DefaultShufflePartitionWriter(int partitionId) {
       this.partitionId = partitionId;
@@ -152,7 +155,7 @@ public class DefaultShuffleMapOutputWriter implements ShuffleMapOutputWriter {
 
     @Override
     public OutputStream openStream() throws IOException {
-      stream = new DefaultShuffleBlockOutputStream();
+      stream = new PartitionWriterStream();
       return stream;
     }
 
@@ -162,7 +165,7 @@ public class DefaultShuffleMapOutputWriter implements ShuffleMapOutputWriter {
         try {
           channel.close();
         } catch (Exception e) {
-          log.error("Error with closing channel for partition", e);
+          throw new IllegalStateException("Attempting to close byte channel", e);
         }
         int length = channel.getCount();
         partitionLengths[partitionId] = length;
@@ -171,7 +174,7 @@ public class DefaultShuffleMapOutputWriter implements ShuffleMapOutputWriter {
         try {
           stream.close();
         } catch (Exception e) {
-          log.error("Error with closing stream for partition", e);
+          throw new IllegalStateException("Attempting to close output stream", e);
         }
         int length = stream.getCount();
         partitionLengths[partitionId] = length;
@@ -181,12 +184,12 @@ public class DefaultShuffleMapOutputWriter implements ShuffleMapOutputWriter {
 
     @Override
     public WritableByteChannel openChannel() throws IOException {
-      channel = new DefaultShuffleBlockByteChannel();
+      channel = new PartitionWriterChannel();
       return channel;
     }
   }
 
-  private class DefaultShuffleBlockOutputStream extends OutputStream {
+  private class PartitionWriterStream extends OutputStream {
     private int count = 0;
     private boolean isClosed = false;
 
@@ -199,7 +202,6 @@ public class DefaultShuffleMapOutputWriter implements ShuffleMapOutputWriter {
       if (isClosed) {
         throw new IllegalStateException("Attempting to write to a closed block output stream.");
       }
-      successfulWrite = true;
       outputBufferedFileStream.write(b);
       count++;
     }
@@ -216,7 +218,7 @@ public class DefaultShuffleMapOutputWriter implements ShuffleMapOutputWriter {
     }
   }
 
-  private class DefaultShuffleBlockByteChannel implements WritableByteChannel {
+  private class PartitionWriterChannel implements WritableByteChannel {
 
     private int count = 0;
     private boolean isClosed = false;
@@ -230,7 +232,6 @@ public class DefaultShuffleMapOutputWriter implements ShuffleMapOutputWriter {
       if (isClosed) {
         throw new IllegalStateException("Attempting to write to a closed block byte channel.");
       }
-      successfulWrite = true;
       int written = outputFileChannel.write(src);
       count += written;
       return written;
