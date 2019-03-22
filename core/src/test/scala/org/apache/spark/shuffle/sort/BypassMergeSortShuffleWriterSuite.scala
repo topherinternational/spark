@@ -32,7 +32,7 @@ import org.mockito.stubbing.Answer
 import org.scalatest.BeforeAndAfterEach
 
 import org.apache.spark._
-import org.apache.spark.api.shuffle.{ShuffleExecutorComponents, ShuffleMapOutputWriter, ShuffleWriteSupport}
+import org.apache.spark.api.shuffle.{ShuffleMapOutputWriter, ShuffleWriteSupport}
 import org.apache.spark.executor.{ShuffleWriteMetrics, TaskMetrics}
 import org.apache.spark.serializer.{JavaSerializer, SerializerInstance, SerializerManager}
 import org.apache.spark.shuffle.IndexShuffleBlockResolver
@@ -47,8 +47,6 @@ class BypassMergeSortShuffleWriterSuite extends SparkFunSuite with BeforeAndAfte
   @Mock(answer = RETURNS_SMART_NULLS) private var taskContext: TaskContext = _
   @Mock(answer = RETURNS_SMART_NULLS) private var blockResolver: IndexShuffleBlockResolver = _
   @Mock(answer = RETURNS_SMART_NULLS) private var dependency: ShuffleDependency[Int, Int, Int] = _
-  @Mock(answer = RETURNS_SMART_NULLS)
-    private var shuffleExecutorComponents: ShuffleExecutorComponents = _
   @Mock(answer = RETURNS_SMART_NULLS) private var writeSupport: ShuffleWriteSupport = _
 
   private var taskMetrics: TaskMetrics = _
@@ -124,7 +122,6 @@ class BypassMergeSortShuffleWriterSuite extends SparkFunSuite with BeforeAndAfte
           blockIdToFileMap.get(invocation.getArguments.head.asInstanceOf[BlockId]).get
         }
     })
-    when(shuffleExecutorComponents.writes()).thenReturn(writeSupport)
     when(writeSupport.createMapOutputWriter(
       anyString(),
       anyInt(),
@@ -164,7 +161,7 @@ class BypassMergeSortShuffleWriterSuite extends SparkFunSuite with BeforeAndAfte
       0, // MapId
       conf,
       taskContext.taskMetrics().shuffleWriteMetrics,
-      shuffleExecutorComponents
+      writeSupport
     )
     writer.write(Iterator.empty)
     writer.stop( /* success = */ true)
@@ -189,7 +186,7 @@ class BypassMergeSortShuffleWriterSuite extends SparkFunSuite with BeforeAndAfte
       0, // MapId
       conf,
       taskContext.taskMetrics().shuffleWriteMetrics,
-      shuffleExecutorComponents
+      writeSupport
     )
     writer.write(records)
     writer.stop( /* success = */ true)
@@ -225,7 +222,7 @@ class BypassMergeSortShuffleWriterSuite extends SparkFunSuite with BeforeAndAfte
       0, // MapId
       conf,
       taskContext.taskMetrics().shuffleWriteMetrics,
-      shuffleExecutorComponents
+      writeSupport
     )
 
     intercept[SparkException] {
@@ -248,7 +245,7 @@ class BypassMergeSortShuffleWriterSuite extends SparkFunSuite with BeforeAndAfte
       0, // MapId
       conf,
       taskContext.taskMetrics().shuffleWriteMetrics,
-      shuffleExecutorComponents
+      writeSupport
     )
     intercept[SparkException] {
       writer.write((0 until 100000).iterator.map(i => {

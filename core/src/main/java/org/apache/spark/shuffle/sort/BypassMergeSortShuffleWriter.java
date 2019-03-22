@@ -18,6 +18,8 @@
 package org.apache.spark.shuffle.sort;
 
 import java.io.*;
+import java.nio.channels.FileChannel;
+import java.nio.channels.WritableByteChannel;
 import javax.annotation.Nullable;
 
 import org.apache.spark.api.shuffle.ShufflePartitionWriter;
@@ -32,8 +34,8 @@ import com.google.common.io.Closeables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.spark.api.shuffle.ShuffleExecutorComponents;
 import org.apache.spark.api.shuffle.ShuffleMapOutputWriter;
+import org.apache.spark.api.shuffle.ShuffleWriteSupport;
 import org.apache.spark.internal.config.package$;
 import org.apache.spark.Partitioner;
 import org.apache.spark.ShuffleDependency;
@@ -83,7 +85,7 @@ final class BypassMergeSortShuffleWriter<K, V> extends ShuffleWriter<K, V> {
   private final int shuffleId;
   private final int mapId;
   private final Serializer serializer;
-  private final ShuffleExecutorComponents shuffleExecutorComponents;
+  private final ShuffleWriteSupport shuffleWriteSupport;
   private final IndexShuffleBlockResolver shuffleBlockResolver;
 
   /** Array of file writers, one for each partition */
@@ -106,7 +108,7 @@ final class BypassMergeSortShuffleWriter<K, V> extends ShuffleWriter<K, V> {
       int mapId,
       SparkConf conf,
       ShuffleWriteMetricsReporter writeMetrics,
-      ShuffleExecutorComponents shuffleExecutorComponents) {
+      ShuffleWriteSupport shuffleWriteSupport) {
     // Use getSizeAsKb (not bytes) to maintain backwards compatibility if no units are provided
     this.fileBufferSize = (int) (long) conf.get(package$.MODULE$.SHUFFLE_FILE_BUFFER_SIZE()) * 1024;
     this.transferToEnabled = conf.getBoolean("spark.file.transferTo", true);
@@ -120,13 +122,13 @@ final class BypassMergeSortShuffleWriter<K, V> extends ShuffleWriter<K, V> {
     this.writeMetrics = writeMetrics;
     this.serializer = dep.serializer();
     this.shuffleBlockResolver = shuffleBlockResolver;
-    this.shuffleExecutorComponents = shuffleExecutorComponents;
+    this.shuffleWriteSupport = shuffleWriteSupport;
   }
 
   @Override
   public void write(Iterator<Product2<K, V>> records) throws IOException {
     assert (partitionWriters == null);
-    ShuffleMapOutputWriter mapOutputWriter = shuffleExecutorComponents.writes()
+    ShuffleMapOutputWriter mapOutputWriter = shuffleWriteSupport
       .createMapOutputWriter(appId, shuffleId, mapId, numPartitions);
     try {
       if (!records.hasNext()) {
@@ -194,22 +196,34 @@ final class BypassMergeSortShuffleWriter<K, V> extends ShuffleWriter<K, V> {
       // We were passed an empty iterator
       return lengths;
     }
-
     final long writeStartTime = System.nanoTime();
     try {
       for (int i = 0; i < numPartitions; i++) {
         final File file = partitionWriterSegments[i].file();
         boolean copyThrewException = true;
-        // TODO: Enable transferTo
         ShufflePartitionWriter writer = mapOutputWriter.getNextPartitionWriter();
-        try (OutputStream tempOutputStream = writer.openStream()) {
-          if (file.exists()) {
-            FileInputStream in = new FileInputStream(file);
-            try {
-              Utils.copyStream(in, tempOutputStream, false, false);
-              copyThrewException = false;
-            } finally {
-              Closeables.close(in, copyThrewException);
+        if (transferToEnabled) {
+          try (WritableByteChannel tempChannel = writer.openChannel()) {
+            if (file.exists()) {
+              FileInputStream in = new FileInputStream(file);
+              try (FileChannel inputChannel = in.getChannel()){
+                Utils.copyFileStreamNIO(inputChannel, tempChannel, 0, inputChannel.size());
+                copyThrewException = false;
+              } finally {
+                Closeables.close(in, copyThrewException);
+              }
+            }
+          }
+        } else {
+          try (OutputStream tempOutputStream = writer.openStream()) {
+            if (file.exists()) {
+              FileInputStream in = new FileInputStream(file);
+              try {
+                Utils.copyStream(in, tempOutputStream, false, false);
+                copyThrewException = false;
+              } finally {
+                Closeables.close(in, copyThrewException);
+              }
             }
           }
         }

@@ -18,7 +18,8 @@
 package org.apache.spark.shuffle.sort.io;
 
 import java.io.*;
-import java.nio.channels.Channels;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.channels.WritableByteChannel;
 
 import org.slf4j.Logger;
@@ -50,6 +51,7 @@ public class DefaultShuffleMapOutputWriter implements ShuffleMapOutputWriter {
   private final File outputFile;
   private final File outputTempFile;
   private FileOutputStream outputFileStream;
+  private FileChannel outputFileChannel;
   private TimeTrackingOutputStream ts;
   private BufferedOutputStream outputBufferedFileStream;
 
@@ -75,6 +77,7 @@ public class DefaultShuffleMapOutputWriter implements ShuffleMapOutputWriter {
   @Override
   public ShufflePartitionWriter getNextPartitionWriter() throws IOException {
     initStream();
+    initChannel();
     return new DefaultShufflePartitionWriter(currPartitionId++);
   }
 
@@ -99,23 +102,21 @@ public class DefaultShuffleMapOutputWriter implements ShuffleMapOutputWriter {
 
   @Override
   public void abort(Throwable error) throws IOException {
-    cleanUp();
-    if (!outputTempFile.delete()) {
+    if (!outputTempFile.delete() && outputTempFile.exists()) {
       log.warn("Failed to delete temporary shuffle file at {}", outputTempFile.getAbsolutePath());
     }
-    if (!outputFile.delete()) {
-      log.warn("Failed to delete outputshuffle file at {}", outputTempFile.getAbsolutePath());
+    if (!outputFile.delete() && outputFile.exists()) {
+      log.warn("Failed to delete outputshuffle file at {}", outputFile.getAbsolutePath());
     }
+    cleanUp();
   }
 
   private void cleanUp() throws IOException {
     if (outputBufferedFileStream != null) {
-      outputBufferedFileStream.flush();
       outputBufferedFileStream.close();
     }
 
     if (outputFileStream != null) {
-      outputFileStream.flush();
       outputFileStream.close();
     }
   }
@@ -130,44 +131,65 @@ public class DefaultShuffleMapOutputWriter implements ShuffleMapOutputWriter {
     }
   }
 
+  private void initChannel() throws IOException {
+    if (outputFileStream == null) {
+      outputFileStream = new FileOutputStream(outputTempFile, true);
+    }
+    if (outputFileChannel == null) {
+      outputFileChannel = outputFileStream.getChannel();
+    }
+  }
+
   private class DefaultShufflePartitionWriter implements ShufflePartitionWriter {
 
     private final int partitionId;
-    private final DefaultShuffleBlockOutputStream stream;
+    private DefaultShuffleBlockOutputStream stream = null;
+    private DefaultShuffleBlockByteChannel channel = null;
 
     private DefaultShufflePartitionWriter(int partitionId) {
       this.partitionId = partitionId;
-      this.stream = new DefaultShuffleBlockOutputStreamImpl();
     }
 
     @Override
     public OutputStream openStream() throws IOException {
+      stream = new DefaultShuffleBlockOutputStream();
       return stream;
     }
 
     @Override
     public long getLength() {
-      try {
-        stream.close();
-      } catch (Exception e) {
-        log.error("Error with closing stream for partition", e);
+      if (channel != null && stream == null) {
+        try {
+          channel.close();
+        } catch (Exception e) {
+          log.error("Error with closing channel for partition", e);
+        }
+        int length = channel.getCount();
+        partitionLengths[partitionId] = length;
+        return length;
+      } else {
+        try {
+          stream.close();
+        } catch (Exception e) {
+          log.error("Error with closing stream for partition", e);
+        }
+        int length = stream.getCount();
+        partitionLengths[partitionId] = length;
+        return length;
       }
-      int length = stream.getCount();
-      partitionLengths[partitionId] = length;
-      return length;
     }
 
     @Override
     public WritableByteChannel openChannel() throws IOException {
-      return Channels.newChannel(outputFileStream);
+      channel = new DefaultShuffleBlockByteChannel();
+      return channel;
     }
   }
 
-  private class DefaultShuffleBlockOutputStreamImpl extends DefaultShuffleBlockOutputStream {
+  private class DefaultShuffleBlockOutputStream extends OutputStream {
     private int count = 0;
     private boolean isClosed = false;
 
-    @Override
     public int getCount() {
       return count;
     }
@@ -175,7 +197,7 @@ public class DefaultShuffleMapOutputWriter implements ShuffleMapOutputWriter {
     @Override
     public void write(int b) throws IOException {
       if (isClosed) {
-        throw new IllegalStateException("Attempting to write to a closed block byte channel.");
+        throw new IllegalStateException("Attempting to write to a closed block output stream.");
       }
       successfulWrite = true;
       outputBufferedFileStream.write(b);
@@ -191,6 +213,37 @@ public class DefaultShuffleMapOutputWriter implements ShuffleMapOutputWriter {
     @Override
     public void flush() throws IOException {
       outputBufferedFileStream.flush();
+    }
+  }
+
+  private class DefaultShuffleBlockByteChannel implements WritableByteChannel {
+
+    private int count = 0;
+    private boolean isClosed = false;
+
+    public int getCount() {
+      return count;
+    }
+
+    @Override
+    public int write(ByteBuffer src) throws IOException {
+      if (isClosed) {
+        throw new IllegalStateException("Attempting to write to a closed block byte channel.");
+      }
+      successfulWrite = true;
+      int written = outputFileChannel.write(src);
+      count += written;
+      return written;
+    }
+
+    @Override
+    public boolean isOpen() {
+      return !isClosed;
+    }
+
+    @Override
+    public void close() {
+      isClosed = true;
     }
   }
 }
