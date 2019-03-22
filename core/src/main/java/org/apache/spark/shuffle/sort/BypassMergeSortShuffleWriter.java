@@ -17,7 +17,10 @@
 
 package org.apache.spark.shuffle.sort;
 
-import java.io.*;
+import java.io.File;
+import java.io.IOException;
+import java.io.FileInputStream;
+import java.io.OutputStream;
 import java.nio.channels.FileChannel;
 import java.nio.channels.WritableByteChannel;
 import javax.annotation.Nullable;
