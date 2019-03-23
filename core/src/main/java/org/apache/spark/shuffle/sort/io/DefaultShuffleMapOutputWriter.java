@@ -119,6 +119,10 @@ public class DefaultShuffleMapOutputWriter implements ShuffleMapOutputWriter {
       outputBufferedFileStream.close();
     }
 
+    if (outputFileChannel != null) {
+      outputFileChannel.close();
+    }
+
     if (outputFileStream != null) {
       outputFileStream.close();
     }

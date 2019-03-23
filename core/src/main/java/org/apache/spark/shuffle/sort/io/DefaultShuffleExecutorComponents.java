@@ -41,11 +41,11 @@ public class DefaultShuffleExecutorComponents implements ShuffleExecutorComponen
   public void intitializeExecutor(String appId, String execId) {
     blockManager = SparkEnv.get().blockManager();
     blockResolver = new IndexShuffleBlockResolver(sparkConf, blockManager);
-    metrics = TaskContext.get().taskMetrics();
   }
 
   @Override
   public ShuffleWriteSupport writes() {
+    metrics = TaskContext.get().taskMetrics();
     if (blockResolver == null || metrics == null) {
       throw new IllegalStateException(
         "Executor components must be initialized before getting writers.");
