@@ -43,8 +43,8 @@ class DefaultShuffleMapOutputWriterSuite extends SparkFunSuite with BeforeAndAft
 
   private val NUM_PARTITIONS = 4
   private val D_LEN = 10
-  private val data: Array[Array[Int]] =
-    (0 until NUM_PARTITIONS).map { _ => (1 to D_LEN).toArray }.toArray
+  private val data: Array[Array[Int]] = (0 until NUM_PARTITIONS).map {
+    p => (1 to D_LEN).map(_ + p).toArray }.toArray
   private var mergedOutputFile: File = _
   private var tempDir: File = _
   private var partitionSizesInMergedFile: Array[Long] = _
@@ -90,7 +90,7 @@ class DefaultShuffleMapOutputWriterSuite extends SparkFunSuite with BeforeAndAft
   }
 
   private def readRecordsFromFile(): Array[Array[Int]] = {
-    val startOffset = 0L
+    var startOffset = 0L
     val result = new Array[Array[Int]](NUM_PARTITIONS)
     (0 until NUM_PARTITIONS).foreach { p =>
       val partitionSize = partitionSizesInMergedFile(p)
@@ -101,17 +101,19 @@ class DefaultShuffleMapOutputWriterSuite extends SparkFunSuite with BeforeAndAft
         val lin = new LimitedInputStream(in, partitionSize)
         var nonEmpty = true
         var count = 0
-        while (nonEmpty & count < partitionSize) {
+        while (nonEmpty) {
           try {
-            inner(count) = lin.read()
+            val readBit = lin.read()
+            inner(count) = readBit
             count += 1
           } catch {
-            case eof: EOFException =>
+            case _: Exception =>
               nonEmpty = false
           }
         }
       }
       result(p) = inner
+      startOffset += partitionSize
     }
     result
   }
