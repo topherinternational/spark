@@ -73,7 +73,7 @@ public class DefaultShuffleMapOutputWriter implements ShuffleMapOutputWriter {
   }
 
   @Override
-  public ShufflePartitionWriter getNextPartitionWriter() throws IOException {
+  public ShufflePartitionWriter getNextPartitionWriter() {
     return new DefaultShufflePartitionWriter(currPartitionId++);
   }
 
@@ -97,7 +97,7 @@ public class DefaultShuffleMapOutputWriter implements ShuffleMapOutputWriter {
   }
 
   @Override
-  public void abort(Throwable error) throws IOException {
+  public void abort(Throwable error) {
     try {
       cleanUp();
     } catch (Exception e) {
@@ -107,7 +107,7 @@ public class DefaultShuffleMapOutputWriter implements ShuffleMapOutputWriter {
       log.warn("Failed to delete temporary shuffle file at {}", outputTempFile.getAbsolutePath());
     }
     if (!outputFile.delete() && outputFile.exists()) {
-      log.warn("Failed to delete outputshuffle file at {}", outputFile.getAbsolutePath());
+      log.warn("Failed to delete output shuffle file at {}", outputFile.getAbsolutePath());
     }
   }
 
@@ -154,42 +154,42 @@ public class DefaultShuffleMapOutputWriter implements ShuffleMapOutputWriter {
     }
 
     @Override
-    public OutputStream openStream() throws IOException {
+    public OutputStream toStream() throws IOException {
       initStream();
       stream = new PartitionWriterStream();
       return stream;
     }
 
     @Override
-    public long closeAndGetLength() {
+    public FileChannel toChannel() throws IOException {
+      initChannel();
+      currChannelPosition = outputFileChannel.position();
+      return outputFileChannel;
+    }
+
+    @Override
+    public long getNumBytesWritten() {
       if (outputFileChannel != null && stream == null) {
         try {
           long newPosition = outputFileChannel.position();
-          long length = newPosition - currChannelPosition;
-          partitionLengths[partitionId] = length;
-          currChannelPosition = newPosition;
-          return length;
+          return newPosition - currChannelPosition;
         } catch (Exception e) {
-          log.error("The currPartition is: " + partitionId, e);
-          throw new IllegalStateException("Attempting to calculate position of file channel", e);
+          log.error("The currPartition is: {}", partitionId, e);
+          throw new IllegalStateException("Failed to calculate position of file channel", e);
         }
+      } else if (stream != null) {
+        return stream.getCount();
       } else {
-        try {
-          stream.close();
-        } catch (Exception e) {
-          throw new IllegalStateException("Attempting to close output stream", e);
-        }
-        int length = stream.getCount();
-        partitionLengths[partitionId] = length;
-        return length;
+        return 0;
       }
     }
 
     @Override
-    public FileChannel openChannel() throws IOException {
-      initChannel();
-      currChannelPosition = outputFileChannel.position();
-      return outputFileChannel;
+    public void close() throws IOException {
+      if (stream != null) {
+        stream.close();
+      }
+      partitionLengths[partitionId] = getNumBytesWritten();
     }
   }
 
@@ -218,7 +218,9 @@ public class DefaultShuffleMapOutputWriter implements ShuffleMapOutputWriter {
 
     @Override
     public void flush() throws IOException {
-      outputBufferedFileStream.flush();
+      if (!isClosed) {
+        outputBufferedFileStream.flush();
+      }
     }
   }
 }

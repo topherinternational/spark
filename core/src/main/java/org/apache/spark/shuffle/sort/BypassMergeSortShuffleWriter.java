@@ -130,7 +130,7 @@ final class BypassMergeSortShuffleWriter<K, V> extends ShuffleWriter<K, V> {
   public void write(Iterator<Product2<K, V>> records) throws IOException {
     assert (partitionWriters == null);
     ShuffleMapOutputWriter mapOutputWriter = shuffleWriteSupport
-      .createMapOutputWriter(shuffleId, mapId, numPartitions);
+        .createMapOutputWriter(shuffleId, mapId, numPartitions);
     try {
       if (!records.hasNext()) {
         partitionLengths = new long[numPartitions];
@@ -144,11 +144,11 @@ final class BypassMergeSortShuffleWriter<K, V> extends ShuffleWriter<K, V> {
       partitionWriterSegments = new FileSegment[numPartitions];
       for (int i = 0; i < numPartitions; i++) {
         final Tuple2<TempShuffleBlockId, File> tempShuffleBlockIdPlusFile =
-                blockManager.diskBlockManager().createTempShuffleBlock();
+            blockManager.diskBlockManager().createTempShuffleBlock();
         final File file = tempShuffleBlockIdPlusFile._2();
         final BlockId blockId = tempShuffleBlockIdPlusFile._1();
         partitionWriters[i] =
-          blockManager.getDiskWriter(blockId, file, serInstance, fileBufferSize, writeMetrics);
+            blockManager.getDiskWriter(blockId, file, serInstance, fileBufferSize, writeMetrics);
       }
       // Creating the file to write to and creating a disk writer both involve interacting with
       // the disk, and can take a long time in aggregate when we open many files, so should be
@@ -202,20 +202,20 @@ final class BypassMergeSortShuffleWriter<K, V> extends ShuffleWriter<K, V> {
       for (int i = 0; i < numPartitions; i++) {
         final File file = partitionWriterSegments[i].file();
         boolean copyThrewException = true;
-        ShufflePartitionWriter writer = mapOutputWriter.getNextPartitionWriter();
-        if (transferToEnabled) {
-          WritableByteChannel outputChannel = writer.openChannel();
-          if (file.exists()) {
-            FileInputStream in = new FileInputStream(file);
-            try (FileChannel inputChannel = in.getChannel()){
-              Utils.copyFileStreamNIO(inputChannel, outputChannel, 0, inputChannel.size());
-              copyThrewException = false;
-            } finally {
-              Closeables.close(in, copyThrewException);
+        try (ShufflePartitionWriter writer = mapOutputWriter.getNextPartitionWriter()) {
+          if (transferToEnabled) {
+            WritableByteChannel outputChannel = writer.toChannel();
+            if (file.exists()) {
+              FileInputStream in = new FileInputStream(file);
+              try (FileChannel inputChannel = in.getChannel()) {
+                Utils.copyFileStreamNIO(inputChannel, outputChannel, 0, inputChannel.size());
+                copyThrewException = false;
+              } finally {
+                Closeables.close(in, copyThrewException);
+              }
             }
-          }
-        } else {
-          try (OutputStream tempOutputStream = writer.openStream()) {
+          } else {
+            OutputStream tempOutputStream = writer.toStream();
             if (file.exists()) {
               FileInputStream in = new FileInputStream(file);
               try {
@@ -226,10 +226,10 @@ final class BypassMergeSortShuffleWriter<K, V> extends ShuffleWriter<K, V> {
               }
             }
           }
-        }
-        lengths[i] = writer.closeAndGetLength();
-        if (file.exists() && !file.delete()) {
-          logger.error("Unable to delete file for partition {}", i);
+          lengths[i] = writer.getNumBytesWritten();
+          if (file.exists() && !file.delete()) {
+            logger.error("Unable to delete file for partition {}", i);
+          }
         }
       }
     } finally {
