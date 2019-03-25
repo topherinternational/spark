@@ -141,6 +141,7 @@ class DefaultShuffleMapOutputWriterSuite extends SparkFunSuite with BeforeAndAft
         stream.write(p)
       }
       assert(writer.getNumBytesWritten() == D_LEN)
+      writer.close
     }
     mapOutputWriter.commitAllPartitions()
     val partitionLengths = (0 until NUM_PARTITIONS).map { _ => D_LEN.toDouble}.toArray
@@ -160,6 +161,7 @@ class DefaultShuffleMapOutputWriterSuite extends SparkFunSuite with BeforeAndAft
       channel.write(byteBuffer)
       // Bytes require * 4
       assert(writer.getNumBytesWritten == D_LEN * 4)
+      writer.close
     }
     mapOutputWriter.commitAllPartitions()
     val partitionLengths = (0 until NUM_PARTITIONS).map { _ => (D_LEN * 4).toDouble}.toArray
@@ -180,6 +182,7 @@ class DefaultShuffleMapOutputWriterSuite extends SparkFunSuite with BeforeAndAft
       in.close()
       stream.close()
       assert(writer.getNumBytesWritten == D_LEN * 4)
+      writer.close
     }
     mapOutputWriter.commitAllPartitions()
     val partitionLengths = (0 until NUM_PARTITIONS).map { _ => (D_LEN * 4).toDouble}.toArray
@@ -202,6 +205,7 @@ class DefaultShuffleMapOutputWriterSuite extends SparkFunSuite with BeforeAndAft
       Utils.copyFileStreamNIO(in.getChannel, channel, 0, D_LEN * 4)
       in.close()
       assert(writer.getNumBytesWritten == D_LEN * 4)
+      writer.close
     }
     mapOutputWriter.commitAllPartitions()
     val partitionLengths = (0 until NUM_PARTITIONS).map { _ => (D_LEN * 4).toDouble}.toArray
