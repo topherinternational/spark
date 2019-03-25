@@ -19,7 +19,8 @@ package org.apache.spark.api.shuffle;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.nio.channels.FileChannel;
+import java.nio.channels.Channels;
+import java.nio.channels.WritableByteChannel;
 
 import org.apache.http.annotation.Experimental;
 
@@ -35,5 +36,7 @@ public interface ShufflePartitionWriter {
 
   long closeAndGetLength();
 
-  FileChannel openChannel() throws IOException;
+  default WritableByteChannel openChannel() throws IOException {
+    return Channels.newChannel(openStream());
+  }
 }
