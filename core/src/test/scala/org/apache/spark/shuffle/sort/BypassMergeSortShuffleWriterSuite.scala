@@ -18,11 +18,10 @@
 package org.apache.spark.shuffle.sort
 
 import java.io.File
-import java.util.UUID
+import java.util.{Properties, UUID}
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
-
 import org.mockito.{Mock, MockitoAnnotations}
 import org.mockito.Answers.RETURNS_SMART_NULLS
 import org.mockito.ArgumentMatchers.{any, anyInt, anyString}
@@ -30,10 +29,12 @@ import org.mockito.Mockito._
 import org.mockito.invocation.InvocationOnMock
 import org.mockito.stubbing.Answer
 import org.scalatest.BeforeAndAfterEach
+import scala.util.Random
 
 import org.apache.spark._
 import org.apache.spark.api.shuffle.ShuffleWriteSupport
 import org.apache.spark.executor.{ShuffleWriteMetrics, TaskMetrics}
+import org.apache.spark.memory.{TaskMemoryManager, TestMemoryManager}
 import org.apache.spark.serializer.{JavaSerializer, SerializerInstance, SerializerManager}
 import org.apache.spark.shuffle.IndexShuffleBlockResolver
 import org.apache.spark.shuffle.sort.io.DefaultShuffleWriteSupport
@@ -122,11 +123,27 @@ class BypassMergeSortShuffleWriterSuite extends SparkFunSuite with BeforeAndAfte
           blockIdToFileMap.get(invocation.getArguments.head.asInstanceOf[BlockId]).get
         }
     })
-    writeSupport = new DefaultShuffleWriteSupport(
-      conf, blockResolver, taskContext.taskMetrics().shuffleWriteMetrics)
+
+    val memoryManager = new TestMemoryManager(conf)
+    val taskMemoryManager = new TaskMemoryManager(memoryManager, 0)
+    when(taskContext.taskMemoryManager()).thenReturn(taskMemoryManager)
+
+    TaskContext.setTaskContext(new TaskContextImpl(
+      stageId = 0,
+      stageAttemptNumber = 0,
+      partitionId = 0,
+      taskAttemptId = Random.nextInt(10000),
+      attemptNumber = 0,
+      taskMemoryManager = taskMemoryManager,
+      localProperties = new Properties,
+      metricsSystem = null,
+      taskMetrics = taskMetrics))
+
+    writeSupport = new DefaultShuffleWriteSupport(conf, blockResolver)
   }
 
   override def afterEach(): Unit = {
+    TaskContext.unset()
     try {
       Utils.deleteRecursively(tempDir)
       blockIdToFileMap.clear()

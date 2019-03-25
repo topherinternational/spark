@@ -19,10 +19,8 @@ package org.apache.spark.shuffle.sort.io;
 
 import org.apache.spark.SparkConf;
 import org.apache.spark.SparkEnv;
-import org.apache.spark.TaskContext;
 import org.apache.spark.api.shuffle.ShuffleExecutorComponents;
 import org.apache.spark.api.shuffle.ShuffleWriteSupport;
-import org.apache.spark.executor.TaskMetrics;
 import org.apache.spark.shuffle.IndexShuffleBlockResolver;
 import org.apache.spark.storage.BlockManager;
 
@@ -31,7 +29,6 @@ public class DefaultShuffleExecutorComponents implements ShuffleExecutorComponen
   private final SparkConf sparkConf;
   private BlockManager blockManager;
   private IndexShuffleBlockResolver blockResolver;
-  private TaskMetrics metrics;
 
   public DefaultShuffleExecutorComponents(SparkConf sparkConf) {
     this.sparkConf = sparkConf;
@@ -45,13 +42,10 @@ public class DefaultShuffleExecutorComponents implements ShuffleExecutorComponen
 
   @Override
   public ShuffleWriteSupport writes() {
-    metrics = TaskContext.get().taskMetrics();
-    if (blockResolver == null || metrics == null) {
+    if (blockResolver == null) {
       throw new IllegalStateException(
         "Executor components must be initialized before getting writers.");
     }
-
-    return new DefaultShuffleWriteSupport(
-      sparkConf, blockResolver, metrics.shuffleWriteMetrics());
+    return new DefaultShuffleWriteSupport(sparkConf, blockResolver);
   }
 }

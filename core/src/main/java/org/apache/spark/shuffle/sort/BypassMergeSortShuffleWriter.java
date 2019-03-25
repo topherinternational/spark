@@ -84,7 +84,6 @@ final class BypassMergeSortShuffleWriter<K, V> extends ShuffleWriter<K, V> {
   private final BlockManager blockManager;
   private final Partitioner partitioner;
   private final ShuffleWriteMetricsReporter writeMetrics;
-  private final String appId;
   private final int shuffleId;
   private final int mapId;
   private final Serializer serializer;
@@ -117,7 +116,6 @@ final class BypassMergeSortShuffleWriter<K, V> extends ShuffleWriter<K, V> {
     this.transferToEnabled = conf.getBoolean("spark.file.transferTo", true);
     this.blockManager = blockManager;
     final ShuffleDependency<K, V, V> dep = handle.dependency();
-    this.appId = conf.getAppId();
     this.mapId = mapId;
     this.shuffleId = dep.shuffleId();
     this.partitioner = dep.partitioner();
@@ -132,7 +130,7 @@ final class BypassMergeSortShuffleWriter<K, V> extends ShuffleWriter<K, V> {
   public void write(Iterator<Product2<K, V>> records) throws IOException {
     assert (partitionWriters == null);
     ShuffleMapOutputWriter mapOutputWriter = shuffleWriteSupport
-      .createMapOutputWriter(appId, shuffleId, mapId, numPartitions);
+      .createMapOutputWriter(shuffleId, mapId, numPartitions);
     try {
       if (!records.hasNext()) {
         partitionLengths = new long[numPartitions];

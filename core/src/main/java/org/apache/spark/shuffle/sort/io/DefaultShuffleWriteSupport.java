@@ -18,33 +18,30 @@
 package org.apache.spark.shuffle.sort.io;
 
 import org.apache.spark.SparkConf;
+import org.apache.spark.TaskContext;
 import org.apache.spark.api.shuffle.ShuffleMapOutputWriter;
 import org.apache.spark.api.shuffle.ShuffleWriteSupport;
 import org.apache.spark.shuffle.IndexShuffleBlockResolver;
-import org.apache.spark.shuffle.ShuffleWriteMetricsReporter;
 
 public class DefaultShuffleWriteSupport implements ShuffleWriteSupport {
 
   private final SparkConf sparkConf;
   private final IndexShuffleBlockResolver blockResolver;
-  private final ShuffleWriteMetricsReporter metrics;
 
   public DefaultShuffleWriteSupport(
       SparkConf sparkConf,
-      IndexShuffleBlockResolver blockResolver,
-      ShuffleWriteMetricsReporter metrics) {
+      IndexShuffleBlockResolver blockResolver) {
     this.sparkConf = sparkConf;
     this.blockResolver = blockResolver;
-    this.metrics = metrics;
   }
 
   @Override
   public ShuffleMapOutputWriter createMapOutputWriter(
-      String appId,
       int shuffleId,
       int mapId,
       int numPartitions) {
     return new DefaultShuffleMapOutputWriter(
-      shuffleId, mapId, numPartitions, metrics, blockResolver, sparkConf);
+      shuffleId, mapId, numPartitions,
+      TaskContext.get().taskMetrics().shuffleWriteMetrics(), blockResolver, sparkConf);
   }
 }

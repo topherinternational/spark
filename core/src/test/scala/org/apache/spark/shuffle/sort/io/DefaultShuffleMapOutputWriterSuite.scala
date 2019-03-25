@@ -19,41 +19,38 @@ package org.apache.spark.shuffle.sort.io
 
 import java.io._
 import java.math.BigInteger
-import java.nio.{ByteBuffer, ByteOrder}
+import java.nio.ByteBuffer
 
 import org.mockito.Answers.RETURNS_SMART_NULLS
-import org.mockito.ArgumentMatchers.{any, anyInt}
+import org.mockito.ArgumentMatchers.{any, anyInt, anyLong}
 import org.mockito.Mock
-import org.mockito.Mockito.doAnswer
-import org.mockito.Mockito.when
+import org.mockito.Mockito.{doAnswer, doNothing, when}
 import org.mockito.MockitoAnnotations
 import org.mockito.invocation.InvocationOnMock
 import org.mockito.stubbing.Answer
 import org.scalatest.BeforeAndAfterEach
 
 import org.apache.spark.{SparkConf, SparkFunSuite}
-import org.apache.spark.executor.TaskMetrics
+import org.apache.spark.executor.ShuffleWriteMetrics
 import org.apache.spark.network.util.LimitedInputStream
 import org.apache.spark.shuffle.IndexShuffleBlockResolver
-import org.apache.spark.shuffle.ShuffleWriteMetricsReporter
 import org.apache.spark.util.Utils
-
 
 class DefaultShuffleMapOutputWriterSuite extends SparkFunSuite with BeforeAndAfterEach {
 
   @Mock(answer = RETURNS_SMART_NULLS) private var blockResolver: IndexShuffleBlockResolver = _
+  @Mock(answer = RETURNS_SMART_NULLS) private var shuffleWriteMetrics: ShuffleWriteMetrics = _
 
   private val NUM_PARTITIONS = 4
   private val D_LEN = 10
   private val data: Array[Array[Int]] = (0 until NUM_PARTITIONS).map {
     p => (1 to D_LEN).map(_ + p).toArray }.toArray
+
   private var tempFile: File = _
   private var mergedOutputFile: File = _
   private var tempDir: File = _
   private var partitionSizesInMergedFile: Array[Long] = _
   private var conf: SparkConf = _
-  private var taskMetrics: TaskMetrics = _
-  private var metricsReporter: ShuffleWriteMetricsReporter = _
   private var mapOutputWriter: DefaultShuffleMapOutputWriter = _
 
   override def afterEach(): Unit = {
@@ -73,9 +70,9 @@ class DefaultShuffleMapOutputWriterSuite extends SparkFunSuite with BeforeAndAft
     conf = new SparkConf()
       .set("spark.app.id", "example.spark.app")
       .set("spark.shuffle.unsafe.file.output.buffer", "16k")
-    taskMetrics = new TaskMetrics
-    metricsReporter = taskMetrics.shuffleWriteMetrics
     when(blockResolver.getDataFile(anyInt, anyInt)).thenReturn(mergedOutputFile)
+
+    doNothing().when(shuffleWriteMetrics).incWriteTime(anyLong)
 
     doAnswer(new Answer[Void] {
       def answer(invocationOnMock: InvocationOnMock): Void = {
@@ -90,7 +87,7 @@ class DefaultShuffleMapOutputWriterSuite extends SparkFunSuite with BeforeAndAft
     }).when(blockResolver)
       .writeIndexFileAndCommit(anyInt, anyInt, any(classOf[Array[Long]]), any(classOf[File]))
     mapOutputWriter = new DefaultShuffleMapOutputWriter(
-      0, 0, NUM_PARTITIONS, metricsReporter, blockResolver, conf)
+      0, 0, NUM_PARTITIONS, shuffleWriteMetrics, blockResolver, conf)
   }
 
   private def readRecordsFromFile(fromByte: Boolean): Array[Array[Int]] = {
