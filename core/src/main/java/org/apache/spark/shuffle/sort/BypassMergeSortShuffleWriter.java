@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.io.FileInputStream;
 import java.io.OutputStream;
 import java.nio.channels.FileChannel;
-import java.nio.channels.WritableByteChannel;
 import javax.annotation.Nullable;
 
 import org.apache.spark.api.shuffle.ShufflePartitionWriter;
@@ -204,11 +203,11 @@ final class BypassMergeSortShuffleWriter<K, V> extends ShuffleWriter<K, V> {
         boolean copyThrewException = true;
         ShufflePartitionWriter writer = mapOutputWriter.getNextPartitionWriter();
         if (transferToEnabled) {
-          try (WritableByteChannel tempChannel = writer.openChannel()) {
+          try (FileChannel outputChannel = writer.openChannel()) {
             if (file.exists()) {
               FileInputStream in = new FileInputStream(file);
               try (FileChannel inputChannel = in.getChannel()){
-                Utils.copyFileStreamNIO(inputChannel, tempChannel, 0, inputChannel.size());
+                Utils.copyFileStreamNIO(inputChannel, outputChannel, 0, inputChannel.size());
                 copyThrewException = false;
               } finally {
                 Closeables.close(in, copyThrewException);
@@ -228,7 +227,7 @@ final class BypassMergeSortShuffleWriter<K, V> extends ShuffleWriter<K, V> {
             }
           }
         }
-        lengths[i] = writer.getLength();
+        lengths[i] = writer.closeAndGetLength();
         if (file.exists() && !file.delete()) {
           logger.error("Unable to delete file for partition {}", i);
         }

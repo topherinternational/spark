@@ -20,6 +20,7 @@ package org.apache.spark.shuffle.sort.io
 import java.io._
 import java.math.BigInteger
 import java.nio.ByteBuffer
+import java.nio.channels.ClosedChannelException
 
 import org.mockito.Answers.RETURNS_SMART_NULLS
 import org.mockito.ArgumentMatchers.{any, anyInt, anyLong}
@@ -29,7 +30,6 @@ import org.mockito.MockitoAnnotations
 import org.mockito.invocation.InvocationOnMock
 import org.mockito.stubbing.Answer
 import org.scalatest.BeforeAndAfterEach
-
 import org.apache.spark.{SparkConf, SparkFunSuite}
 import org.apache.spark.executor.ShuffleWriteMetrics
 import org.apache.spark.network.util.LimitedInputStream
@@ -140,7 +140,7 @@ class DefaultShuffleMapOutputWriterSuite extends SparkFunSuite with BeforeAndAft
       intercept[IllegalStateException] {
         stream.write(p)
       }
-      assert(writer.getLength == D_LEN)
+      assert(writer.closeAndGetLength() == D_LEN)
     }
     mapOutputWriter.commitAllPartitions()
     val partitionLengths = (0 until NUM_PARTITIONS).map { _ => D_LEN.toDouble}.toArray
@@ -158,13 +158,8 @@ class DefaultShuffleMapOutputWriterSuite extends SparkFunSuite with BeforeAndAft
       intBuffer.put(data(p))
       assert(channel.isOpen)
       channel.write(byteBuffer)
-      channel.close()
-      intercept[IllegalStateException] {
-        channel.write(byteBuffer)
-      }
-      assert(!channel.isOpen)
       // Bytes require * 4
-      assert(writer.getLength == D_LEN * 4)
+      assert(writer.closeAndGetLength == D_LEN * 4)
     }
     mapOutputWriter.commitAllPartitions()
     val partitionLengths = (0 until NUM_PARTITIONS).map { _ => (D_LEN * 4).toDouble}.toArray
@@ -184,7 +179,7 @@ class DefaultShuffleMapOutputWriterSuite extends SparkFunSuite with BeforeAndAft
       Utils.copyStream(in, stream, false, false)
       in.close()
       stream.close()
-      assert(writer.getLength == D_LEN * 4)
+      assert(writer.closeAndGetLength == D_LEN * 4)
     }
     mapOutputWriter.commitAllPartitions()
     val partitionLengths = (0 until NUM_PARTITIONS).map { _ => (D_LEN * 4).toDouble}.toArray
@@ -206,9 +201,7 @@ class DefaultShuffleMapOutputWriterSuite extends SparkFunSuite with BeforeAndAft
       val in = new FileInputStream(tempFile)
       Utils.copyFileStreamNIO(in.getChannel, channel, 0, D_LEN * 4)
       in.close()
-      channel.close()
-      assert(!channel.isOpen)
-      assert(writer.getLength == D_LEN * 4)
+      assert(writer.closeAndGetLength == D_LEN * 4)
     }
     mapOutputWriter.commitAllPartitions()
     val partitionLengths = (0 until NUM_PARTITIONS).map { _ => (D_LEN * 4).toDouble}.toArray

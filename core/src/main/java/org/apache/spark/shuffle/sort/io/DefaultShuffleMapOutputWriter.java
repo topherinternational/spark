@@ -18,9 +18,7 @@
 package org.apache.spark.shuffle.sort.io;
 
 import java.io.*;
-import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
-import java.nio.channels.WritableByteChannel;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -46,6 +44,7 @@ public class DefaultShuffleMapOutputWriter implements ShuffleMapOutputWriter {
   private final long[] partitionLengths;
   private final int bufferSize;
   private int currPartitionId = 0;
+  private long currChannelPosition;
 
   private final File outputFile;
   private final File outputTempFile;
@@ -75,8 +74,6 @@ public class DefaultShuffleMapOutputWriter implements ShuffleMapOutputWriter {
 
   @Override
   public ShufflePartitionWriter getNextPartitionWriter() throws IOException {
-    initStream();
-    initChannel();
     return new DefaultShufflePartitionWriter(currPartitionId++);
   }
 
@@ -151,7 +148,6 @@ public class DefaultShuffleMapOutputWriter implements ShuffleMapOutputWriter {
 
     private final int partitionId;
     private PartitionWriterStream stream = null;
-    private PartitionWriterChannel channel = null;
 
     private DefaultShufflePartitionWriter(int partitionId) {
       this.partitionId = partitionId;
@@ -159,21 +155,24 @@ public class DefaultShuffleMapOutputWriter implements ShuffleMapOutputWriter {
 
     @Override
     public OutputStream openStream() throws IOException {
+      initStream();
       stream = new PartitionWriterStream();
       return stream;
     }
 
     @Override
-    public long getLength() {
-      if (channel != null && stream == null) {
+    public long closeAndGetLength() {
+      if (outputFileChannel != null && stream == null) {
         try {
-          channel.close();
+          long newPosition = outputFileChannel.position();
+          long length = newPosition - currChannelPosition;
+          partitionLengths[partitionId] = length;
+          currChannelPosition = newPosition;
+          return length;
         } catch (Exception e) {
-          throw new IllegalStateException("Attempting to close byte channel", e);
+          log.error("The currPartition is: " + partitionId, e);
+          throw new IllegalStateException("Attempting to calculate position of file channel", e);
         }
-        int length = channel.getCount();
-        partitionLengths[partitionId] = length;
-        return length;
       } else {
         try {
           stream.close();
@@ -187,9 +186,10 @@ public class DefaultShuffleMapOutputWriter implements ShuffleMapOutputWriter {
     }
 
     @Override
-    public WritableByteChannel openChannel() throws IOException {
-      channel = new PartitionWriterChannel();
-      return channel;
+    public FileChannel openChannel() throws IOException {
+      initChannel();
+      currChannelPosition = outputFileChannel.position();
+      return outputFileChannel;
     }
   }
 
@@ -219,36 +219,6 @@ public class DefaultShuffleMapOutputWriter implements ShuffleMapOutputWriter {
     @Override
     public void flush() throws IOException {
       outputBufferedFileStream.flush();
-    }
-  }
-
-  private class PartitionWriterChannel implements WritableByteChannel {
-
-    private int count = 0;
-    private boolean isClosed = false;
-
-    public int getCount() {
-      return count;
-    }
-
-    @Override
-    public int write(ByteBuffer src) throws IOException {
-      if (isClosed) {
-        throw new IllegalStateException("Attempting to write to a closed block byte channel.");
-      }
-      int written = outputFileChannel.write(src);
-      count += written;
-      return written;
-    }
-
-    @Override
-    public boolean isOpen() {
-      return !isClosed;
-    }
-
-    @Override
-    public void close() {
-      isClosed = true;
     }
   }
 }
