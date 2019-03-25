@@ -202,7 +202,9 @@ final class BypassMergeSortShuffleWriter<K, V> extends ShuffleWriter<K, V> {
       for (int i = 0; i < numPartitions; i++) {
         final File file = partitionWriterSegments[i].file();
         boolean copyThrewException = true;
-        try (ShufflePartitionWriter writer = mapOutputWriter.getNextPartitionWriter()) {
+        ShufflePartitionWriter writer = null;
+        try {
+          writer = mapOutputWriter.getNextPartitionWriter();
           if (transferToEnabled) {
             WritableByteChannel outputChannel = writer.toChannel();
             if (file.exists()) {
@@ -226,11 +228,14 @@ final class BypassMergeSortShuffleWriter<K, V> extends ShuffleWriter<K, V> {
               }
             }
           }
-          lengths[i] = writer.getNumBytesWritten();
           if (file.exists() && !file.delete()) {
             logger.error("Unable to delete file for partition {}", i);
           }
+        } finally {
+          Closeables.close(writer, copyThrewException);
         }
+
+        lengths[i] = writer.getNumBytesWritten();
       }
     } finally {
       writeMetrics.incWriteTime(System.nanoTime() - writeStartTime);
