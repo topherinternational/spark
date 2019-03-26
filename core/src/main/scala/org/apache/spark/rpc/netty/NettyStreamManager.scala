@@ -34,7 +34,7 @@ import org.apache.spark.util.Utils
  * - arbitrary directories; all files under the directory become available through the manager,
  *   respecting the directory's hierarchy.
  *
- * Only streaming (toStream) is supported.
+ * Only streaming (openStream) is supported.
  */
 private[netty] class NettyStreamManager(rpcEnv: NettyRpcEnv)
   extends StreamManager with RpcEnvFileServer {
