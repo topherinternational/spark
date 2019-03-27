@@ -1016,6 +1016,7 @@ object SparkSession extends Logging {
    * @since 2.0.0
    */
   def clearDefaultSession(): Unit = {
+    getDefaultSession.foreach(_.listenerManager.clear())
     defaultSession.set(null)
   }
 
