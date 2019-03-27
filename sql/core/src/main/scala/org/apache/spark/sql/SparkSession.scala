@@ -998,6 +998,7 @@ object SparkSession extends Logging {
    * @since 2.0.0
    */
   def clearActiveSession(): Unit = {
+    activeThreadSession.get().listenerManager.clear()
     activeThreadSession.remove()
   }
 
