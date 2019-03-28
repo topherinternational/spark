@@ -21,6 +21,7 @@ import java.io.*;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.apache.spark.*;
 import scala.Option;
 import scala.Product2;
 import scala.Tuple2;
@@ -35,10 +36,7 @@ import org.junit.Test;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
-import org.apache.spark.HashPartitioner;
-import org.apache.spark.ShuffleDependency;
-import org.apache.spark.SparkConf;
-import org.apache.spark.TaskContext;
+import org.apache.spark.api.shuffle.ShuffleWriteSupport;
 import org.apache.spark.executor.ShuffleWriteMetrics;
 import org.apache.spark.executor.TaskMetrics;
 import org.apache.spark.io.CompressionCodec$;
@@ -53,6 +51,7 @@ import org.apache.spark.scheduler.MapStatus;
 import org.apache.spark.security.CryptoStreamUtils;
 import org.apache.spark.serializer.*;
 import org.apache.spark.shuffle.IndexShuffleBlockResolver;
+import org.apache.spark.shuffle.sort.io.DefaultShuffleWriteSupport;
 import org.apache.spark.storage.*;
 import org.apache.spark.util.Utils;
 
@@ -76,6 +75,7 @@ public class UnsafeShuffleWriterSuite {
   SparkConf conf;
   final Serializer serializer = new KryoSerializer(new SparkConf());
   TaskMetrics taskMetrics;
+  ShuffleWriteSupport shuffleWriteSupport;
 
   @Mock(answer = RETURNS_SMART_NULLS) BlockManager blockManager;
   @Mock(answer = RETURNS_SMART_NULLS) IndexShuffleBlockResolver shuffleBlockResolver;
@@ -83,8 +83,11 @@ public class UnsafeShuffleWriterSuite {
   @Mock(answer = RETURNS_SMART_NULLS) TaskContext taskContext;
   @Mock(answer = RETURNS_SMART_NULLS) ShuffleDependency<Object, Object, Object> shuffleDep;
 
+
+
   @After
   public void tearDown() {
+    TaskContext$.MODULE$.unset();
     Utils.deleteRecursively(tempDir);
     final long leakedMemory = taskMemoryManager.cleanUpAllAllocatedMemory();
     if (leakedMemory != 0) {
@@ -151,6 +154,13 @@ public class UnsafeShuffleWriterSuite {
     when(taskContext.taskMetrics()).thenReturn(taskMetrics);
     when(shuffleDep.serializer()).thenReturn(serializer);
     when(shuffleDep.partitioner()).thenReturn(hashPartitioner);
+    when(taskContext.taskMemoryManager()).thenReturn(taskMemoryManager);
+
+    Random rand = new Random();
+    TaskContext$.MODULE$.setTaskContext(new TaskContextImpl(
+      0, 0, 0, rand.nextInt(10000), 0, taskMemoryManager, new Properties(), null, taskMetrics));
+
+    shuffleWriteSupport = new DefaultShuffleWriteSupport(conf, shuffleBlockResolver);
   }
 
   private UnsafeShuffleWriter<Object, Object> createWriter(
@@ -164,7 +174,8 @@ public class UnsafeShuffleWriterSuite {
       0, // map id
       taskContext,
       conf,
-      taskContext.taskMetrics().shuffleWriteMetrics()
+      taskContext.taskMetrics().shuffleWriteMetrics(),
+      shuffleWriteSupport
     );
   }
 
@@ -525,7 +536,8 @@ public class UnsafeShuffleWriterSuite {
         0, // map id
         taskContext,
         conf,
-        taskContext.taskMetrics().shuffleWriteMetrics());
+        taskContext.taskMetrics().shuffleWriteMetrics(),
+        shuffleWriteSupport);
 
     // Peak memory should be monotonically increasing. More specifically, every time
     // we allocate a new page it should increase by exactly the size of the page.
