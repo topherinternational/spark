@@ -729,7 +729,7 @@ class SparkSession private(
    * Added due to memory leak in QueryExecutionListener
    */
   def stopSession(): Unit = {
-    SparkSession.this.listenerManager.shutdown()
+    listenerManager.shutdown()
   }
 
   /**
