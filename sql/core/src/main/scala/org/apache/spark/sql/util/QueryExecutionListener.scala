@@ -18,6 +18,7 @@
 package org.apache.spark.sql.util
 
 import scala.collection.JavaConverters._
+
 import org.apache.spark.annotation.{DeveloperApi, Evolving, Experimental}
 import org.apache.spark.internal.Logging
 import org.apache.spark.scheduler.{SparkListener, SparkListenerEvent}
@@ -26,8 +27,6 @@ import org.apache.spark.sql.execution.QueryExecution
 import org.apache.spark.sql.execution.ui.SparkListenerSQLExecutionEnd
 import org.apache.spark.sql.internal.StaticSQLConf._
 import org.apache.spark.util.{ListenerBus, Utils}
-
-import scala.collection.mutable
 
 /**
  * :: Experimental ::

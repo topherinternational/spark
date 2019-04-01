@@ -47,7 +47,6 @@ import org.apache.spark.sql.util.ExecutionListenerManager
 import org.apache.spark.util.{CallSite, Utils}
 
 
-
 /**
  * The entry point to programming Spark with the Dataset and DataFrame API.
  *
@@ -728,14 +727,13 @@ class SparkSession private(
 
   /**
     * Added due to memory leak in QueryExecutionListener
-    *
     */
   def stopSession(): Unit = {
     SparkSession.this.listenerManager.clear()
     sparkContext.listenerBus.removeListener(SparkSession.this.listenerManager.getExecutionListenerBus)
   }
 
-    /**
+  /**
    * Synonym for `stop()`.
    *
    * @since 2.1.0
