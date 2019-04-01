@@ -23,13 +23,13 @@ import java.util.concurrent.atomic.AtomicReference
 import scala.collection.JavaConverters._
 import scala.reflect.runtime.universe.TypeTag
 import scala.util.control.NonFatal
-
 import org.apache.spark.{SPARK_VERSION, SparkConf, SparkContext, TaskContext}
 import org.apache.spark.annotation.{DeveloperApi, Evolving, Experimental, Stable, Unstable}
 import org.apache.spark.api.java.JavaRDD
 import org.apache.spark.internal.Logging
 import org.apache.spark.rdd.RDD
 import org.apache.spark.scheduler.{SparkListener, SparkListenerApplicationEnd}
+import org.apache.spark.sql.SparkSession.getActiveSession
 import org.apache.spark.sql.catalog.Catalog
 import org.apache.spark.sql.catalyst._
 import org.apache.spark.sql.catalyst.analysis.UnresolvedRelation
@@ -726,6 +726,14 @@ class SparkSession private(
   }
 
   /**
+    * Added due to memory leak in QueryExecutionListener
+    *
+    */
+  def stopSession(): Unit = {
+    SparkSession.this.listenerManager.clear()
+  }
+
+    /**
    * Synonym for `stop()`.
    *
    * @since 2.1.0
@@ -998,7 +1006,6 @@ object SparkSession extends Logging {
    * @since 2.0.0
    */
   def clearActiveSession(): Unit = {
-    getActiveSession.foreach(_.listenerManager.clear())
     activeThreadSession.remove()
   }
 
@@ -1017,7 +1024,6 @@ object SparkSession extends Logging {
    * @since 2.0.0
    */
   def clearDefaultSession(): Unit = {
-    getDefaultSession.foreach(_.listenerManager.clear())
     defaultSession.set(null)
   }
 
