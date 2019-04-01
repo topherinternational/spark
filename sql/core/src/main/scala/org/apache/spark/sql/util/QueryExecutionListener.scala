@@ -116,11 +116,10 @@ class ExecutionListenerManager private[sql](session: SparkSession, loadExtension
   }
 
   /**
-    * Showdown the [[ExecutionListenerBus]].
-    */
+   * Showdown the [[ExecutionListenerBus]].
+   */
   @DeveloperApi
   def shutdown(): Unit = {
-    clear()
     session.sparkContext.listenerBus.removeListener(listenerBus)
   }
 
