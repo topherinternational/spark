@@ -116,7 +116,7 @@ class ExecutionListenerManager private[sql](session: SparkSession, loadExtension
   }
 
   /**
-   * Showdown the [[ExecutionListenerBus]].
+   * Shutdown the [[ExecutionListenerBus]].
    */
   @DeveloperApi
   def shutdown(): Unit = {
