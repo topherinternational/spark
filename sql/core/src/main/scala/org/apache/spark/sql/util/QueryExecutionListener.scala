@@ -116,11 +116,12 @@ class ExecutionListenerManager private[sql](session: SparkSession, loadExtension
   }
 
   /**
-    * Gets bus itself
+    * Showdown the [[ExecutionListenerBus]].
     */
   @DeveloperApi
-  def getExecutionListenerBus: ExecutionListenerBus = {
-    listenerBus
+  def shutdown(): Unit = {
+    clear()
+    session.sparkContext.listenerBus.removeListener(listenerBus)
   }
 
   /**
