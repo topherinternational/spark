@@ -84,7 +84,6 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
   private final boolean transferToEnabled;
   private final int initialSortBufferSize;
   private final int inputBufferSizeInBytes;
-  private final int outputBufferSizeInBytes;
 
   @Nullable private MapStatus mapStatus;
   @Nullable private ShuffleExternalSorter sorter;
@@ -152,8 +151,6 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
       (int) sparkConf.get(package$.MODULE$.SHUFFLE_SORT_INIT_BUFFER_SIZE());
     this.inputBufferSizeInBytes =
       (int) (long) sparkConf.get(package$.MODULE$.SHUFFLE_FILE_BUFFER_SIZE()) * 1024;
-    this.outputBufferSizeInBytes =
-      (int) (long) sparkConf.get(package$.MODULE$.SHUFFLE_UNSAFE_FILE_OUTPUT_BUFFER_SIZE()) * 1024;
     open();
   }
 
@@ -257,6 +254,9 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
       }
       throw e;
     }
+    for (int pId = 0; pId < partitioner.numPartitions(); pId++) {
+      logger.error("PartitionLengths: " + partitionLengths[pId]);
+    }
     mapStatus = MapStatus$.MODULE$.apply(blockManager.shuffleServerId(), partitionLengths);
   }
 
@@ -300,35 +300,36 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
     final boolean encryptionEnabled = blockManager.serializerManager().encryptionEnabled();
     final int numPartitions = partitioner.numPartitions();
     long[] partitionLengths = new long[numPartitions];
+    logger.error(mapWriter.toString());
     try {
       if (spills.length == 0) {
+        logger.error("zero");
         return partitionLengths;
       } else if (spills.length == 1) {
+        logger.error("one");
         // Here, we don't need to perform any metrics updates because the bytes written to this
         // output file would have already been counted as shuffle bytes written.
         try (FileInputStream in = new FileInputStream(spills[0].file)) {
           for (int pId = 0; pId < spills[0].partitionLengths.length; pId++) {
+            logger.error("parititonID: " + pId);
             boolean copyThrewExecption = true;
             ShufflePartitionWriter writer = null;
             try {
               writer = mapWriter.getNextPartitionWriter();
-              if (transferToEnabled) {
-                WritableByteChannel channel = writer.toChannel();
-                try (FileChannel input = in.getChannel()) {
-                  Utils.copyFileStreamNIO(input, channel, 0, input.size());
-                  copyThrewExecption = false;
-                } finally {
-                  Closeables.close(in, copyThrewExecption);
-                }
-              } else {
-                OutputStream stream = writer.toStream();
-                Utils.copyStream(in, stream, false, false);
-                copyThrewExecption = false;
+              OutputStream partitionOutput = writer.toStream();
+              partitionOutput = blockManager.serializerManager().wrapForEncryption(partitionOutput);
+              if (compressionCodec != null) {
+                partitionOutput = compressionCodec.compressedOutputStream(partitionOutput);
               }
+              partitionOutput.write(in.read());
+              copyThrewExecption = false;
             } finally {
+              logger.error("close please");
               Closeables.close(writer, copyThrewExecption);
             }
+            logger.error("Made it to to setting partitionLengths");
             partitionLengths[pId] = writer.getNumBytesWritten();
+            logger.error(Long.toString(writer.getNumBytesWritten()));
           }
           return partitionLengths;
         }
@@ -367,7 +368,6 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
         return partitionLengths;
       }
     } catch (IOException e) {
-
       throw e;
     }
   }
