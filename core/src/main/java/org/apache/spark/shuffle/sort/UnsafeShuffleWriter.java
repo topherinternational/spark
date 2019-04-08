@@ -21,8 +21,10 @@ import javax.annotation.Nullable;
 import java.io.*;
 import java.nio.channels.FileChannel;
 import java.nio.channels.WritableByteChannel;
+import java.util.Arrays;
 import java.util.Iterator;
 
+import org.apache.spark.storage.ShuffleBlockId;
 import scala.Option;
 import scala.Product2;
 import scala.collection.JavaConverters;
@@ -104,18 +106,6 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
    * we don't try deleting files, etc twice.
    */
   private boolean stopping = false;
-
-  private class CloseAndFlushShieldOutputStream extends CloseShieldOutputStream {
-
-    CloseAndFlushShieldOutputStream(OutputStream outputStream) {
-      super(outputStream);
-    }
-
-    @Override
-    public void flush() {
-      // do nothing
-    }
-  }
 
   public UnsafeShuffleWriter(
       BlockManager blockManager,
@@ -231,6 +221,7 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
     serBuffer = null;
     serOutputStream = null;
     final SpillInfo[] spills = sorter.closeAndGetSpills();
+    logger.error("num spills: " + spills.length);
     sorter = null;
     final ShuffleMapOutputWriter mapWriter = shuffleWriteSupport
       .createMapOutputWriter(shuffleId, mapId, partitioner.numPartitions());
@@ -254,9 +245,7 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
       }
       throw e;
     }
-    for (int pId = 0; pId < partitioner.numPartitions(); pId++) {
-      logger.error("PartitionLengths: " + partitionLengths[pId]);
-    }
+    logger.error("Partition lengths: " + Arrays.toString(partitionLengths));
     mapStatus = MapStatus$.MODULE$.apply(blockManager.shuffleServerId(), partitionLengths);
   }
 
@@ -303,36 +292,16 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
     logger.error(mapWriter.toString());
     try {
       if (spills.length == 0) {
-        logger.error("zero");
-        return partitionLengths;
-      } else if (spills.length == 1) {
-        logger.error("one");
-        // Here, we don't need to perform any metrics updates because the bytes written to this
-        // output file would have already been counted as shuffle bytes written.
-        try (FileInputStream in = new FileInputStream(spills[0].file)) {
-          for (int pId = 0; pId < spills[0].partitionLengths.length; pId++) {
-            logger.error("parititonID: " + pId);
-            boolean copyThrewExecption = true;
-            ShufflePartitionWriter writer = null;
-            try {
-              writer = mapWriter.getNextPartitionWriter();
-              OutputStream partitionOutput = writer.toStream();
-              partitionOutput = blockManager.serializerManager().wrapForEncryption(partitionOutput);
-              if (compressionCodec != null) {
-                partitionOutput = compressionCodec.compressedOutputStream(partitionOutput);
-              }
-              partitionOutput.write(in.read());
-              copyThrewExecption = false;
-            } finally {
-              logger.error("close please");
-              Closeables.close(writer, copyThrewExecption);
-            }
-            logger.error("Made it to to setting partitionLengths");
-            partitionLengths[pId] = writer.getNumBytesWritten();
-            logger.error(Long.toString(writer.getNumBytesWritten()));
+        ShufflePartitionWriter writer = null;
+        try {
+          writer = mapWriter.getNextPartitionWriter();
+          writer.toStream();
+        } finally {
+          if (writer != null) {
+            writer.close();
           }
-          return partitionLengths;
         }
+        return partitionLengths;
       } else {
         // There are multiple spills to merge, so none of these spill files' lengths were counted
         // towards our shuffle write count or shuffle write time. If we use the slow merge path,
@@ -349,14 +318,14 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
           // decompression of concatenated compressed streams, so we can perform a fast spill merge
           // that doesn't need to interpret the spilled bytes.
           if (transferToEnabled && !encryptionEnabled) {
-            logger.debug("Using transferTo-based fast merge");
+            logger.error("Using transferTo-based fast merge");
             partitionLengths = mergeSpillsWithTransferTo(spills, mapWriter);
           } else {
-            logger.debug("Using fileStream-based fast merge");
+            logger.error("Using fileStream-based fast merge");
             partitionLengths = mergeSpillsWithFileStream(spills, mapWriter, null);
           }
         } else {
-          logger.debug("Using slow merge");
+          logger.error("Using slow merge");
           partitionLengths = mergeSpillsWithFileStream(spills, mapWriter, compressionCodec);
         }
         // When closing an UnsafeShuffleExternalSorter that has already spilled once but also has
@@ -392,7 +361,6 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
       SpillInfo[] spills,
       ShuffleMapOutputWriter mapWriter,
       @Nullable CompressionCodec compressionCodec) throws IOException {
-    assert (spills.length >= 2);
     final int numPartitions = partitioner.numPartitions();
     final long[] partitionLengths = new long[numPartitions];
     final InputStream[] spillInputStreams = new InputStream[spills.length];
@@ -407,11 +375,13 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
       for (int partition = 0; partition < numPartitions; partition++) {
         boolean copyThrewExecption = true;
         ShufflePartitionWriter writer = null;
-        OutputStream partitionOutput = null;
+        OutputStream partitionOutput;
         try {
           writer = mapWriter.getNextPartitionWriter();
           partitionOutput = writer.toStream();
-          partitionOutput = new TimeTrackingOutputStream(writeMetrics, partitionOutput);
+          if (spills.length >= 2) {
+            partitionOutput = new TimeTrackingOutputStream(writeMetrics, partitionOutput);
+          }
           partitionOutput = blockManager.serializerManager().wrapForEncryption(partitionOutput);
           if (compressionCodec != null) {
             partitionOutput = compressionCodec.compressedOutputStream(partitionOutput);
@@ -469,18 +439,19 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
   private long[] mergeSpillsWithTransferTo(
       SpillInfo[] spills,
       ShuffleMapOutputWriter mapWriter) throws IOException {
-    assert (spills.length >= 2);
     final int numPartitions = partitioner.numPartitions();
     final long[] partitionLengths = new long[numPartitions];
     final FileChannel[] spillInputChannels = new FileChannel[spills.length];
     final long[] spillInputChannelPositions = new long[spills.length];
-
+    logger.error("Num partitions: " + numPartitions);
+    logger.error("Num spills: " + spills.length);
     boolean threwException = true;
     try {
       for (int i = 0; i < spills.length; i++) {
         spillInputChannels[i] = new FileInputStream(spills[i].file).getChannel();
       }
       for (int partition = 0; partition < numPartitions; partition++) {
+        logger.error("In partition: " + partition);
         boolean copyThrewExecption = true;
         ShufflePartitionWriter writer = null;
         long partitionLengthInSpill = 0L;
@@ -491,6 +462,7 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
             partitionLengthInSpill += spills[i].partitionLengths[partition];
             final FileChannel spillInputChannel = spillInputChannels[i];
             final long writeStartTime = System.nanoTime();
+            logger.error("InputChannelPositions: "+ spillInputChannelPositions[i]);
             Utils.copyFileStreamNIO(
                     spillInputChannel,
                     channel,
@@ -499,20 +471,26 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
             copyThrewExecption = false;
             spillInputChannelPositions[i] += partitionLengthInSpill;
             writeMetrics.incWriteTime(System.nanoTime() - writeStartTime);
+            logger.error("PartitionLengthsInSpill: " + partitionLengthInSpill);
           }
+        } catch (IOException e) {
+          throw e;
         } finally {
+          logger.error("Closing the writer");
           Closeables.close(writer, copyThrewExecption);
         }
         long numBytes = writer.getNumBytesWritten();
-        assert(partitionLengthInSpill == numBytes);
-        partitionLengths[partition] = writer.getNumBytesWritten();
+        logger.error("NumBytes: " + numBytes);
+        partitionLengths[partition] = numBytes;
         writeMetrics.incBytesWritten(numBytes);
       }
+      logger.error("Finish writing");
       threwException = false;
     } finally {
       // To avoid masking exceptions that caused us to prematurely enter the finally block, only
       // throw exceptions during cleanup if threwException == false.
       for (int i = 0; i < spills.length; i++) {
+        logger.error("Close input channel: " + i);
         assert(spillInputChannelPositions[i] == spills[i].file.length());
         Closeables.close(spillInputChannels[i], threwException);
       }

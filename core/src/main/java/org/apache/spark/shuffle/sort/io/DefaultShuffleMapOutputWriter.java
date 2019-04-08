@@ -80,7 +80,10 @@ public class DefaultShuffleMapOutputWriter implements ShuffleMapOutputWriter {
   public ShufflePartitionWriter getNextPartitionWriter() throws IOException {
     if (outputTempFile == null) {
       outputTempFile = Utils.tempFileWith(outputFile);
+      log.error("I create an outputTempFile at: " + outputTempFile.getAbsolutePath());
     }
+    log.error("I created a new partition writer at: " + currPartitionId);
+    log.error("Do I have an outputTempFile: " + outputTempFile.exists());
     if (outputFileChannel != null) {
       currChannelPosition = outputFileChannel.position();
     } else {
@@ -91,7 +94,9 @@ public class DefaultShuffleMapOutputWriter implements ShuffleMapOutputWriter {
 
   @Override
   public void commitAllPartitions() throws IOException {
+    log.error("Do I have an outputTempFile before cleanup: " + outputTempFile.exists());
     cleanUp();
+    log.error("Do I have an outputTempFile after cleanup: " + outputTempFile.exists());
     blockResolver.writeIndexFileAndCommit(shuffleId, mapId, partitionLengths, outputTempFile);
   }
 
@@ -108,17 +113,19 @@ public class DefaultShuffleMapOutputWriter implements ShuffleMapOutputWriter {
   }
 
   private void cleanUp() throws IOException {
+    log.error("In clenanup");
     if (outputBufferedFileStream != null) {
       outputBufferedFileStream.close();
     }
-
+    log.error("In BufferedFiledStream");
     if (outputFileChannel != null) {
       outputFileChannel.close();
     }
-
+    log.error("In FileChannel");
     if (outputFileStream != null) {
       outputFileStream.close();
     }
+    log.error("In InFileStream");
   }
 
   private void initStream() throws IOException {
@@ -192,6 +199,7 @@ public class DefaultShuffleMapOutputWriter implements ShuffleMapOutputWriter {
 
     @Override
     public void close() throws IOException {
+      log.error("Do I have an outputTempFile: " + outputTempFile.exists());
       if (stream != null) {
         stream.close();
       }
