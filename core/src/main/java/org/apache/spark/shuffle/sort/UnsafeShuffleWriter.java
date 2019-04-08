@@ -364,7 +364,9 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
     final int numPartitions = partitioner.numPartitions();
     final long[] partitionLengths = new long[numPartitions];
     final InputStream[] spillInputStreams = new InputStream[spills.length];
-
+    logger.error("Num partitions: " + numPartitions);
+    logger.error("Num spills: " + spills.length);
+    logger.error("compression: " + compressionCodec);
     boolean threwException = true;
     try {
       for (int i = 0; i < spills.length; i++) {
@@ -373,12 +375,18 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
           inputBufferSizeInBytes);
       }
       for (int partition = 0; partition < numPartitions; partition++) {
+        logger.error("In partition: " + partition);
         boolean copyThrewExecption = true;
         ShufflePartitionWriter writer = null;
         OutputStream partitionOutput;
         try {
           writer = mapWriter.getNextPartitionWriter();
+          // Shield the underlying output stream from close() and flush() calls, so we can close
+          // the higher level streams to make sure all data is really flushed and internal state is
+          // cleaned.
           partitionOutput = writer.toStream();
+          // Here, we don't need to perform any metrics updates when spills.length < 2 because the
+          // bytes written to this output file would have already been counted as shuffle bytes written.
           if (spills.length >= 2) {
             partitionOutput = new TimeTrackingOutputStream(writeMetrics, partitionOutput);
           }
@@ -386,16 +394,15 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
           if (compressionCodec != null) {
             partitionOutput = compressionCodec.compressedOutputStream(partitionOutput);
           }
-          // Shield the underlying output stream from close() and flush() calls, so we can close
-          // the higher level streams to make sure all data is really flushed and internal state is
-          // cleaned.
           for (int i = 0; i < spills.length; i++) {
             final long partitionLengthInSpill = spills[i].partitionLengths[partition];
+            logger.error("PartitionLengthsInSpill: " + partitionLengthInSpill);
 
             if (partitionLengthInSpill > 0) {
-              InputStream partitionInputStream = new LimitedInputStream(spillInputStreams[i],
-                partitionLengthInSpill, false);
+              InputStream partitionInputStream = null;
               try {
+                partitionInputStream = new LimitedInputStream(spillInputStreams[i],
+                        partitionLengthInSpill, false);
                 partitionInputStream = blockManager.serializerManager().wrapForEncryption(
                   partitionInputStream);
                 if (compressionCodec != null) {
@@ -410,17 +417,21 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
             copyThrewExecption = false;
           }
         } finally {
+          logger.error("Closing the writer");
           Closeables.close(writer, copyThrewExecption);
         }
         long numBytesWritten = writer.getNumBytesWritten();
+        logger.error("NumBytesWritten: " + numBytesWritten);
         partitionLengths[partition] = numBytesWritten;
         writeMetrics.incBytesWritten(numBytesWritten);
       }
+      logger.error("Finish writing");
       threwException = false;
     } finally {
       // To avoid masking exceptions that caused us to prematurely enter the finally block, only
       // throw exceptions during cleanup if threwException == false.
       for (InputStream stream : spillInputStreams) {
+        logger.error("Close input channel");
         Closeables.close(stream, threwException);
       }
     }
@@ -454,11 +465,12 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
         logger.error("In partition: " + partition);
         boolean copyThrewExecption = true;
         ShufflePartitionWriter writer = null;
-        long partitionLengthInSpill = 0L;
         try {
           writer = mapWriter.getNextPartitionWriter();
           WritableByteChannel channel = writer.toChannel();
           for (int i = 0; i < spills.length; i++) {
+            long partitionLengthInSpill = 0L;
+            logger.error("In spill: " + i);
             partitionLengthInSpill += spills[i].partitionLengths[partition];
             final FileChannel spillInputChannel = spillInputChannels[i];
             final long writeStartTime = System.nanoTime();
