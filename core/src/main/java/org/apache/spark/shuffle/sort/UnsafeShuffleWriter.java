@@ -24,7 +24,6 @@ import java.nio.channels.WritableByteChannel;
 import java.util.Arrays;
 import java.util.Iterator;
 
-import org.apache.spark.storage.ShuffleBlockId;
 import scala.Option;
 import scala.Product2;
 import scala.collection.JavaConverters;
@@ -378,43 +377,44 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
         logger.error("In partition: " + partition);
         boolean copyThrewExecption = true;
         ShufflePartitionWriter writer = null;
-        OutputStream partitionOutput;
         try {
           writer = mapWriter.getNextPartitionWriter();
-          // Shield the underlying output stream from close() and flush() calls, so we can close
-          // the higher level streams to make sure all data is really flushed and internal state is
-          // cleaned.
-          partitionOutput = writer.toStream();
-          // Here, we don't need to perform any metrics updates when spills.length < 2 because the
-          // bytes written to this output file would have already been counted as shuffle bytes written.
-          if (spills.length >= 2) {
-            partitionOutput = new TimeTrackingOutputStream(writeMetrics, partitionOutput);
-          }
-          partitionOutput = blockManager.serializerManager().wrapForEncryption(partitionOutput);
-          if (compressionCodec != null) {
-            partitionOutput = compressionCodec.compressedOutputStream(partitionOutput);
-          }
-          for (int i = 0; i < spills.length; i++) {
-            final long partitionLengthInSpill = spills[i].partitionLengths[partition];
-            logger.error("PartitionLengthsInSpill: " + partitionLengthInSpill);
-
-            if (partitionLengthInSpill > 0) {
-              InputStream partitionInputStream = null;
-              try {
-                partitionInputStream = new LimitedInputStream(spillInputStreams[i],
-                        partitionLengthInSpill, false);
-                partitionInputStream = blockManager.serializerManager().wrapForEncryption(
-                  partitionInputStream);
-                if (compressionCodec != null) {
-                  partitionInputStream = compressionCodec.compressedInputStream(
-                    partitionInputStream);
-                }
-                ByteStreams.copy(partitionInputStream, partitionOutput);
-              } finally {
-                partitionInputStream.close();
-              }
+          OutputStream partitionOutput = null;
+          try {
+            partitionOutput = new CloseShieldOutputStream(writer.toStream());
+            // Here, we don't need to perform any metrics updates when spills.length < 2 because the
+            // bytes written to this output file would have already been counted as shuffle bytes written.
+            if (spills.length >= 2) {
+              partitionOutput = new TimeTrackingOutputStream(writeMetrics, partitionOutput);
             }
-            copyThrewExecption = false;
+            partitionOutput = blockManager.serializerManager().wrapForEncryption(partitionOutput);
+            if (compressionCodec != null) {
+              partitionOutput = compressionCodec.compressedOutputStream(partitionOutput);
+            }
+            for (int i = 0; i < spills.length; i++) {
+              final long partitionLengthInSpill = spills[i].partitionLengths[partition];
+              logger.error("PartitionLengthsInSpill: " + partitionLengthInSpill);
+
+              if (partitionLengthInSpill > 0) {
+                InputStream partitionInputStream = null;
+                try {
+                  partitionInputStream = new LimitedInputStream(spillInputStreams[i],
+                      partitionLengthInSpill, false);
+                  partitionInputStream = blockManager.serializerManager().wrapForEncryption(
+                      partitionInputStream);
+                  if (compressionCodec != null) {
+                    partitionInputStream = compressionCodec.compressedInputStream(
+                        partitionInputStream);
+                  }
+                  ByteStreams.copy(partitionInputStream, partitionOutput);
+                } finally {
+                  partitionInputStream.close();
+                }
+              }
+              copyThrewExecption = false;
+            }
+          } finally {
+            Closeables.close(partitionOutput, copyThrewExecption);
           }
         } finally {
           logger.error("Closing the writer");
