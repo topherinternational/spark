@@ -87,8 +87,6 @@ public class UnsafeShuffleWriterSuite {
   @Mock(answer = RETURNS_SMART_NULLS) TaskContext taskContext;
   @Mock(answer = RETURNS_SMART_NULLS) ShuffleDependency<Object, Object, Object> shuffleDep;
 
-
-
   @After
   public void tearDown() {
     TaskContext$.MODULE$.unset();

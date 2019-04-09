@@ -340,10 +340,6 @@ private[spark] object Utils extends Logging {
       output: WritableByteChannel,
       startPosition: Long,
       bytesToCopy: Long): Unit = {
-    log.error("Entering")
-    log.error(s"Input open: ${input.isOpen}")
-    log.error(s"Output open: ${output.isOpen}")
-    log.error(s"start position: $startPosition with $bytesToCopy bytes to copy")
     val outputInitialState = output match {
       case outputFileChannel: FileChannel =>
         Some((outputFileChannel.position(), outputFileChannel))
@@ -354,7 +350,6 @@ private[spark] object Utils extends Logging {
     while (count < bytesToCopy) {
       count += input.transferTo(count + startPosition, bytesToCopy - count, output)
     }
-    log.error(s"Wrote $count when needed to write $bytesToCopy")
     assert(count == bytesToCopy,
       s"request to copy $bytesToCopy bytes, but actually copied $count bytes.")
 
@@ -375,7 +370,6 @@ private[spark] object Utils extends Logging {
            |You can set spark.file.transferTo = false to disable this NIO feature.
          """.stripMargin)
     }
-    log.error(s"Done with $count")
   }
 
   /**
