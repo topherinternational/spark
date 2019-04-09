@@ -21,7 +21,6 @@ import java.io.*;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import org.apache.spark.*;
 import scala.Option;
 import scala.Product2;
 import scala.Tuple2;
@@ -36,6 +35,12 @@ import org.junit.Test;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
+import org.apache.spark.HashPartitioner;
+import org.apache.spark.ShuffleDependency;
+import org.apache.spark.SparkConf;
+import org.apache.spark.TaskContext;
+import org.apache.spark.TaskContext$;
+import org.apache.spark.TaskContextImpl;
 import org.apache.spark.executor.ShuffleWriteMetrics;
 import org.apache.spark.executor.TaskMetrics;
 import org.apache.spark.io.CompressionCodec$;
