@@ -198,9 +198,10 @@ public class DefaultShuffleMapOutputWriter implements ShuffleMapOutputWriter {
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
       log.error("Do I have an outputTempFile: " + outputTempFile.exists());
       if (stream != null) {
+        // Closing is a no-op.
         stream.close();
       }
       partitionLengths[partitionId] = getNumBytesWritten();
@@ -230,16 +231,8 @@ public class DefaultShuffleMapOutputWriter implements ShuffleMapOutputWriter {
     }
 
     @Override
-    public void close() throws IOException {
-      flush();
+    public void close() {
       isClosed = true;
-    }
-
-    @Override
-    public void flush() throws IOException {
-      if (!isClosed) {
-        outputBufferedFileStream.flush();
-      }
     }
 
     private void verifyNotClosed() {
