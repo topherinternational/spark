@@ -283,7 +283,6 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
     final boolean encryptionEnabled = blockManager.serializerManager().encryptionEnabled();
     final int numPartitions = partitioner.numPartitions();
     long[] partitionLengths = new long[numPartitions];
-    logger.error(mapWriter.toString());
     try {
       if (spills.length == 0) {
         ShufflePartitionWriter writer = null;
