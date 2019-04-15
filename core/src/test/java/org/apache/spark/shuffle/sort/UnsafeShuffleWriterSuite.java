@@ -40,7 +40,6 @@ import org.apache.spark.ShuffleDependency;
 import org.apache.spark.SparkConf;
 import org.apache.spark.TaskContext;
 import org.apache.spark.TaskContext$;
-import org.apache.spark.TaskContextImpl;
 import org.apache.spark.executor.ShuffleWriteMetrics;
 import org.apache.spark.executor.TaskMetrics;
 import org.apache.spark.io.CompressionCodec$;
@@ -158,9 +157,7 @@ public class UnsafeShuffleWriterSuite {
     when(shuffleDep.partitioner()).thenReturn(hashPartitioner);
     when(taskContext.taskMemoryManager()).thenReturn(taskMemoryManager);
 
-    Random rand = new Random();
-    TaskContext$.MODULE$.setTaskContext(new TaskContextImpl(
-      0, 0, 0, rand.nextInt(10000), 0, taskMemoryManager, new Properties(), null, taskMetrics));
+    TaskContext$.MODULE$.setTaskContext(taskContext);
   }
 
   private UnsafeShuffleWriter<Object, Object> createWriter(

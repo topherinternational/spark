@@ -360,7 +360,6 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
     final InputStream[] spillInputStreams = new InputStream[spills.length];
 
     boolean threwException = true;
-
     try {
       for (int i = 0; i < spills.length; i++) {
         spillInputStreams[i] = new NioBufferedFileInputStream(
@@ -442,7 +441,6 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
     final long[] spillInputChannelPositions = new long[spills.length];
 
     boolean threwException = true;
-
     try {
       for (int i = 0; i < spills.length; i++) {
         spillInputChannels[i] = new FileInputStream(spills[i].file).getChannel();
@@ -467,8 +465,6 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
             spillInputChannelPositions[i] += partitionLengthInSpill;
             writeMetrics.incWriteTime(System.nanoTime() - writeStartTime);
           }
-        } catch (IOException e) {
-          throw e;
         } finally {
           Closeables.close(writer, copyThrewExecption);
         }

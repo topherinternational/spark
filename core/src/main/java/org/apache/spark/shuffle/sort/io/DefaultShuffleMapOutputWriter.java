@@ -93,6 +93,19 @@ public class DefaultShuffleMapOutputWriter implements ShuffleMapOutputWriter {
   public void commitAllPartitions() throws IOException {
     cleanUp();
     blockResolver.writeIndexFileAndCommit(shuffleId, mapId, partitionLengths, outputTempFile);
+    if (!outputFile.exists()) {
+      if (!outputFile.getParentFile().isDirectory() && !outputFile.getParentFile().mkdirs()) {
+        throw new IOException(
+          String.format(
+            "Failed to create shuffle file directory at %s.",
+            outputFile.getParentFile().getAbsolutePath()));
+      }
+      if (!outputFile.isFile() && !outputFile.createNewFile()) {
+        throw new IOException(
+          String.format(
+            "Failed to create empty shuffle file at %s.", outputFile.getAbsolutePath()));
+      }
+    }
   }
 
   @Override
@@ -111,11 +124,9 @@ public class DefaultShuffleMapOutputWriter implements ShuffleMapOutputWriter {
     if (outputBufferedFileStream != null) {
       outputBufferedFileStream.close();
     }
-
     if (outputFileChannel != null) {
       outputFileChannel.close();
     }
-    
     if (outputFileStream != null) {
       outputFileStream.close();
     }
