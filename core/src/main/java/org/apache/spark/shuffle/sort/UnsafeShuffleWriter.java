@@ -289,7 +289,6 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
         ShufflePartitionWriter writer = null;
         try {
           writer = mapWriter.getNextPartitionWriter();
-          writer.toStream();
         } finally {
           if (writer != null) {
             writer.close();
