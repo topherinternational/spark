@@ -285,12 +285,14 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
     long[] partitionLengths = new long[numPartitions];
     try {
       if (spills.length == 0) {
-        ShufflePartitionWriter writer = null;
-        try {
-          writer = mapWriter.getNextPartitionWriter();
-        } finally {
-          if (writer != null) {
-            writer.close();
+        for (int i = 0; i < numPartitions; i++) {
+          ShufflePartitionWriter emptyPartWriter = null;
+          boolean openThrewException = true;
+          try {
+            emptyPartWriter = mapWriter.getNextPartitionWriter();
+            openThrewException = false;
+          } finally {
+            Closeables.close(emptyPartWriter, openThrewException);
           }
         }
         return partitionLengths;

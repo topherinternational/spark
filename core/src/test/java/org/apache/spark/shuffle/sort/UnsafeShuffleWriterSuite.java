@@ -19,8 +19,10 @@ package org.apache.spark.shuffle.sort;
 
 import java.io.*;
 import java.nio.ByteBuffer;
+import java.nio.file.Files;
 import java.util.*;
 
+import org.mockito.stubbing.Answer;
 import scala.Option;
 import scala.Product2;
 import scala.Tuple2;
@@ -136,14 +138,27 @@ public class UnsafeShuffleWriterSuite {
       });
 
     when(shuffleBlockResolver.getDataFile(anyInt(), anyInt())).thenReturn(mergedOutputFile);
-    doAnswer(invocationOnMock -> {
+
+    Answer setPartSizesAnswer = invocationOnMock -> {
       partitionSizesInMergedFile = (long[]) invocationOnMock.getArguments()[2];
       File tmp = (File) invocationOnMock.getArguments()[3];
-      mergedOutputFile.delete();
-      tmp.renameTo(mergedOutputFile);
+      if (mergedOutputFile.exists() && !mergedOutputFile.delete()) {
+        throw new RuntimeException("Failed to delete prior merged output file.");
+      }
+      if (tmp != null && tmp.exists()) {
+        Files.move(tmp.toPath(), mergedOutputFile.toPath());
+      } else if (!mergedOutputFile.createNewFile()) {
+        throw new RuntimeException("Failed to create merged output file given empty temp file.");
+      }
       return null;
-    }).when(shuffleBlockResolver)
-      .writeIndexFileAndCommit(anyInt(), anyInt(), any(long[].class), any(File.class));
+    };
+
+    doAnswer(setPartSizesAnswer)
+        .when(shuffleBlockResolver)
+        .writeIndexFileAndCommit(anyInt(), anyInt(), any(long[].class), any(File.class));
+    doAnswer(setPartSizesAnswer)
+        .when(shuffleBlockResolver)
+        .writeIndexFileAndCommit(anyInt(), anyInt(), any(long[].class), eq(null));
 
     when(diskBlockManager.createTempShuffleBlock()).thenAnswer(invocationOnMock -> {
       TempShuffleBlockId blockId = new TempShuffleBlockId(UUID.randomUUID());
