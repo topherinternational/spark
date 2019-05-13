@@ -117,11 +117,20 @@ abstract class QueryStage extends UnaryExecNode {
         conf.targetPostShuffleInputSize,
         conf.minNumPostShufflePartitions)
 
-      val partitionStartIndices =
-        exchangeCoordinator.estimatePartitionStartIndices(childMapOutputStatistics)
-      child = child.transform {
-        case ShuffleQueryStageInput(childStage, output, _) =>
-          ShuffleQueryStageInput(childStage, output, Some(partitionStartIndices))
+      val distinctNumPreShufflePartitions =
+        childMapOutputStatistics.map(stats => stats.bytesByPartitionId.length).distinct
+
+      if (distinctNumPreShufflePartitions.length != 1) {
+        log.warn("There should be only one distinct value of the number pre-shuffle partitions " +
+          "among registered Exchange operator.")
+      }
+      else {
+        val partitionStartIndices =
+          exchangeCoordinator.estimatePartitionStartIndices(childMapOutputStatistics)
+        child = child.transform {
+          case ShuffleQueryStageInput(childStage, output, _) =>
+            ShuffleQueryStageInput(childStage, output, Some(partitionStartIndices))
+        }
       }
     }
 
