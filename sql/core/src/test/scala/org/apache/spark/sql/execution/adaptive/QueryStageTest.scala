@@ -18,7 +18,7 @@
 package org.apache.spark.sql.execution.adaptive
 
 import org.apache.spark.sql.catalyst.plans.physical.HashPartitioning
-import org.apache.spark.sql.execution.RangeExec
+import org.apache.spark.sql.execution.{RangeExec, UnionExec}
 import org.apache.spark.sql.execution.exchange.ShuffleExchangeExec
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.test.SharedSQLContext
@@ -38,5 +38,18 @@ class QueryStageTest extends SharedSQLContext {
 
     assert(plan.execute().getNumPartitions == originalNumPartitions)
     assert(PlanQueryStage.apply(new SQLConf)(plan).execute().getNumPartitions == 1)
+  }
+
+  test("Works on unions when children have different number of partitions") {
+    val union = UnionExec(Seq(
+      ShuffleExchangeExec(
+        HashPartitioning(Seq(), 100),
+        RangeExec(org.apache.spark.sql.catalyst.plans.logical.Range(1, 1000, 1, 1))),
+      ShuffleExchangeExec(
+        HashPartitioning(Seq(), 500),
+        RangeExec(org.apache.spark.sql.catalyst.plans.logical.Range(1, 1000, 1, 1)))
+    ))
+    val rdd = PlanQueryStage.apply(new SQLConf)(union).execute()
+    assert(rdd.getNumPartitions == 600)
   }
 }
