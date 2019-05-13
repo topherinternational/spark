@@ -69,7 +69,7 @@ private[spark] class BlockStoreShuffleReader[K, C](
                   block.mapId,
                   block.reduceId,
                   blockInfo._2,
-                  shuffleLocationInfo._1)
+                  shuffleLocationInfo._1.toArray)
               }
             }
         }

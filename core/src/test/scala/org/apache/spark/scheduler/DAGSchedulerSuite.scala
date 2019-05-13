@@ -703,7 +703,7 @@ class DAGSchedulerSuite extends SparkFunSuite with LocalSparkContext with TimeLi
       (Success, makeMapStatus("hostA", 1)),
       (Success, makeMapStatus("hostB", 1))))
     assert(mapOutputTracker.getMapSizesByShuffleLocation(shuffleId, 0).map(_._1).toSet ===
-      HashSet(makeShuffleLocationArray("hostA"), makeShuffleLocationArray("hostB")))
+      HashSet(makeShuffleLocationSeq("hostA"), makeShuffleLocationSeq("hostB")))
     complete(taskSets(1), Seq((Success, 42)))
     assert(results === Map(0 -> 42))
     assertDataStructuresEmpty()
@@ -774,7 +774,7 @@ class DAGSchedulerSuite extends SparkFunSuite with LocalSparkContext with TimeLi
         }
       } else {
         assert(mapOutputTracker.getMapSizesByShuffleLocation(shuffleId, 0).map(_._1).toSet ===
-          HashSet(makeShuffleLocationArray("hostA"), makeShuffleLocationArray("hostB")))
+          HashSet(makeShuffleLocationSeq("hostA"), makeShuffleLocationSeq("hostB")))
       }
     }
   }
@@ -1398,7 +1398,7 @@ class DAGSchedulerSuite extends SparkFunSuite with LocalSparkContext with TimeLi
       makeMapStatus("hostA", reduceRdd.partitions.size)))
     assert(shuffleStage.numAvailableOutputs === 2)
     assert(mapOutputTracker.getMapSizesByShuffleLocation(shuffleId, 0).map(_._1).toSet ===
-      HashSet(makeShuffleLocationArray("hostB"), makeShuffleLocationArray("hostA")))
+      HashSet(makeShuffleLocationSeq("hostB"), makeShuffleLocationSeq("hostA")))
 
     // finish the next stage normally, which completes the job
     complete(taskSets(1), Seq((Success, 42), (Success, 43)))
@@ -1805,7 +1805,7 @@ class DAGSchedulerSuite extends SparkFunSuite with LocalSparkContext with TimeLi
     // have hostC complete the resubmitted task
     complete(taskSets(1), Seq((Success, makeMapStatus("hostC", 1))))
     assert(mapOutputTracker.getMapSizesByShuffleLocation(shuffleId, 0).map(_._1).toSet ===
-      HashSet(makeShuffleLocationArray("hostC"), makeShuffleLocationArray("hostB")))
+      HashSet(makeShuffleLocationSeq("hostC"), makeShuffleLocationSeq("hostB")))
 
     // Make sure that the reduce stage was now submitted.
     assert(taskSets.size === 3)
@@ -2070,7 +2070,7 @@ class DAGSchedulerSuite extends SparkFunSuite with LocalSparkContext with TimeLi
     complete(taskSets(0), Seq(
       (Success, makeMapStatus("hostA", 1))))
     assert(mapOutputTracker.getMapSizesByShuffleLocation(shuffleId, 0).map(_._1).toSet ===
-      HashSet(makeShuffleLocationArray("hostA")))
+      HashSet(makeShuffleLocationSeq("hostA")))
 
     // Reducer should run on the same host that map task ran
     val reduceTaskSet = taskSets(1)
@@ -2116,7 +2116,7 @@ class DAGSchedulerSuite extends SparkFunSuite with LocalSparkContext with TimeLi
     complete(taskSets(0), Seq(
       (Success, makeMapStatus("hostA", 1))))
     assert(mapOutputTracker.getMapSizesByShuffleLocation(shuffleId, 0).map(_._1).toSet ===
-      HashSet(makeShuffleLocationArray("hostA")))
+      HashSet(makeShuffleLocationSeq("hostA")))
 
     // Reducer should run where RDD 2 has preferences, even though it also has a shuffle dep
     val reduceTaskSet = taskSets(1)
@@ -2280,7 +2280,7 @@ class DAGSchedulerSuite extends SparkFunSuite with LocalSparkContext with TimeLi
       (Success, makeMapStatus("hostA", rdd1.partitions.length)),
       (Success, makeMapStatus("hostB", rdd1.partitions.length))))
     assert(mapOutputTracker.getMapSizesByShuffleLocation(dep1.shuffleId, 0).map(_._1).toSet ===
-      HashSet(makeShuffleLocationArray("hostA"), makeShuffleLocationArray("hostB")))
+      HashSet(makeShuffleLocationSeq("hostA"), makeShuffleLocationSeq("hostB")))
     assert(listener1.results.size === 1)
 
     // When attempting the second stage, show a fetch failure
@@ -2296,7 +2296,7 @@ class DAGSchedulerSuite extends SparkFunSuite with LocalSparkContext with TimeLi
     complete(taskSets(2), Seq(
       (Success, makeMapStatus("hostC", rdd2.partitions.length))))
     assert(mapOutputTracker.getMapSizesByShuffleLocation(dep1.shuffleId, 0).map(_._1).toSet ===
-      HashSet(makeShuffleLocationArray("hostC"), makeShuffleLocationArray("hostB")))
+      HashSet(makeShuffleLocationSeq("hostC"), makeShuffleLocationSeq("hostB")))
 
     assert(listener2.results.size === 0)    // Second stage listener should still not have a result
 
@@ -2306,7 +2306,7 @@ class DAGSchedulerSuite extends SparkFunSuite with LocalSparkContext with TimeLi
       (Success, makeMapStatus("hostB", rdd2.partitions.length)),
       (Success, makeMapStatus("hostD", rdd2.partitions.length))))
     assert(mapOutputTracker.getMapSizesByShuffleLocation(dep2.shuffleId, 0).map(_._1).toSet ===
-      HashSet(makeShuffleLocationArray("hostB"), makeShuffleLocationArray("hostD")))
+      HashSet(makeShuffleLocationSeq("hostB"), makeShuffleLocationSeq("hostD")))
     assert(listener2.results.size === 1)
 
     // Finally, the reduce job should be running as task set 4; make it see a fetch failure,
@@ -2345,7 +2345,7 @@ class DAGSchedulerSuite extends SparkFunSuite with LocalSparkContext with TimeLi
       (Success, makeMapStatus("hostA", rdd1.partitions.length)),
       (Success, makeMapStatus("hostB", rdd1.partitions.length))))
     assert(mapOutputTracker.getMapSizesByShuffleLocation(dep1.shuffleId, 0).map(_._1).toSet ===
-        HashSet(makeShuffleLocationArray("hostA"), makeShuffleLocationArray("hostB")))
+        HashSet(makeShuffleLocationSeq("hostA"), makeShuffleLocationSeq("hostB")))
     assert(listener1.results.size === 1)
 
     // When attempting stage1, trigger a fetch failure.
@@ -2371,7 +2371,7 @@ class DAGSchedulerSuite extends SparkFunSuite with LocalSparkContext with TimeLi
     complete(taskSets(2), Seq(
       (Success, makeMapStatus("hostC", rdd2.partitions.length))))
     assert(mapOutputTracker.getMapSizesByShuffleLocation(dep1.shuffleId, 0).map(_._1).toSet ===
-        Set(makeShuffleLocationArray("hostC"), makeShuffleLocationArray("hostB")))
+        Set(makeShuffleLocationSeq("hostC"), makeShuffleLocationSeq("hostB")))
 
     // After stage0 is finished, stage1 will be submitted and found there is no missing
     // partitions in it. Then listener got triggered.
@@ -2934,6 +2934,10 @@ object DAGSchedulerSuite {
 
   def makeShuffleLocationArray(execId: String, host: String, port: Int): Array[ShuffleLocation] = {
     DefaultMapShuffleLocations.get(makeBlockManagerId(host)).getLocationsForBlock(0)
+  }
+
+  def makeShuffleLocationSeq(host: String): Seq[ShuffleLocation] = {
+    Seq(DefaultMapShuffleLocations.get(makeBlockManagerId(host)))
   }
 }
 

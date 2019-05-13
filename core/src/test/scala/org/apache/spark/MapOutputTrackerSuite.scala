@@ -70,9 +70,9 @@ class MapOutputTrackerSuite extends SparkFunSuite {
         Array(10000L, 1000L)))
     val statuses = tracker.getMapSizesByShuffleLocation(10, 0)
     assert(statuses.toSet === Seq(
-      (DefaultMapShuffleLocations.get(BlockManagerId("a", "hostA", 1000)).getLocationsForBlock(0),
+      (Seq(DefaultMapShuffleLocations.get(BlockManagerId("a", "hostA", 1000))),
         ArrayBuffer((ShuffleBlockId(10, 0, 0), size1000))),
-      (DefaultMapShuffleLocations.get(BlockManagerId("b", "hostB", 1000)).getLocationsForBlock(0),
+      (Seq(DefaultMapShuffleLocations.get(BlockManagerId("b", "hostB", 1000))),
         ArrayBuffer((ShuffleBlockId(10, 1, 0), size10000))))
       .toSet)
     assert(0 == tracker.getNumCachedSerializedBroadcast)
@@ -156,7 +156,7 @@ class MapOutputTrackerSuite extends SparkFunSuite {
     slaveTracker.updateEpoch(masterTracker.getEpoch)
     assert(slaveTracker.getMapSizesByShuffleLocation(10, 0).toSeq ===
       Seq(
-        (DefaultMapShuffleLocations.get(BlockManagerId("a", "hostA", 1000)).getLocationsForBlock(0),
+        (Seq(DefaultMapShuffleLocations.get(BlockManagerId("a", "hostA", 1000))),
           ArrayBuffer((ShuffleBlockId(10, 0, 0), size1000)))))
     assert(0 == masterTracker.getNumCachedSerializedBroadcast)
 
