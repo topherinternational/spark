@@ -106,10 +106,14 @@ private class ShuffleStatus(numPartitions: Int) {
   def removeMapOutput(mapId: Int, shuffleLocations: Array[ShuffleLocation]): Unit = synchronized {
     if (mapStatuses(mapId) != null) {
       var shouldDelete = false
-      shuffleLocations.foreach { location =>
-        shouldDelete = mapStatuses(mapId)
-          .mapShuffleLocations
-          .removeShuffleLocation(location.host(), Optional.of(location.port()))
+      if (shuffleLocations == null) {
+        shouldDelete = true
+      } else {
+        shuffleLocations.foreach { location =>
+          shouldDelete = mapStatuses(mapId)
+            .mapShuffleLocations
+            .removeShuffleLocation(location.host(), Optional.of(location.port()))
+        }
       }
       if (shouldDelete) {
         _numAvailableOutputs -= 1

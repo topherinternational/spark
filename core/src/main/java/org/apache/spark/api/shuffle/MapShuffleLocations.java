@@ -39,8 +39,8 @@ public interface MapShuffleLocations extends Serializable {
   ShuffleLocation[] getLocationsForBlock(int reduceId);
 
   /**
-   * Deletes a ShuffleLocation from this MapShuffleLocations. Returns true if
-   * the removal of this ShuffleLocation results in missing partitions.
+   * Deletes a host or a host/port combination from this MapShuffleLocations.
+   * Returns true if the removal of this ShuffleLocation results in missing partitions.
    */
   boolean removeShuffleLocation(String host, Optional<Integer> port);
 }

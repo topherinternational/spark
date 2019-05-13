@@ -1639,7 +1639,7 @@ private[spark] class DAGScheduler(
 
             shuffleLocations.foreach(location => {
               var epochAllowsRemoval = false
-              // if there's an executor id, remove it
+              // If the location belonged to an executor, remove all outputs on the executor
               val maybeExecId = location.execId()
               val currentEpoch = Some(task.epoch).getOrElse(mapOutputTracker.getEpoch)
               if (maybeExecId.isPresent) {
@@ -1651,6 +1651,7 @@ private[spark] class DAGScheduler(
                   mapOutputTracker.removeOutputsOnExecutor(execId)
                 }
               } else {
+                // If the location doesn't belong to an executor, the epoch doesn't matter
                 epochAllowsRemoval = true
               }
 
@@ -1810,11 +1811,6 @@ private[spark] class DAGScheduler(
       maybeEpoch = None)
   }
 
-  private def removeShuffleLocationHosts(hosts: Array[String]): Unit = {
-    logInfo("Removing all outputs at hosts %s".format(hosts.toString))
-    hosts.foreach(host => mapOutputTracker.removeOutputsOnHost(host))
-  }
-
   private def removeExecutorAndUnregisterOutputs(
       execId: String,
       fileLost: Boolean,
@@ -1828,7 +1824,7 @@ private[spark] class DAGScheduler(
       if (fileLost) {
         hostToUnregisterOutputs match {
           case Some(host) =>
-            logInfo("Shuffle files lost for hosts: %s (epoch %d)".format(host, currentEpoch))
+            logInfo("Shuffle files lost for host: %s (epoch %d)".format(host, currentEpoch))
             mapOutputTracker.removeOutputsOnHost(host)
           case None =>
             logInfo("Shuffle files lost for executor: %s (epoch %d)".format(execId, currentEpoch))

@@ -24,12 +24,26 @@ import org.apache.spark.api.java.Optional;
  * and writers are expected to cast this down to an implementation-specific representation.
  */
 public abstract class ShuffleLocation {
+  /**
+   * The host and port on which the shuffle block is located.
+   */
   public abstract String host();
   public abstract int port();
-  public abstract Optional<String> execId();
+
+  /**
+   * The executor on which the ShuffleLocation is located. Returns {@link Optional#empty()} if
+   * location is not associated with an executor.
+   */
+  public Optional<String> execId() {
+    return Optional.empty();
+  }
 
   @Override
-  public final String toString() {
-    return String.format("ShuffleLocation %s:%d", host(), port());
+  public String toString() {
+    String shuffleLocation = String.format("ShuffleLocation %s:%d", host(), port());
+    if (execId().isPresent()) {
+      return String.format("%s (execId: %s)", shuffleLocation, execId().get());
+    }
+    return shuffleLocation;
   }
 }

@@ -581,7 +581,7 @@ final class ShuffleBlockFetcherIterator(
     blockId match {
       case ShuffleBlockId(shufId, mapId, reduceId) =>
         throw new FetchFailedException(
-          DefaultMapShuffleLocations.get(address).getLocationsForBlock(0),
+          DefaultMapShuffleLocations.get(address).getLocationsForBlock(reduceId),
           shufId.toInt, mapId.toInt, reduceId, e)
       case _ =>
         throw new SparkException(

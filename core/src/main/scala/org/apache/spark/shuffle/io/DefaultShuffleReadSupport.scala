@@ -95,6 +95,7 @@ private class ShuffleBlockFetcherIterable(
       blockManager,
       mapOutputTracker.getMapSizesByShuffleLocation(shuffleId, minReduceId, maxReduceId + 1)
         .map { shuffleLocationInfo =>
+          // there should be only one copy of the shuffle data in the default implementation
           val defaultShuffleLocation = shuffleLocationInfo._1(0)
             .asInstanceOf[DefaultMapShuffleLocations]
           (defaultShuffleLocation.getBlockManagerId, shuffleLocationInfo._2)
