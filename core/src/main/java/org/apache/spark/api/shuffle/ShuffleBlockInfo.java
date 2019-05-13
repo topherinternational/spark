@@ -17,8 +17,6 @@
 
 package org.apache.spark.api.shuffle;
 
-import org.apache.spark.api.java.Optional;
-
 import java.util.Objects;
 
 /**
