@@ -21,7 +21,6 @@ import java.util.{Properties, UUID}
 
 import scala.collection.JavaConverters._
 import scala.collection.Map
-
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import org.json4s.DefaultFormats
@@ -36,6 +35,7 @@ import org.apache.spark.metrics.ExecutorMetricType
 import org.apache.spark.rdd.RDDOperationScope
 import org.apache.spark.scheduler._
 import org.apache.spark.scheduler.cluster.ExecutorInfo
+import org.apache.spark.shuffle.sort.DefaultMapShuffleLocations
 import org.apache.spark.storage._
 
 /**
@@ -408,8 +408,7 @@ private[spark] object JsonProtocol {
     val reason = Utils.getFormattedClassName(taskEndReason)
     val json: JObject = taskEndReason match {
       case fetchFailed: FetchFailed =>
-        val blockManagerAddress = Option(fetchFailed.shuffleLocation).
-          map(mapper.writeValueAsString).getOrElse("None")
+        val blockManagerAddress = shuffleLocationsToJson(fetchFailed.shuffleLocation)
         ("Shuffle Locations" -> blockManagerAddress) ~
         ("Shuffle ID" -> fetchFailed.shuffleId) ~
         ("Map ID" -> fetchFailed.mapId) ~
@@ -438,6 +437,24 @@ private[spark] object JsonProtocol {
       case _ => emptyJson
     }
     ("Reason" -> reason) ~ json
+  }
+
+  def shuffleLocationsToJson(shuffleLocations: Array[ShuffleLocation]): JValue = {
+    if (shuffleLocations != null && shuffleLocations.nonEmpty) {
+      if (shuffleLocations(0).isInstanceOf[DefaultMapShuffleLocations]) {
+        val array = JArray(shuffleLocations.map(location => {
+          val blockManagerId = location.asInstanceOf[DefaultMapShuffleLocations].getBlockManagerId
+          blockManagerIdToJson(blockManagerId)
+        }).toList)
+        ("type" -> "Default") ~
+        ("data" -> array)
+      } else {
+        ("type" -> "Custom") ~
+        ("data" -> mapper.writeValueAsString(shuffleLocations))
+      }
+    } else {
+      "type" -> "None"
+    }
   }
 
   def blockManagerIdToJson(blockManagerId: BlockManagerId): JValue = {
@@ -949,13 +966,13 @@ private[spark] object JsonProtocol {
       case `success` => Success
       case `resubmitted` => Resubmitted
       case `fetchFailed` =>
-        val locations = shuffleLocationsFromString(
-          (json \ "Shuffle Locations").extract[String])
+        val locations = shuffleLocationsFromJson(
+          (json \ "Shuffle Locations"))
         val shuffleId = (json \ "Shuffle ID").extract[Int]
         val mapId = (json \ "Map ID").extract[Int]
         val reduceId = (json \ "Reduce ID").extract[Int]
         val message = jsonOption(json \ "Message").map(_.extract[String])
-        new FetchFailed(locations.get, shuffleId, mapId, reduceId,
+        new FetchFailed(locations, shuffleId, mapId, reduceId,
           message.getOrElse("Unknown reason"))
       case `exceptionFailure` =>
         val className = (json \ "Class Name").extract[String]
@@ -995,6 +1012,18 @@ private[spark] object JsonProtocol {
           exitCausedByApp.getOrElse(true),
           reason)
       case `unknownReason` => UnknownReason
+    }
+  }
+
+  def shuffleLocationsFromJson(json: JValue): Array[ShuffleLocation] = {
+    val shuffleType = (json \ "type").extract[String]
+    if (shuffleType == "Default") {
+      (json \ "data").children.map(value => {
+        val block = blockManagerIdFromJson(value)
+        DefaultMapShuffleLocations.get(block)
+      }).toArray
+    } else {
+      null
     }
   }
 

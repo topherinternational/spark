@@ -289,12 +289,14 @@ class JsonProtocolSuite extends SparkFunSuite {
   test("FetchFailed backwards compatibility") {
     // FetchFailed in Spark 1.1.0 does not have a "Message" property.
     val fetchFailed = FetchFailed(
-      Array(DefaultMapShuffleLocations.get(BlockManagerId("With or", "without you", 15))),
+      DefaultMapShuffleLocations.get(BlockManagerId("With or", "without you", 15))
+        .getLocationsForBlock(0),
       17, 18, 19, "ignored")
     val oldEvent = JsonProtocol.taskEndReasonToJson(fetchFailed)
       .removeField({ _._1 == "Message" })
     val expectedFetchFailed = FetchFailed(
-      Array(DefaultMapShuffleLocations.get(BlockManagerId("With or", "without you", 15))),
+      DefaultMapShuffleLocations.get(BlockManagerId("With or", "without you", 15))
+        .getLocationsForBlock(0),
       17, 18, 19, "Unknown reason")
     assert(expectedFetchFailed === JsonProtocol.taskEndReasonFromJson(oldEvent))
   }
