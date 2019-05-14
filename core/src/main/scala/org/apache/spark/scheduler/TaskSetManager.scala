@@ -853,9 +853,9 @@ private[spark] class TaskSetManager(
         // locations shouldn't be running executors, so only fetches using the default Spark
         // implementation (DefaultMapShuffleLocations) of fetching from executor disk should result
         // in blacklistable executors.
-        if (fetchFailed.shuffleLocation != null &&
-          fetchFailed.shuffleLocation.isInstanceOf[Array[DefaultMapShuffleLocations]]) {
-          val bmAddress = fetchFailed.shuffleLocation
+        if (fetchFailed.shuffleLocation != null && fetchFailed.shuffleLocation.nonEmpty
+          && fetchFailed.shuffleLocation(0).isInstanceOf[DefaultMapShuffleLocations]) {
+          val bmAddress = fetchFailed.shuffleLocation(0)
             .asInstanceOf[DefaultMapShuffleLocations]
             .getBlockManagerId
           blacklistTracker.foreach(_.updateBlacklistForFetchFailure(

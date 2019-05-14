@@ -197,14 +197,14 @@ object BlockStoreShuffleReaderBenchmark extends BenchmarkBase {
     }
 
     when(mapOutputTracker.getMapSizesByShuffleLocation(0, 0, 1))
-      .thenAnswer(new Answer[Iterator[(Option[ShuffleLocation], Seq[(BlockId, Long)])]] {
+      .thenAnswer(new Answer[Iterator[(Seq[ShuffleLocation], Seq[(BlockId, Long)])]] {
         def answer(invocationOnMock: InvocationOnMock):
-        Iterator[(Option[ShuffleLocation], Seq[(BlockId, Long)])] = {
+        Iterator[(Seq[ShuffleLocation], Seq[(BlockId, Long)])] = {
           val shuffleBlockIdsAndSizes = (0 until NUM_MAPS).map { mapId =>
             val shuffleBlockId = ShuffleBlockId(0, mapId, 0)
             (shuffleBlockId, dataFileLength)
           }
-          Seq((Option.apply(DefaultMapShuffleLocations.get(dataBlockId)), shuffleBlockIdsAndSizes))
+          Seq((Seq(DefaultMapShuffleLocations.get(dataBlockId)), shuffleBlockIdsAndSizes))
             .toIterator
         }
       })
