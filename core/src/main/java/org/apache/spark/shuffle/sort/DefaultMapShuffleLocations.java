@@ -17,17 +17,17 @@
 
 package org.apache.spark.shuffle.sort;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 
-import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
 import org.apache.spark.api.java.Optional;
 import org.apache.spark.api.shuffle.MapShuffleLocations;
 import org.apache.spark.api.shuffle.ShuffleLocation;
 import org.apache.spark.storage.BlockManagerId;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -49,11 +49,12 @@ public class DefaultMapShuffleLocations extends ShuffleLocation implements MapSh
               });
 
   private final BlockManagerId location;
+  @JsonIgnore
   private final List<ShuffleLocation> locationsArray;
 
   public DefaultMapShuffleLocations(BlockManagerId blockManagerId) {
     this.location = blockManagerId;
-    this.locationsArray = ImmutableList.of(this);
+    this.locationsArray = Lists.newArrayList(this);
   }
 
   public static DefaultMapShuffleLocations get(BlockManagerId blockManagerId) {
