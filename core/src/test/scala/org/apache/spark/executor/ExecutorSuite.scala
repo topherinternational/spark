@@ -439,7 +439,7 @@ class FetchFailureThrowingRDD(sc: SparkContext) extends RDD[Int](sc, Nil) {
       override def hasNext: Boolean = true
       override def next(): Int = {
         throw new FetchFailedException(
-          Array(DefaultMapShuffleLocations.get(BlockManagerId("1", "hostA", 1234))),
+          Seq(DefaultMapShuffleLocations.get(BlockManagerId("1", "hostA", 1234))),
           shuffleId = 0,
           mapId = 0,
           reduceId = 0,

@@ -260,7 +260,7 @@ class OutputCommitCoordinatorSuite extends SparkFunSuite with BeforeAndAfter {
         if (ctx.stageAttemptNumber() == 0) {
           throw new FetchFailedException(
             shuffleLocations =
-              Array(DefaultMapShuffleLocations.get(SparkEnv.get.blockManager.blockManagerId)),
+              Seq(DefaultMapShuffleLocations.get(SparkEnv.get.blockManager.blockManagerId)),
             shuffleId = 1, mapId = 1, reduceId = 1, cause = new Exception("Failure for test."))
         } else {
           ctx.stageId()

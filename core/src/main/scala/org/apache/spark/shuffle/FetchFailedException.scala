@@ -33,7 +33,7 @@ import org.apache.spark.util.Utils
  * (or risk triggering any other exceptions).  See SPARK-19276.
  */
 private[spark] class FetchFailedException(
-    shuffleLocations: Array[ShuffleLocation],
+    shuffleLocations: Seq[ShuffleLocation],
     shuffleId: Int,
     mapId: Int,
     reduceId: Int,
@@ -42,7 +42,7 @@ private[spark] class FetchFailedException(
   extends Exception(message, cause) {
 
   def this(
-      shuffleLocations: Array[ShuffleLocation],
+      shuffleLocations: Seq[ShuffleLocation],
       shuffleId: Int,
       mapId: Int,
       reduceId: Int,

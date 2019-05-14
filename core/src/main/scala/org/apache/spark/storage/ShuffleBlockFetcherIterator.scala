@@ -22,6 +22,7 @@ import java.nio.ByteBuffer
 import java.util.concurrent.LinkedBlockingQueue
 import javax.annotation.concurrent.GuardedBy
 
+import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.collection.mutable.{ArrayBuffer, HashMap, HashSet, Queue}
 
@@ -581,7 +582,7 @@ final class ShuffleBlockFetcherIterator(
     blockId match {
       case ShuffleBlockId(shufId, mapId, reduceId) =>
         throw new FetchFailedException(
-          DefaultMapShuffleLocations.get(address).getLocationsForBlock(reduceId),
+          DefaultMapShuffleLocations.get(address).getLocationsForBlock(reduceId).asScala,
           shufId.toInt, mapId.toInt, reduceId, e)
       case _ =>
         throw new SparkException(

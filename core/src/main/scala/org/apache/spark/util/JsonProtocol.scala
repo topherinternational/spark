@@ -21,6 +21,7 @@ import java.util.{Properties, UUID}
 
 import scala.collection.JavaConverters._
 import scala.collection.Map
+
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import org.json4s.DefaultFormats
@@ -439,9 +440,9 @@ private[spark] object JsonProtocol {
     ("Reason" -> reason) ~ json
   }
 
-  def shuffleLocationsToJson(shuffleLocations: Array[ShuffleLocation]): JValue = {
+  def shuffleLocationsToJson(shuffleLocations: Seq[ShuffleLocation]): JValue = {
     if (shuffleLocations != null && shuffleLocations.nonEmpty) {
-      if (shuffleLocations(0).isInstanceOf[DefaultMapShuffleLocations]) {
+      if (shuffleLocations.head.isInstanceOf[DefaultMapShuffleLocations]) {
         val array = JArray(shuffleLocations.map(location => {
           val blockManagerId = location.asInstanceOf[DefaultMapShuffleLocations].getBlockManagerId
           blockManagerIdToJson(blockManagerId)
@@ -1015,13 +1016,13 @@ private[spark] object JsonProtocol {
     }
   }
 
-  def shuffleLocationsFromJson(json: JValue): Array[ShuffleLocation] = {
+  def shuffleLocationsFromJson(json: JValue): Seq[ShuffleLocation] = {
     val shuffleType = (json \ "type").extract[String]
     if (shuffleType == "Default") {
       (json \ "data").children.map(value => {
         val block = blockManagerIdFromJson(value)
         DefaultMapShuffleLocations.get(block)
-      }).toArray
+      })
     } else {
       null
     }

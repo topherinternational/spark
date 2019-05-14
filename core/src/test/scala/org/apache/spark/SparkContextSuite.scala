@@ -692,8 +692,8 @@ class SparkContextSuite extends SparkFunSuite with LocalSparkContext with Eventu
           // Make the first task in the first stage attempt fail.
           throw new FetchFailedException(
             shuffleLocations =
-              Array(DefaultMapShuffleLocations.get(SparkEnv.get.blockManager.blockManagerId)),
-            shuffleId = 0, mapId = 0, reduceId = 0, cause = new java.io.IOException("fake"))
+              Seq(DefaultMapShuffleLocations.get(SparkEnv.get.blockManager.blockManagerId)),
+            0, 0, 0, new java.io.IOException("fake"))
         } else {
           // Make the second task in the first stage attempt sleep to generate a zombie task
           Thread.sleep(60000)

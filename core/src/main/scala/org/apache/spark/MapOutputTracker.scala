@@ -103,7 +103,7 @@ private class ShuffleStatus(numPartitions: Int) {
    * This is a no-op if there is no registered map output or if the registered output is from a
    * different block manager.
    */
-  def removeMapOutput(mapId: Int, shuffleLocations: Array[ShuffleLocation]): Unit = synchronized {
+  def removeMapOutput(mapId: Int, shuffleLocations: Seq[ShuffleLocation]): Unit = synchronized {
     if (mapStatuses(mapId) != null) {
       var shouldDelete = false
       if (shuffleLocations == null) {
@@ -444,7 +444,7 @@ private[spark] class MapOutputTrackerMaster(
   }
 
   /** Unregister map output information of the given shuffle, mapper and block manager */
-  def unregisterMapOutput(shuffleId: Int, mapId: Int, shuffleLocations: Array[ShuffleLocation]) {
+  def unregisterMapOutput(shuffleId: Int, mapId: Int, shuffleLocations: Seq[ShuffleLocation]) {
     shuffleStatuses.get(shuffleId) match {
       case Some(shuffleStatus) =>
         shuffleStatus.removeMapOutput(mapId, shuffleLocations)
@@ -911,7 +911,7 @@ private[spark] object MapOutputTracker extends Logging {
                 ((ShuffleBlockId(shuffleId, mapId, part), size))
             } else {
               val shuffleLocations = status.mapShuffleLocations.getLocationsForBlock(part)
-              splitsByAddress.getOrElseUpdate(shuffleLocations.toSeq, ListBuffer()) +=
+              splitsByAddress.getOrElseUpdate(shuffleLocations.asScala, ListBuffer()) +=
                 ((ShuffleBlockId(shuffleId, mapId, part), size))
             }
           }

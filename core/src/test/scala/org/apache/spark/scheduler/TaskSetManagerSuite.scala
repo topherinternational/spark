@@ -1247,7 +1247,7 @@ class TaskSetManagerSuite extends SparkFunSuite with LocalSparkContext with Logg
 
     // now fail those tasks
     tsmSpy.handleFailedTask(taskDescs(0).taskId, TaskState.FAILED,
-      FetchFailed(Array(DefaultMapShuffleLocations.get(
+      FetchFailed(Seq(DefaultMapShuffleLocations.get(
         BlockManagerId(taskDescs(0).executorId, "host1", 12345))), 0, 0, 0, "ignored"))
     tsmSpy.handleFailedTask(taskDescs(1).taskId, TaskState.FAILED,
       ExecutorLostFailure(taskDescs(1).executorId, exitCausedByApp = false, reason = None))
@@ -1289,7 +1289,7 @@ class TaskSetManagerSuite extends SparkFunSuite with LocalSparkContext with Logg
     // Fail the task with fetch failure
     tsm.handleFailedTask(taskDescs(0).taskId, TaskState.FAILED,
       FetchFailed(
-        Array(DefaultMapShuffleLocations.get(
+        Seq(DefaultMapShuffleLocations.get(
           BlockManagerId(taskDescs(0).executorId, "host1", 12345))), 0, 0, 0, "ignored"))
 
     assert(blacklistTracker.isNodeBlacklisted("host1"))

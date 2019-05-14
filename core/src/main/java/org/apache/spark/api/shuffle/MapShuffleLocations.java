@@ -20,6 +20,7 @@ import org.apache.spark.annotation.Experimental;
 import org.apache.spark.api.java.Optional;
 
 import java.io.Serializable;
+import java.util.List;
 
 /**
  * Represents metadata about where shuffle blocks were written in a single map task.
@@ -36,7 +37,7 @@ public interface MapShuffleLocations extends Serializable {
   /**
    * Get the location for a given shuffle block written by this map task.
    */
-  ShuffleLocation[] getLocationsForBlock(int reduceId);
+  List<ShuffleLocation> getLocationsForBlock(int reduceId);
 
   /**
    * Deletes a host or a host/port combination from this MapShuffleLocations.
