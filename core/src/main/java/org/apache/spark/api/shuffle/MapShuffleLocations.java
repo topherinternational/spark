@@ -40,8 +40,15 @@ public interface MapShuffleLocations extends Serializable {
   List<ShuffleLocation> getLocationsForBlock(int reduceId);
 
   /**
-   * Deletes a host or a host/port combination from this MapShuffleLocations.
-   * Returns true if the removal of this ShuffleLocation results in missing partitions.
+   * Mark a location for a block in this map output as unreachable, and thus partitions can no
+   * longer be fetched from that location.
+   * <p>
+   * This is called by the scheduler when it detects that a block could not be fetched from the
+   * file server located at this host and port.
+   * <p>
+   * This should return true if there exists a data loss from the removal of this shuffle
+   * location. Otherwise, if all partitions can still be fetched from alternative locations,
+   * this should return false.
    */
   boolean removeShuffleLocation(String host, Optional<Integer> port);
 }
