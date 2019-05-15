@@ -1634,7 +1634,7 @@ private[spark] class DAGScheduler(
                 env.blockManager.externalShuffleServiceEnabled &&
                   unRegisterOutputOnHostOnFetchFailure
               } else {
-                true // always remove for remote shuffle storage
+                unRegisterOutputOnHostOnFetchFailure
               }
 
             shuffleLocations.foreach(location => {
