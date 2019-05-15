@@ -42,7 +42,7 @@ public class Expressions {
    */
   public static Transform apply(String name, Expression... args) {
     return LogicalExpressions.apply(name,
-        JavaConverters.asScalaBuffer(Arrays.asList(args)).toSeq());
+        JavaConverters.asScalaBufferConverter(Arrays.asList(args)).asScala());
   }
 
   /**
@@ -83,7 +83,7 @@ public class Expressions {
    */
   public static Transform bucket(int numBuckets, String... columns) {
     return LogicalExpressions.bucket(numBuckets,
-        JavaConverters.asScalaBuffer(Arrays.asList(columns)).toSeq());
+        JavaConverters.asScalaBufferConverter(Arrays.asList(columns)).asScala());
   }
 
   /**
