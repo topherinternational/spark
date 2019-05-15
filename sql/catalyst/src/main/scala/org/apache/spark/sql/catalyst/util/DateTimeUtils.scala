@@ -23,8 +23,8 @@ import java.time.ZoneId
 import java.util.{Calendar, Locale, TimeZone}
 import java.util.concurrent.ConcurrentHashMap
 import java.util.function.{Function => JFunction}
-
 import javax.xml.bind.DatatypeConverter
+
 import scala.annotation.tailrec
 
 import org.apache.spark.unsafe.types.UTF8String

@@ -17,11 +17,12 @@
 
 package org.apache.spark.sql.catalog.v2.expressions;
 
-import org.apache.spark.annotation.Experimental;
-import org.apache.spark.sql.types.DataType;
+import java.util.Arrays;
+
 import scala.collection.JavaConverters;
 
-import java.util.Arrays;
+import org.apache.spark.annotation.Experimental;
+import org.apache.spark.sql.types.DataType;
 
 /**
  * Helper methods to create logical transforms to pass into Spark.
