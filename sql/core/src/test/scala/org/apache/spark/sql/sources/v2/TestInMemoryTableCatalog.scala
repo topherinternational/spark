@@ -134,7 +134,9 @@ private class InMemoryTable(
     TableCapability.BATCH_READ, TableCapability.BATCH_WRITE, TableCapability.TRUNCATE).asJava
 
   override def newScanBuilder(options: CaseInsensitiveStringMap): ScanBuilder = {
-    () => new InMemoryBatchScan(data.map(_.asInstanceOf[InputPartition]))
+    new ScanBuilder() {
+      def build(): Scan = new InMemoryBatchScan(data.map(_.asInstanceOf[InputPartition]))
+    }
   }
 
   class InMemoryBatchScan(data: Array[InputPartition]) extends Scan with Batch {
