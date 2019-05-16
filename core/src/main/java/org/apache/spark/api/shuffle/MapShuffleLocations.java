@@ -50,7 +50,7 @@ public interface MapShuffleLocations extends Serializable {
    * location. Otherwise, if all partitions can still be fetched from alternative locations,
    * this should return false.
    */
-  boolean removeShuffleLocation(String host, Optional<Integer> port);
+  boolean invalidateShuffleLocation(String host, Optional<Integer> port);
 
   /**
    * Mark all locations within this MapShuffleLocations with this execId as unreachable.
@@ -62,5 +62,5 @@ public interface MapShuffleLocations extends Serializable {
    * with this execId. Otherwise, if all partitions can still be fetched form alternative locaitons,
    * this should return false.
    */
-  boolean removeShuffleLocation(String executorId);
+  boolean invalidateShuffleLocation(String executorId);
 }

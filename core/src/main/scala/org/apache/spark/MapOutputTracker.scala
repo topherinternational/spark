@@ -112,7 +112,7 @@ private class ShuffleStatus(numPartitions: Int) {
         shuffleLocations.foreach { location =>
           shouldDelete = mapStatuses(mapId)
             .mapShuffleLocations
-            .removeShuffleLocation(location.host(), Optional.of(location.port()))
+            .invalidateShuffleLocation(location.host(), Optional.of(location.port()))
         }
       }
       if (shouldDelete) {
@@ -130,7 +130,7 @@ private class ShuffleStatus(numPartitions: Int) {
   def removeOutputsOnHost(host: String): Unit = {
     for (mapId <- 0 until mapStatuses.length) {
       if (mapStatuses(mapId) != null &&
-        mapStatuses(mapId).mapShuffleLocations.removeShuffleLocation(host, Optional.empty())) {
+        mapStatuses(mapId).mapShuffleLocations.invalidateShuffleLocation(host, Optional.empty())) {
         _numAvailableOutputs -= 1
         mapStatuses(mapId) = null
         invalidateSerializedMapOutputStatusCache()
@@ -146,7 +146,7 @@ private class ShuffleStatus(numPartitions: Int) {
   def removeOutputsOnExecutor(execId: String): Unit = synchronized {
     for (mapId <- 0 until mapStatuses.length) {
       if (mapStatuses(mapId) != null &&
-        mapStatuses(mapId).mapShuffleLocations.removeShuffleLocation(execId)) {
+        mapStatuses(mapId).mapShuffleLocations.invalidateShuffleLocation(execId)) {
         _numAvailableOutputs -= 1
         mapStatuses(mapId) = null
         invalidateSerializedMapOutputStatusCache()

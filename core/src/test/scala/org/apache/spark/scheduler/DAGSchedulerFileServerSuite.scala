@@ -18,11 +18,11 @@
 package org.apache.spark.scheduler
 
 import java.util
-import java.util.function.Predicate
 
-import com.google.common.collect.Lists
 import scala.collection.JavaConverters._
+import scala.collection.mutable.Buffer
 import scala.collection.mutable.Map
+import scala.collection.mutable.Seq
 
 import org.apache.spark.{FetchFailed, HashPartitioner, ShuffleDependency, SparkConf, Success}
 import org.apache.spark.api.java.Optional
@@ -37,20 +37,18 @@ class DAGSchedulerFileServerSuite extends DAGSchedulerSuite {
     override def host(): String = hostname
     override def port(): Int = portInt
   }
-
-  class FileServerMapShuffleLocations(mapShuffleLocations: Seq[util.List[ShuffleLocation]])
+  
+  class FileServerMapShuffleLocations(mapShuffleLocationsInput: Buffer[Buffer[ShuffleLocation]])
     extends MapShuffleLocations {
+    val mapShuffleLocations = mapShuffleLocationsInput
     override def getLocationsForBlock(reduceId: Int): util.List[ShuffleLocation] =
-      mapShuffleLocations(reduceId)
+      mapShuffleLocations(reduceId).asJava
 
-    override def removeShuffleLocation(host: String, port: Optional[Integer]): Boolean = {
+    override def invalidateShuffleLocation(host: String, port: Optional[Integer]): Boolean = {
       var missingPartition = false
-      for (locations <- mapShuffleLocations) {
-        locations.removeIf(new Predicate[ShuffleLocation] {
-          override def test(loc: ShuffleLocation): Boolean = {
-            loc.host() === host && (!port.isPresent || loc.port() === port.get())
-          }
-        })
+      for ((locations, i) <- mapShuffleLocations.zipWithIndex) {
+        mapShuffleLocations(i) = locations.filter(loc =>
+          loc.host() != host || (port.isPresent && loc.port() != port.get()))
         if (locations.isEmpty) {
           missingPartition = true
         }
@@ -58,7 +56,7 @@ class DAGSchedulerFileServerSuite extends DAGSchedulerSuite {
       missingPartition
     }
 
-    override def removeShuffleLocation(executorId: String): Boolean = {
+    override def invalidateShuffleLocation(executorId: String): Boolean = {
       return false
     }
   }
@@ -105,7 +103,6 @@ class DAGSchedulerFileServerSuite extends DAGSchedulerSuite {
     assertMapOutputTrackerContains(shuffleId,
       Seq(mapStatus1.mapShuffleLocations, mapStatus2.mapShuffleLocations))
 
-    Seq(1, 2, 3)
     // perform reduce task
     complete(taskSets(1), Seq((Success, 42), (FetchFailed(
       Seq(
@@ -117,7 +114,7 @@ class DAGSchedulerFileServerSuite extends DAGSchedulerSuite {
     assert(scheduler.failedStages.size > 0)
     assert(mapOutputTracker.getNumAvailableOutputs(shuffleId) == 1)
     assertMapOutputTrackerContains(shuffleId, Seq(null,
-      new FileServerMapShuffleLocations(Seq(
+      new FileServerMapShuffleLocations(Buffer(
         shuffleLocationSeq("hostE"),
         shuffleLocationSeq("hostE")))))
 
@@ -143,7 +140,6 @@ class DAGSchedulerFileServerSuite extends DAGSchedulerSuite {
     assertMapOutputTrackerContains(shuffleId,
       Seq(mapStatus1.mapShuffleLocations, mapStatus2.mapShuffleLocations))
 
-    Seq(1, 2, 3)
     // perform reduce task
     complete(taskSets(1), Seq((Success, 42), (FetchFailed(
       Seq(
@@ -186,28 +182,28 @@ class DAGSchedulerFileServerSuite extends DAGSchedulerSuite {
     partition1Secondary: String,
     partition2Primary: String,
     partition2Secondary: String): MapStatus = {
-    val partition1List: util.List[ShuffleLocation] = Lists.newArrayList(
+    val partition1List: Buffer[ShuffleLocation] = Buffer(
       new FileServerShuffleLocation(partition1Primary, 1234),
       new FileServerShuffleLocation(partition1Secondary, 1234))
-    val partition2List: util.List[ShuffleLocation] = Lists.newArrayList(
+    val partition2List: Buffer[ShuffleLocation] = Buffer(
       new FileServerShuffleLocation(partition2Primary, 1234),
       new FileServerShuffleLocation(partition2Secondary, 1234))
     makeFileServerMapStatus(partition1List, partition2List)
   }
 
-  def makeFileServerMapStatus(partition1Loc: util.List[ShuffleLocation],
-                              partition2Loc: util.List[ShuffleLocation]): MapStatus = {
+  def makeFileServerMapStatus(partition1Loc: Buffer[ShuffleLocation],
+                              partition2Loc: Buffer[ShuffleLocation]): MapStatus = {
     MapStatus(
       makeBlockManagerId("executor-host"),
-      new FileServerMapShuffleLocations(Seq(partition1Loc, partition2Loc)),
+      new FileServerMapShuffleLocations(Buffer(partition1Loc, partition2Loc)),
       Array.fill[Long](2)(2)
     )
   }
 
-  def shuffleLocationSeq(hosts: String*): util.List[ShuffleLocation] = {
+  def shuffleLocationSeq(hosts: String*): Buffer[ShuffleLocation] = {
     hosts.map(host =>
       shuffleLocation(host)
-    ).asJava
+    ).toBuffer
   }
 
   def shuffleLocation(host: String): ShuffleLocation = {

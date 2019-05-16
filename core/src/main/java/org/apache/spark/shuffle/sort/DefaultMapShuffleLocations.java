@@ -67,7 +67,7 @@ public class DefaultMapShuffleLocations extends ShuffleLocation implements MapSh
   }
 
   @Override
-  public boolean removeShuffleLocation(String host, Optional<Integer> port) {
+  public boolean invalidateShuffleLocation(String host, Optional<Integer> port) {
     if (port.isPresent()) {
       return this.host().equals(host) && this.port() == port.get();
     }
@@ -75,7 +75,7 @@ public class DefaultMapShuffleLocations extends ShuffleLocation implements MapSh
   }
 
   @Override
-  public boolean removeShuffleLocation(String executorId) {
+  public boolean invalidateShuffleLocation(String executorId) {
     return location.executorId().equals(executorId);
   }
 

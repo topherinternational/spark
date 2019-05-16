@@ -57,14 +57,14 @@ class DAGSchedulerAsyncSuite extends DAGSchedulerSuite {
     override def getLocationsForBlock(reduceId: Int): util.List[ShuffleLocation] =
       locations
 
-    override def removeShuffleLocation(host: String, port: Optional[Integer]): Boolean = {
+    override def invalidateShuffleLocation(host: String, port: Optional[Integer]): Boolean = {
       removeIfPredicate(new Predicate[ShuffleLocation] {
         override def test(loc: ShuffleLocation): Boolean =
           loc.host() === host && (!port.isPresent || loc.port() === port.get())
       })
     }
 
-    override def removeShuffleLocation(executorId: String): Boolean = {
+    override def invalidateShuffleLocation(executorId: String): Boolean = {
       removeIfPredicate(new Predicate[ShuffleLocation] {
         override def test(loc: ShuffleLocation): Boolean =
           locations.get(0).execId().get().equals(executorId)
