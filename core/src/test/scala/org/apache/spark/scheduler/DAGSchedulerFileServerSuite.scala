@@ -21,9 +21,10 @@ import java.util
 import java.util.function.Predicate
 
 import com.google.common.collect.Lists
+import scala.collection.JavaConverters._
 import scala.collection.mutable.Map
 
-import org.apache.spark.{HashPartitioner, ShuffleDependency, SparkConf, Success}
+import org.apache.spark.{FetchFailed, HashPartitioner, ShuffleDependency, SparkConf, Success}
 import org.apache.spark.api.java.Optional
 import org.apache.spark.api.shuffle.{MapShuffleLocations, ShuffleLocation}
 import org.apache.spark.internal.config
@@ -67,6 +68,7 @@ class DAGSchedulerFileServerSuite extends DAGSchedulerSuite {
     val conf = new SparkConf()
     // unregistering all outputs on a host is enabled for the individual file server case
     conf.set(config.UNREGISTER_OUTPUT_ON_HOST_ON_FETCH_FAILURE, true)
+    conf.set(config.SHUFFLE_SERVICE_ENABLED, true)
     init(conf)
     val shuffleMapRdd = new MyRDD(sc, 2, Nil)
     val shuffleDep = new ShuffleDependency(shuffleMapRdd, new HashPartitioner(2))
@@ -83,7 +85,8 @@ class DAGSchedulerFileServerSuite extends DAGSchedulerSuite {
     val mapStatus1 = makeFileServerMapStatus("hostA", "hostB", "hostC", "hostD")
     val mapStatus2 = makeFileServerMapStatus("hostA", "hostB", "hostC", "hostE")
     complete(taskSets(0), Seq((Success, mapStatus1), (Success, mapStatus2)))
-    assertMapOutputTrackerContains(shuffleId, Seq(mapStatus1, mapStatus2))
+    assertMapOutputTrackerContains(shuffleId,
+      Seq(mapStatus1.mapShuffleLocations, mapStatus2.mapShuffleLocations))
 
     // perform reduce task
     complete(taskSets(1), Seq((Success, 42), (Success, 43)))
@@ -91,11 +94,90 @@ class DAGSchedulerFileServerSuite extends DAGSchedulerSuite {
     assertDataStructuresEmpty()
   }
 
+  test("Test one mapper failed but another has blocks elsewhere") {
+    val (reduceRdd, shuffleId) = setupTest()
+    submit(reduceRdd, Array(0, 1))
+
+    // Perform map task
+    val mapStatus1 = makeFileServerMapStatus("hostA", "hostB", "hostC", "hostD")
+    val mapStatus2 = makeFileServerMapStatus("hostA", "hostE", "hostC", "hostE")
+    complete(taskSets(0), Seq((Success, mapStatus1), (Success, mapStatus2)))
+    assertMapOutputTrackerContains(shuffleId,
+      Seq(mapStatus1.mapShuffleLocations, mapStatus2.mapShuffleLocations))
+
+    Seq(1, 2, 3)
+    // perform reduce task
+    complete(taskSets(1), Seq((Success, 42), (FetchFailed(
+      Seq(
+        shuffleLocation("hostA"),
+        shuffleLocation("hostB"),
+        shuffleLocation("hostC"),
+        shuffleLocation("hostD")),
+      shuffleId, 0, 0, "ignored"), null)))
+    assert(scheduler.failedStages.size > 0)
+    assert(mapOutputTracker.getNumAvailableOutputs(shuffleId) == 1)
+    assertMapOutputTrackerContains(shuffleId, Seq(null,
+      new FileServerMapShuffleLocations(Seq(
+        shuffleLocationSeq("hostE"),
+        shuffleLocationSeq("hostE")))))
+
+    scheduler.resubmitFailedStages()
+    complete(taskSets(2), Seq((Success, mapStatus1)))
+    assert(mapOutputTracker.getNumAvailableOutputs(shuffleId) == 2)
+    assertMapOutputTrackerContains(shuffleId, Seq(
+      mapStatus1.mapShuffleLocations, mapStatus2.mapShuffleLocations))
+
+    complete(taskSets(3), Seq((Success, 43)))
+    assert(results === Map(0 -> 42, 1 -> 43))
+    assertDataStructuresEmpty()
+  }
+
+  test("Test one failed but other only has one partition replicated") {
+    val (reduceRdd, shuffleId) = setupTest()
+    submit(reduceRdd, Array(0, 1))
+
+    // Perform map task
+    val mapStatus1 = makeFileServerMapStatus("hostA", "hostB", "hostC", "hostD")
+    val mapStatus2 = makeFileServerMapStatus("hostA", "hostB", "hostC", "hostE")
+    complete(taskSets(0), Seq((Success, mapStatus1), (Success, mapStatus2)))
+    assertMapOutputTrackerContains(shuffleId,
+      Seq(mapStatus1.mapShuffleLocations, mapStatus2.mapShuffleLocations))
+
+    Seq(1, 2, 3)
+    // perform reduce task
+    complete(taskSets(1), Seq((Success, 42), (FetchFailed(
+      Seq(
+        shuffleLocation("hostA"),
+        shuffleLocation("hostB"),
+        shuffleLocation("hostC"),
+        shuffleLocation("hostD")),
+      shuffleId, 0, 0, "ignored"), null)))
+    assert(scheduler.failedStages.size > 0)
+    assert(mapOutputTracker.getNumAvailableOutputs(shuffleId) == 0)
+    assertMapOutputTrackerContains(shuffleId, Seq(null, null))
+
+    scheduler.resubmitFailedStages()
+    complete(taskSets(2), Seq((Success, mapStatus1), (Success, mapStatus2)))
+    assert(mapOutputTracker.getNumAvailableOutputs(shuffleId) == 2)
+    assertMapOutputTrackerContains(shuffleId, Seq(
+      mapStatus1.mapShuffleLocations, mapStatus2.mapShuffleLocations))
+
+    complete(taskSets(3), Seq((Success, 43)))
+    assert(results === Map(0 -> 42, 1 -> 43))
+    assertDataStructuresEmpty()
+  }
+
 
   def assertMapOutputTrackerContains(
     shuffleId: Int,
-    set: Seq[MapStatus]): Unit = {
+    set: Seq[MapShuffleLocations]): Unit = {
     val actualShuffleLocations = mapOutputTracker.shuffleStatuses(shuffleId).mapStatuses
+        .map(mapStatus => {
+          if (mapStatus == null) {
+            return null
+          }
+          mapStatus.mapShuffleLocations
+        })
     assert(set === actualShuffleLocations.toSeq)
   }
 
@@ -106,9 +188,9 @@ class DAGSchedulerFileServerSuite extends DAGSchedulerSuite {
     partition2Secondary: String): MapStatus = {
     val partition1List: util.List[ShuffleLocation] = Lists.newArrayList(
       new FileServerShuffleLocation(partition1Primary, 1234),
-      new FileServerShuffleLocation(partition2Secondary, 1234))
+      new FileServerShuffleLocation(partition1Secondary, 1234))
     val partition2List: util.List[ShuffleLocation] = Lists.newArrayList(
-      new FileServerShuffleLocation(partition1Primary, 1234),
+      new FileServerShuffleLocation(partition2Primary, 1234),
       new FileServerShuffleLocation(partition2Secondary, 1234))
     makeFileServerMapStatus(partition1List, partition2List)
   }
@@ -120,6 +202,16 @@ class DAGSchedulerFileServerSuite extends DAGSchedulerSuite {
       new FileServerMapShuffleLocations(Seq(partition1Loc, partition2Loc)),
       Array.fill[Long](2)(2)
     )
+  }
+
+  def shuffleLocationSeq(hosts: String*): util.List[ShuffleLocation] = {
+    hosts.map(host =>
+      shuffleLocation(host)
+    ).asJava
+  }
+
+  def shuffleLocation(host: String): ShuffleLocation = {
+    new FileServerShuffleLocation(host, 1234)
   }
 
   def makeBlockManagerId(host: String): BlockManagerId =
