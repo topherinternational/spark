@@ -144,7 +144,14 @@ private class ShuffleStatus(numPartitions: Int) {
    * still registered with that execId.
    */
   def removeOutputsOnExecutor(execId: String): Unit = synchronized {
-    removeOutputsByFilter(x => x.executorId == execId)
+    for (mapId <- 0 until mapStatuses.length) {
+      if (mapStatuses(mapId) != null &&
+        mapStatuses(mapId).mapShuffleLocations.removeShuffleLocation(execId)) {
+        _numAvailableOutputs -= 1
+        mapStatuses(mapId) = null
+        invalidateSerializedMapOutputStatusCache()
+      }
+    }
   }
 
   /**

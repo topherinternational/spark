@@ -51,4 +51,16 @@ public interface MapShuffleLocations extends Serializable {
    * this should return false.
    */
   boolean removeShuffleLocation(String host, Optional<Integer> port);
+
+  /**
+   * Mark all locations within this MapShuffleLocations with this execId as unreachable.
+   * <p>
+   * This is called by the scheduler when it detects that an executor cannot be reached to
+   * fetch file data.
+   * <p>
+   * This should return true if there exists a data loss from the removal of shuffle locations
+   * with this execId. Otherwise, if all partitions can still be fetched form alternative locaitons,
+   * this should return false.
+   */
+  boolean removeShuffleLocation(String executorId);
 }

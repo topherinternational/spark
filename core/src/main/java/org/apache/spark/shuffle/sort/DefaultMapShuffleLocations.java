@@ -74,6 +74,11 @@ public class DefaultMapShuffleLocations extends ShuffleLocation implements MapSh
     return this.host().equals(host);
   }
 
+  @Override
+  public boolean removeShuffleLocation(String executorId) {
+    return location.executorId().equals(executorId);
+  }
+
   public BlockManagerId getBlockManagerId() {
     return location;
   }

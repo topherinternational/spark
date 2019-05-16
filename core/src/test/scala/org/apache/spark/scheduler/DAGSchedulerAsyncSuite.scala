@@ -20,9 +20,9 @@ package org.apache.spark.scheduler
 import java.util
 import java.util.function.Predicate
 
-import scala.collection.mutable.{HashSet, Map}
+import scala.collection.mutable.Map
+
 import com.google.common.collect.Lists
-import scala.collection.mutable
 
 import org.apache.spark.{FetchFailed, HashPartitioner, ShuffleDependency, SparkConf, Success}
 import org.apache.spark.api.java.Optional
@@ -46,25 +46,42 @@ class DAGSchedulerAsyncSuite extends DAGSchedulerSuite {
 
   val dfsLocation = new DFSShuffleLocation
 
-  class AsyncMapShuffleLocation(asyncLocation: AsyncShuffleLocation)
+  class AsyncMapShuffleLocations(asyncLocation: AsyncShuffleLocation)
     extends MapShuffleLocations {
-    val locations = Lists.newArrayList(asyncLocation, dfsLocation)
+    val locations : util.List[ShuffleLocation] = if (asyncLocation == null) {
+      Lists.newArrayList(dfsLocation)
+    } else {
+      Lists.newArrayList(asyncLocation, dfsLocation)
+    }
 
     override def getLocationsForBlock(reduceId: Int): util.List[ShuffleLocation] =
       locations
 
     override def removeShuffleLocation(host: String, port: Optional[Integer]): Boolean = {
-      var missingPartition = false
-      locations.removeIf(new Predicate[ShuffleLocation] {
+      removeIfPredicate(new Predicate[ShuffleLocation] {
         override def test(loc: ShuffleLocation): Boolean =
           loc.host() === host && (!port.isPresent || loc.port() === port.get())
       })
+    }
+
+    override def removeShuffleLocation(executorId: String): Boolean = {
+      removeIfPredicate(new Predicate[ShuffleLocation] {
+        override def test(loc: ShuffleLocation): Boolean =
+          locations.get(0).execId().get().equals(executorId)
+      })
+    }
+
+    def removeIfPredicate(predicate: Predicate[ShuffleLocation]): Boolean = {
+      var missingPartition = false
+      if (locations.isEmpty) {
+        return missingPartition
+      }
+      locations.removeIf(predicate)
       if (locations.isEmpty) {
         missingPartition = true
       }
       missingPartition
     }
-
   }
 
   private def setupTest(): (RDD[_], Int) = {
@@ -85,10 +102,11 @@ class DAGSchedulerAsyncSuite extends DAGSchedulerSuite {
     submit(reduceRdd, Array(0, 1))
 
     // Perform map task
-    val mapStatus1 = makeAsyncMapStatus("hostA", reduceRdd.partitions.length)
-    val mapStatus2 = makeAsyncMapStatus("hostB", reduceRdd.partitions.length)
+    val mapStatus1 = makeAsyncMapStatus("hostA")
+    val mapStatus2 = makeAsyncMapStatus("hostB")
     complete(taskSets(0), Seq((Success, mapStatus1), (Success, mapStatus2)))
-    assertMapOutputTrackerContains(shuffleId, Seq(mapStatus1, mapStatus2))
+    assertMapOutputTrackerContains(shuffleId, Seq(
+      mapStatus1.mapShuffleLocations, mapStatus2.mapShuffleLocations))
 
     // perform reduce task
     complete(taskSets(1), Seq((Success, 42), (Success, 43)))
@@ -96,13 +114,13 @@ class DAGSchedulerAsyncSuite extends DAGSchedulerSuite {
     assertDataStructuresEmpty()
   }
 
-  test("test async fetch failed - different host") {
+  test("test async fetch failed - different hosts") {
     val (reduceRdd, shuffleId) = setupTest()
     submit(reduceRdd, Array(0, 1))
 
     // Perform map task
-    val mapStatus1 = makeAsyncMapStatus("hostA", reduceRdd.partitions.length)
-    val mapStatus2 = makeAsyncMapStatus("hostB", reduceRdd.partitions.length)
+    val mapStatus1 = makeAsyncMapStatus("hostA")
+    val mapStatus2 = makeAsyncMapStatus("hostB")
     complete(taskSets(0), Seq((Success, mapStatus1), (Success, mapStatus2)))
 
     // The 2nd ResultTask reduce task failed. This will remove that shuffle location,
@@ -113,12 +131,13 @@ class DAGSchedulerAsyncSuite extends DAGSchedulerSuite {
         shuffleId, 0, 0, "ignored"), null)))
     assert(scheduler.failedStages.size > 0)
     assert(mapOutputTracker.getNumAvailableOutputs(shuffleId) == 1)
-    assertMapOutputTrackerContains(shuffleId, Seq(null, mapStatus2))
+    assertMapOutputTrackerContains(shuffleId, Seq(null, mapStatus2.mapShuffleLocations))
 
     // submit the mapper once more
     scheduler.resubmitFailedStages()
     complete(taskSets(2), Seq((Success, mapStatus1)))
-    assertMapOutputTrackerContains(shuffleId, Seq(mapStatus1, mapStatus2))
+    assertMapOutputTrackerContains(shuffleId,
+      Seq(mapStatus1.mapShuffleLocations, mapStatus2.mapShuffleLocations))
 
     // submit last reduce task
     complete(taskSets(3), Seq((Success, 43)))
@@ -126,28 +145,29 @@ class DAGSchedulerAsyncSuite extends DAGSchedulerSuite {
     assertDataStructuresEmpty()
   }
 
-  test("test async fetch failed - same execId") {
+  test("test async fetch failed - same host, same exec") {
     val (reduceRdd, shuffleId) = setupTest()
     submit(reduceRdd, Array(0, 1))
 
-    val mapStatus = makeAsyncMapStatus("hostA", reduceRdd.partitions.length)
+    val mapStatus = makeAsyncMapStatus("hostA")
     complete(taskSets(0), Seq((Success, mapStatus), (Success, mapStatus)))
 
-    // the 2nd ResultTask failed. This removes both results because mappers
-    // are on the same execId
+    // the 2nd ResultTask failed. This removes the first executor, but the
+    // other task is still intact because it was uploaded to the remove dfs
     complete(taskSets(1), Seq(
       (Success, 42),
       (FetchFailed(Seq(makeAsyncShuffleLocation("hostA"), dfsLocation),
         shuffleId, 0, 0, "ignored"), null)))
     assert(scheduler.failedStages.size > 0)
-    assert(mapOutputTracker.getNumAvailableOutputs(shuffleId) == 0)
-    assertMapOutputTrackerContains(shuffleId, Seq(null, null))
+    assert(mapOutputTracker.getNumAvailableOutputs(shuffleId) == 1)
+    assertMapOutputTrackerContains(shuffleId, Seq(null, new AsyncMapShuffleLocations(null)))
 
     // submit both mappers once more
     scheduler.resubmitFailedStages()
-    complete(taskSets(2), Seq((Success, mapStatus), (Success, mapStatus)))
+    complete(taskSets(2), Seq((Success, mapStatus)))
     assert(mapOutputTracker.getNumAvailableOutputs(shuffleId) == 2)
-    assertMapOutputTrackerContains(shuffleId, Seq(mapStatus, mapStatus))
+    assertMapOutputTrackerContains(shuffleId, Seq(
+      mapStatus.mapShuffleLocations, mapStatus.mapShuffleLocations))
 
     // submit last reduce task
     complete(taskSets(3), Seq((Success, 43)))
@@ -159,11 +179,11 @@ class DAGSchedulerAsyncSuite extends DAGSchedulerSuite {
     val (reduceRdd, shuffleId) = setupTest()
     submit(reduceRdd, Array(0, 1))
 
-    val mapStatus1 = makeAsyncMapStatus("hostA", reduceRdd.partitions.length)
+    val mapStatus1 = makeAsyncMapStatus("hostA")
     val mapStatus2 = MapStatus(
       BlockManagerId("other-exec", "hostA", 1234),
-      new AsyncMapShuffleLocation(new AsyncShuffleLocation("hostA", 1234, "other-exec")),
-      Array.fill[Long](reduceRdd.partitions.length)(2)
+      new AsyncMapShuffleLocations(new AsyncShuffleLocation("hostA", 1234, "other-exec")),
+      Array.fill[Long](2)(2)
     )
     complete(taskSets(0), Seq((Success, mapStatus1), (Success, mapStatus2)))
 
@@ -175,13 +195,14 @@ class DAGSchedulerAsyncSuite extends DAGSchedulerSuite {
         shuffleId, 0, 0, "ignored"), null)))
     assert(scheduler.failedStages.size > 0)
     assert(mapOutputTracker.getNumAvailableOutputs(shuffleId) == 1)
-    assertMapOutputTrackerContains(shuffleId, Seq(null, mapStatus2))
+    assertMapOutputTrackerContains(shuffleId, Seq(null, mapStatus2.mapShuffleLocations))
 
     // submit the one mapper again
     scheduler.resubmitFailedStages()
     complete(taskSets(2), Seq((Success, mapStatus1)))
     assert(mapOutputTracker.getNumAvailableOutputs(shuffleId) == 2)
-    assertMapOutputTrackerContains(shuffleId, Seq(mapStatus1, mapStatus2))
+    assertMapOutputTrackerContains(shuffleId,
+      Seq(mapStatus1.mapShuffleLocations, mapStatus2.mapShuffleLocations))
 
     // submit last reduce task
     complete(taskSets(3), Seq((Success, 43)))
@@ -191,15 +212,24 @@ class DAGSchedulerAsyncSuite extends DAGSchedulerSuite {
 
   def assertMapOutputTrackerContains(
     shuffleId: Int,
-    set: Seq[MapStatus]): Unit = {
+    set: Seq[MapShuffleLocations]): Unit = {
     val actualShuffleLocations = mapOutputTracker.shuffleStatuses(shuffleId).mapStatuses
+        .map(mapStatus => {
+          if (mapStatus == null) {
+            return null
+          }
+          mapStatus.mapShuffleLocations
+        })
     assert(set === actualShuffleLocations.toSeq)
   }
 
-  def makeAsyncMapStatus(host: String, reduces: Int, execId: Optional[String] = Optional.empty(),
-                         sizes: Byte = 2): MapStatus = {
+  def makeAsyncMapStatus(
+    host: String,
+    reduces: Int = 2,
+    execId: Optional[String] = Optional.empty(),
+    sizes: Byte = 2): MapStatus = {
     MapStatus(makeBlockManagerId(host),
-      new AsyncMapShuffleLocation(makeAsyncShuffleLocation(host)),
+      new AsyncMapShuffleLocations(makeAsyncShuffleLocation(host)),
       Array.fill[Long](reduces)(sizes))
   }
 
