@@ -15,8 +15,9 @@
  * limitations under the License.
  */
 
-package org.apache.spark.sql.hive.orc
+package org.apache.spark.sql.execution.datasources.orc
 
+import java.math.MathContext
 import java.nio.charset.StandardCharsets
 import java.sql.{Date, Timestamp}
 
@@ -24,23 +25,26 @@ import scala.collection.JavaConverters._
 
 import org.apache.hadoop.hive.ql.io.sarg.{PredicateLeaf, SearchArgument}
 
-import org.apache.spark.sql.{Column, DataFrame}
+import org.apache.spark.sql.{AnalysisException, Column, DataFrame}
 import org.apache.spark.sql.catalyst.dsl.expressions._
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.planning.PhysicalOperation
 import org.apache.spark.sql.execution.datasources.{DataSourceStrategy, HadoopFsRelation, LogicalRelation}
-import org.apache.spark.sql.execution.datasources.orc.OrcTest
-import org.apache.spark.sql.hive.test.TestHiveSingleton
+import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
+import org.apache.spark.sql.execution.datasources.v2.orc.OrcTable
+import org.apache.spark.sql.test.SharedSQLContext
 import org.apache.spark.sql.types._
 
 /**
- * A test suite that tests Hive ORC filter API based filter pushdown optimization.
+ * A test suite that tests Apache ORC filter API based filter pushdown optimization.
+ * OrcFilterSuite and HiveOrcFilterSuite is logically duplicated to provide the same test coverage.
+ * The difference are the packages containing 'Predicate' and 'SearchArgument' classes.
+ * - OrcFilterSuite uses 'org.apache.orc.storage.ql.io.sarg' package.
+ * - HiveOrcFilterSuite uses 'org.apache.hadoop.hive.ql.io.sarg' package.
  */
-class HiveOrcFilterSuite extends OrcTest with TestHiveSingleton {
+class OrcFilterSuite extends OrcTest with SharedSQLContext {
 
-  override val orcImp: String = "hive"
-
-  private def checkFilterPredicate(
+  protected def checkFilterPredicate(
       df: DataFrame,
       predicate: Predicate,
       checker: (SearchArgument) => Unit): Unit = {
@@ -49,24 +53,24 @@ class HiveOrcFilterSuite extends OrcTest with TestHiveSingleton {
       .select(output.map(e => Column(e)): _*)
       .where(Column(predicate))
 
-    var maybeRelation: Option[HadoopFsRelation] = None
-    val maybeAnalyzedPredicate = query.queryExecution.optimizedPlan.collect {
-      case PhysicalOperation(_, filters, LogicalRelation(orcRelation: HadoopFsRelation, _, _, _)) =>
-        maybeRelation = Some(orcRelation)
-        filters
-    }.flatten.reduceLeftOption(_ && _)
-    assert(maybeAnalyzedPredicate.isDefined, "No filter is analyzed from the given query")
+    query.queryExecution.optimizedPlan match {
+      case PhysicalOperation(_, filters,
+        DataSourceV2Relation(orcTable: OrcTable, _, options)) =>
+        assert(filters.nonEmpty, "No filter is analyzed from the given query")
+        val scanBuilder = orcTable.newScanBuilder(options)
+        scanBuilder.pushFilters(filters.flatMap(DataSourceStrategy.translateFilter).toArray)
+        val pushedFilters = scanBuilder.pushedFilters()
+        assert(pushedFilters.nonEmpty, "No filter is pushed down")
+        val maybeFilter = OrcFilters.createFilter(query.schema, pushedFilters)
+        assert(maybeFilter.isDefined, s"Couldn't generate filter predicate for $pushedFilters")
+        checker(maybeFilter.get)
 
-    val (_, selectedFilters, _) =
-      DataSourceStrategy.selectFilters(maybeRelation.get, maybeAnalyzedPredicate.toSeq)
-    assert(selectedFilters.nonEmpty, "No filter is pushed down")
-
-    val maybeFilter = OrcFilters.createFilter(query.schema, selectedFilters.toArray)
-    assert(maybeFilter.isDefined, s"Couldn't generate filter predicate for $selectedFilters")
-    checker(maybeFilter.get)
+      case _ =>
+        throw new AnalysisException("Can not match OrcTable in the query.")
+    }
   }
 
-  private def checkFilterPredicate
+  protected def checkFilterPredicate
       (predicate: Predicate, filterOperator: PredicateLeaf.Operator)
       (implicit df: DataFrame): Unit = {
     def checkComparisonOperator(filter: SearchArgument) = {
@@ -76,37 +80,13 @@ class HiveOrcFilterSuite extends OrcTest with TestHiveSingleton {
     checkFilterPredicate(df, predicate, checkComparisonOperator)
   }
 
-  private def checkFilterPredicate
+  protected def checkFilterPredicate
       (predicate: Predicate, stringExpr: String)
       (implicit df: DataFrame): Unit = {
     def checkLogicalOperator(filter: SearchArgument) = {
       assert(filter.toString == stringExpr)
     }
     checkFilterPredicate(df, predicate, checkLogicalOperator)
-  }
-
-  private def checkNoFilterPredicate
-      (predicate: Predicate)
-      (implicit df: DataFrame): Unit = {
-    val output = predicate.collect { case a: Attribute => a }.distinct
-    val query = df
-      .select(output.map(e => Column(e)): _*)
-      .where(Column(predicate))
-
-    var maybeRelation: Option[HadoopFsRelation] = None
-    val maybeAnalyzedPredicate = query.queryExecution.optimizedPlan.collect {
-      case PhysicalOperation(_, filters, LogicalRelation(orcRelation: HadoopFsRelation, _, _, _)) =>
-        maybeRelation = Some(orcRelation)
-        filters
-    }.flatten.reduceLeftOption(_ && _)
-    assert(maybeAnalyzedPredicate.isDefined, "No filter is analyzed from the given query")
-
-    val (_, selectedFilters, _) =
-      DataSourceStrategy.selectFilters(maybeRelation.get, maybeAnalyzedPredicate.toSeq)
-    assert(selectedFilters.nonEmpty, "No filter is pushed down")
-
-    val maybeFilter = OrcFilters.createFilter(query.schema, selectedFilters.toArray)
-    assert(maybeFilter.isEmpty, s"Could generate filter predicate for $selectedFilters")
   }
 
   test("filter pushdown - integer") {
@@ -290,41 +270,52 @@ class HiveOrcFilterSuite extends OrcTest with TestHiveSingleton {
 
   test("filter pushdown - combinations with logical operators") {
     withOrcDataFrame((1 to 4).map(i => Tuple1(Option(i)))) { implicit df =>
-      // Because `ExpressionTree` is not accessible at Hive 1.2.x, this should be checked
-      // in string form in order to check filter creation including logical operators
-      // such as `and`, `or` or `not`. So, this function uses `SearchArgument.toString()`
-      // to produce string expression and then compare it to given string expression below.
-      // This might have to be changed after Hive version is upgraded.
       checkFilterPredicate(
         '_1.isNotNull,
-        """leaf-0 = (IS_NULL _1)
-          |expr = (not leaf-0)""".stripMargin.trim
+        "leaf-0 = (IS_NULL _1), expr = (not leaf-0)"
       )
       checkFilterPredicate(
         '_1 =!= 1,
-        """leaf-0 = (IS_NULL _1)
-          |leaf-1 = (EQUALS _1 1)
-          |expr = (and (not leaf-0) (not leaf-1))""".stripMargin.trim
+        "leaf-0 = (IS_NULL _1), leaf-1 = (EQUALS _1 1), expr = (and (not leaf-0) (not leaf-1))"
       )
       checkFilterPredicate(
         !('_1 < 4),
-        """leaf-0 = (IS_NULL _1)
-          |leaf-1 = (LESS_THAN _1 4)
-          |expr = (and (not leaf-0) (not leaf-1))""".stripMargin.trim
+        "leaf-0 = (IS_NULL _1), leaf-1 = (LESS_THAN _1 4), expr = (and (not leaf-0) (not leaf-1))"
       )
       checkFilterPredicate(
         '_1 < 2 || '_1 > 3,
-        """leaf-0 = (LESS_THAN _1 2)
-          |leaf-1 = (LESS_THAN_EQUALS _1 3)
-          |expr = (or leaf-0 (not leaf-1))""".stripMargin.trim
+        "leaf-0 = (LESS_THAN _1 2), leaf-1 = (LESS_THAN_EQUALS _1 3), " +
+          "expr = (or leaf-0 (not leaf-1))"
       )
       checkFilterPredicate(
         '_1 < 2 && '_1 > 3,
-        """leaf-0 = (IS_NULL _1)
-          |leaf-1 = (LESS_THAN _1 2)
-          |leaf-2 = (LESS_THAN_EQUALS _1 3)
-          |expr = (and (not leaf-0) leaf-1 (not leaf-2))""".stripMargin.trim
+        "leaf-0 = (IS_NULL _1), leaf-1 = (LESS_THAN _1 2), leaf-2 = (LESS_THAN_EQUALS _1 3), " +
+          "expr = (and (not leaf-0) leaf-1 (not leaf-2))"
       )
+    }
+  }
+
+  test("filter pushdown - date") {
+    val dates = Seq("2017-08-18", "2017-08-19", "2017-08-20", "2017-08-21").map { day =>
+      Date.valueOf(day)
+    }
+    withOrcDataFrame(dates.map(Tuple1(_))) { implicit df =>
+      checkFilterPredicate('_1.isNull, PredicateLeaf.Operator.IS_NULL)
+
+      checkFilterPredicate('_1 === dates(0), PredicateLeaf.Operator.EQUALS)
+      checkFilterPredicate('_1 <=> dates(0), PredicateLeaf.Operator.NULL_SAFE_EQUALS)
+
+      checkFilterPredicate('_1 < dates(1), PredicateLeaf.Operator.LESS_THAN)
+      checkFilterPredicate('_1 > dates(2), PredicateLeaf.Operator.LESS_THAN_EQUALS)
+      checkFilterPredicate('_1 <= dates(0), PredicateLeaf.Operator.LESS_THAN_EQUALS)
+      checkFilterPredicate('_1 >= dates(3), PredicateLeaf.Operator.LESS_THAN)
+
+      checkFilterPredicate(Literal(dates(0)) === '_1, PredicateLeaf.Operator.EQUALS)
+      checkFilterPredicate(Literal(dates(0)) <=> '_1, PredicateLeaf.Operator.NULL_SAFE_EQUALS)
+      checkFilterPredicate(Literal(dates(1)) > '_1, PredicateLeaf.Operator.LESS_THAN)
+      checkFilterPredicate(Literal(dates(2)) < '_1, PredicateLeaf.Operator.LESS_THAN_EQUALS)
+      checkFilterPredicate(Literal(dates(0)) >= '_1, PredicateLeaf.Operator.LESS_THAN_EQUALS)
+      checkFilterPredicate(Literal(dates(3)) <= '_1, PredicateLeaf.Operator.LESS_THAN)
     }
   }
 
@@ -334,20 +325,15 @@ class HiveOrcFilterSuite extends OrcTest with TestHiveSingleton {
     }
     // ArrayType
     withOrcDataFrame((1 to 4).map(i => Tuple1(Array(i)))) { implicit df =>
-      checkNoFilterPredicate('_1.isNull)
+      checkNoFilterPredicate('_1.isNull, noneSupported = true)
     }
     // BinaryType
     withOrcDataFrame((1 to 4).map(i => Tuple1(i.b))) { implicit df =>
-      checkNoFilterPredicate('_1 <=> 1.b)
-    }
-    // DateType
-    val stringDate = "2015-01-01"
-    withOrcDataFrame(Seq(Tuple1(Date.valueOf(stringDate)))) { implicit df =>
-      checkNoFilterPredicate('_1 === Date.valueOf(stringDate))
+      checkNoFilterPredicate('_1 <=> 1.b, noneSupported = true)
     }
     // MapType
     withOrcDataFrame((1 to 4).map(i => Tuple1(Map(i -> i)))) { implicit df =>
-      checkNoFilterPredicate('_1.isNotNull)
+      checkNoFilterPredicate('_1.isNotNull, noneSupported = true)
     }
   }
 
@@ -358,11 +344,7 @@ class HiveOrcFilterSuite extends OrcTest with TestHiveSingleton {
       Array(
         StructField("a", IntegerType, nullable = true),
         StructField("b", StringType, nullable = true)))
-    assertResult(
-      """leaf-0 = (LESS_THAN a 10)
-        |expr = leaf-0
-      """.stripMargin.trim
-    ) {
+    assertResult("leaf-0 = (LESS_THAN a 10), expr = leaf-0") {
       OrcFilters.createFilter(schema, Array(
         LessThan("a", 10),
         StringContains("b", "prefix")
@@ -370,11 +352,7 @@ class HiveOrcFilterSuite extends OrcTest with TestHiveSingleton {
     }
 
     // The `LessThan` should be converted while the whole inner `And` shouldn't
-    assertResult(
-      """leaf-0 = (LESS_THAN a 10)
-        |expr = leaf-0
-      """.stripMargin.trim
-    ) {
+    assertResult("leaf-0 = (LESS_THAN a 10), expr = leaf-0") {
       OrcFilters.createFilter(schema, Array(
         LessThan("a", 10),
         Not(And(
@@ -385,11 +363,7 @@ class HiveOrcFilterSuite extends OrcTest with TestHiveSingleton {
     }
 
     // Safely remove unsupported `StringContains` predicate and push down `LessThan`
-    assertResult(
-      """leaf-0 = (LESS_THAN a 10)
-        |expr = leaf-0
-      """.stripMargin.trim
-    ) {
+    assertResult("leaf-0 = (LESS_THAN a 10), expr = leaf-0") {
       OrcFilters.createFilter(schema, Array(
         And(
           LessThan("a", 10),
@@ -399,12 +373,8 @@ class HiveOrcFilterSuite extends OrcTest with TestHiveSingleton {
     }
 
     // Safely remove unsupported `StringContains` predicate, push down `LessThan` and `GreaterThan`.
-    assertResult(
-      """leaf-0 = (LESS_THAN a 10)
-        |leaf-1 = (LESS_THAN_EQUALS a 1)
-        |expr = (and leaf-0 (not leaf-1))
-      """.stripMargin.trim
-    ) {
+    assertResult("leaf-0 = (LESS_THAN a 10), leaf-1 = (LESS_THAN_EQUALS a 1)," +
+      " expr = (and leaf-0 (not leaf-1))") {
       OrcFilters.createFilter(schema, Array(
         And(
           And(
@@ -426,8 +396,8 @@ class HiveOrcFilterSuite extends OrcTest with TestHiveSingleton {
         StructField("b", StringType, nullable = true)))
 
     // The predicate `StringContains` predicate is not able to be pushed down.
-    assertResult("leaf-0 = (LESS_THAN_EQUALS a 10)\nleaf-1 = (LESS_THAN a 1)\n" +
-      "expr = (or (not leaf-0) leaf-1)") {
+    assertResult("leaf-0 = (LESS_THAN_EQUALS a 10), leaf-1 = (LESS_THAN a 1)," +
+      " expr = (or (not leaf-0) leaf-1)") {
       OrcFilters.createFilter(schema, Array(
         Or(
           GreaterThan("a", 10),
@@ -439,8 +409,8 @@ class HiveOrcFilterSuite extends OrcTest with TestHiveSingleton {
       )).get.toString
     }
 
-    assertResult("leaf-0 = (LESS_THAN_EQUALS a 10)\nleaf-1 = (LESS_THAN a 1)\n" +
-      "expr = (or (not leaf-0) leaf-1)") {
+    assertResult("leaf-0 = (LESS_THAN_EQUALS a 10), leaf-1 = (LESS_THAN a 1)," +
+      " expr = (or (not leaf-0) leaf-1)") {
       OrcFilters.createFilter(schema, Array(
         Or(
           And(
@@ -465,4 +435,17 @@ class HiveOrcFilterSuite extends OrcTest with TestHiveSingleton {
       )
     )).isEmpty)
   }
+
+  test("SPARK-27160: Fix casting of the DecimalType literal") {
+    import org.apache.spark.sql.sources._
+    val schema = StructType(Array(StructField("a", DecimalType(3, 2))))
+    assertResult("leaf-0 = (LESS_THAN a 3.14), expr = leaf-0") {
+      OrcFilters.createFilter(schema, Array(
+        LessThan(
+          "a",
+          new java.math.BigDecimal(3.14, MathContext.DECIMAL64).setScale(2)))
+      ).get.toString
+    }
+  }
 }
+
