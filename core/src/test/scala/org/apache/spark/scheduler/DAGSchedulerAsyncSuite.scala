@@ -25,10 +25,32 @@ import scala.collection.mutable.Map
 
 import org.apache.spark.{FetchFailed, HashPartitioner, ShuffleDependency, SparkConf, Success}
 import org.apache.spark.api.java.Optional
-import org.apache.spark.api.shuffle.{MapShuffleLocations, ShuffleLocation}
+import org.apache.spark.api.shuffle.{MapShuffleLocations, ShuffleDataIO, ShuffleDriverComponents, ShuffleExecutorComponents, ShuffleLocation}
 import org.apache.spark.internal.config
 import org.apache.spark.rdd.RDD
+import org.apache.spark.shuffle.sort.io.DefaultShuffleDataIO
 import org.apache.spark.storage.BlockManagerId
+
+class AsyncShuffleDataIO(sparkConf: SparkConf) extends ShuffleDataIO {
+  val defaultShuffleDataIO = new DefaultShuffleDataIO(sparkConf)
+
+  override def driver(): ShuffleDriverComponents =
+    new AsyncShuffleDriverComponents(defaultShuffleDataIO.driver())
+
+  override def executor(): ShuffleExecutorComponents = defaultShuffleDataIO.executor()
+}
+
+class AsyncShuffleDriverComponents(default: ShuffleDriverComponents)
+  extends ShuffleDriverComponents {
+  override def initializeApplication(): util.Map[String, String] = default.initializeApplication()
+
+  override def cleanupApplication(): Unit = default.cleanupApplication()
+
+  override def removeShuffleData(shuffleId: Int, blocking: Boolean): Unit =
+    default.removeShuffleData(shuffleId, blocking)
+
+  override def unregisterOtherMapStatusesOnFetchFailure(): Boolean = false
+}
 
 class DAGSchedulerAsyncSuite extends DAGSchedulerSuite {
 
@@ -82,7 +104,7 @@ class DAGSchedulerAsyncSuite extends DAGSchedulerSuite {
     afterEach()
     val conf = new SparkConf()
     // unregistering all outputs on a host is disabled for async case
-    conf.set(config.UNREGISTER_OUTPUT_ON_HOST_ON_FETCH_FAILURE, false)
+    conf.set(config.SHUFFLE_IO_PLUGIN_CLASS, classOf[AsyncShuffleDataIO].getName)
     init(conf)
     val shuffleMapRdd = new MyRDD(sc, 2, Nil)
     val shuffleDep = new ShuffleDependency(shuffleMapRdd, new HashPartitioner(2))

@@ -46,6 +46,11 @@ public class DefaultShuffleDriverComponents implements ShuffleDriverComponents {
     blockManagerMaster.removeShuffle(shuffleId, blocking);
   }
 
+  @Override
+  public boolean unregisterOtherMapStatusesOnFetchFailure() {
+    return true;
+  }
+
   private void checkInitialized() {
     if (blockManagerMaster == null) {
       throw new IllegalStateException("Driver components must be initialized before using");

@@ -30,4 +30,12 @@ public interface ShuffleDriverComponents {
   void cleanupApplication() throws IOException;
 
   void removeShuffleData(int shuffleId, boolean blocking) throws IOException;
+
+  /**
+   * Whether to unregister other map statuses on the same hosts or executors
+   * when a shuffle task returns a {@link org.apache.spark.FetchFailed}.
+   */
+  default boolean unregisterOtherMapStatusesOnFetchFailure() {
+    return false;
+  }
 }

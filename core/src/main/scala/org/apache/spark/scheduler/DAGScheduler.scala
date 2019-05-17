@@ -229,6 +229,9 @@ private[spark] class DAGScheduler(
   private[spark] val eventProcessLoop = new DAGSchedulerEventProcessLoop(this)
   taskScheduler.setDAGScheduler(this)
 
+  private[spark] val unregisterOtherMapStatusesOnFetchFailure = sc.shuffleDriverComponents
+    .unregisterOtherMapStatusesOnFetchFailure()
+
   /**
    * Called by the TaskSetManager to report task's starting.
    */
@@ -1627,14 +1630,14 @@ private[spark] class DAGScheduler(
           }
 
           // TODO: mark the executor as failed only if there were lots of fetch failures on it
-          if (!shuffleLocations.isEmpty) {
+          if (unregisterOtherMapStatusesOnFetchFailure && shuffleLocations.nonEmpty) {
             val toRemoveHost =
               if (env.conf.get(config.SHUFFLE_IO_PLUGIN_CLASS) ==
                 classOf[DefaultShuffleDataIO].getName) {
                 env.blockManager.externalShuffleServiceEnabled &&
                   unRegisterOutputOnHostOnFetchFailure
               } else {
-                unRegisterOutputOnHostOnFetchFailure
+                true
               }
 
             shuffleLocations.foreach(location => {

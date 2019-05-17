@@ -26,10 +26,39 @@ import scala.collection.mutable.Seq
 
 import org.apache.spark.{FetchFailed, HashPartitioner, ShuffleDependency, SparkConf, Success}
 import org.apache.spark.api.java.Optional
-import org.apache.spark.api.shuffle.{MapShuffleLocations, ShuffleLocation}
+import org.apache.spark.api.shuffle.{MapShuffleLocations, ShuffleDataIO, ShuffleDriverComponents, ShuffleExecutorComponents, ShuffleLocation}
 import org.apache.spark.internal.config
 import org.apache.spark.rdd.RDD
+import org.apache.spark.shuffle.sort.io.DefaultShuffleDataIO
 import org.apache.spark.storage.BlockManagerId
+
+class FileServerShuffleDriverComponents(driverComponents: ShuffleDriverComponents)
+  extends ShuffleDriverComponents {
+
+  override def initializeApplication(): util.Map[String, String] =
+    driverComponents.initializeApplication()
+
+  override def cleanupApplication(): Unit = driverComponents.cleanupApplication()
+
+  override def removeShuffleData(shuffleId: Int, blocking: Boolean): Unit =
+    driverComponents.removeShuffleData(shuffleId, blocking)
+
+  override def unregisterOtherMapStatusesOnFetchFailure(): Boolean = true
+}
+
+class FileServerShuffleDataIO(sparkConf: SparkConf) extends ShuffleDataIO {
+  val defaultShuffleDataIO = new DefaultShuffleDataIO(sparkConf)
+  override def driver(): ShuffleDriverComponents =
+    new FileServerShuffleDriverComponents(defaultShuffleDataIO.driver())
+
+  override def executor(): ShuffleExecutorComponents = defaultShuffleDataIO.executor()
+}
+
+object FileServerShuffleDataIO {
+  def apply(sparkConf: SparkConf): Unit = {
+    new FileServerShuffleDataIO(sparkConf)
+  }
+}
 
 class DAGSchedulerFileServerSuite extends DAGSchedulerSuite {
 
@@ -49,24 +78,21 @@ class DAGSchedulerFileServerSuite extends DAGSchedulerSuite {
       for ((locations, i) <- mapShuffleLocations.zipWithIndex) {
         mapShuffleLocations(i) = locations.filter(loc =>
           loc.host() != host || (port.isPresent && loc.port() != port.get()))
-        if (locations.isEmpty) {
+        if (mapShuffleLocations(i).isEmpty) {
           missingPartition = true
         }
       }
       missingPartition
     }
 
-    override def invalidateShuffleLocation(executorId: String): Boolean = {
-      return false
-    }
+    override def invalidateShuffleLocation(executorId: String): Boolean = false
   }
 
   private def setupTest(): (RDD[_], Int) = {
     afterEach()
     val conf = new SparkConf()
     // unregistering all outputs on a host is enabled for the individual file server case
-    conf.set(config.UNREGISTER_OUTPUT_ON_HOST_ON_FETCH_FAILURE, true)
-    conf.set(config.SHUFFLE_SERVICE_ENABLED, true)
+    conf.set(config.SHUFFLE_IO_PLUGIN_CLASS, classOf[FileServerShuffleDataIO].getName)
     init(conf)
     val shuffleMapRdd = new MyRDD(sc, 2, Nil)
     val shuffleDep = new ShuffleDependency(shuffleMapRdd, new HashPartitioner(2))
