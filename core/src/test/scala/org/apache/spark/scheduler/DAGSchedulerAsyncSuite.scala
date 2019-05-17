@@ -18,11 +18,10 @@
 package org.apache.spark.scheduler
 
 import java.util
-import java.util.function.Predicate
 
+import scala.collection.JavaConverters._
+import scala.collection.mutable.Buffer
 import scala.collection.mutable.Map
-
-import com.google.common.collect.Lists
 
 import org.apache.spark.{FetchFailed, HashPartitioner, ShuffleDependency, SparkConf, Success}
 import org.apache.spark.api.java.Optional
@@ -48,35 +47,30 @@ class DAGSchedulerAsyncSuite extends DAGSchedulerSuite {
 
   class AsyncMapShuffleLocations(asyncLocation: AsyncShuffleLocation)
     extends MapShuffleLocations {
-    val locations : util.List[ShuffleLocation] = if (asyncLocation == null) {
-      Lists.newArrayList(dfsLocation)
+    var locations : Buffer[ShuffleLocation] = if (asyncLocation == null) {
+      Buffer(dfsLocation)
     } else {
-      Lists.newArrayList(asyncLocation, dfsLocation)
+      Buffer(asyncLocation, dfsLocation)
     }
 
     override def getLocationsForBlock(reduceId: Int): util.List[ShuffleLocation] =
-      locations
+      locations.asJava
 
     override def invalidateShuffleLocation(host: String, port: Optional[Integer]): Boolean = {
-      removeIfPredicate(new Predicate[ShuffleLocation] {
-        override def test(loc: ShuffleLocation): Boolean =
-          loc.host() === host && (!port.isPresent || loc.port() === port.get())
-      })
+      removeIfPredicate(loc =>
+        loc.host() === host && (!port.isPresent || loc.port() === port.get()))
     }
 
     override def invalidateShuffleLocation(executorId: String): Boolean = {
-      removeIfPredicate(new Predicate[ShuffleLocation] {
-        override def test(loc: ShuffleLocation): Boolean =
-          locations.get(0).execId().get().equals(executorId)
-      })
+      removeIfPredicate(loc => !loc.execId().isPresent || !loc.execId().get().equals(executorId))
     }
 
-    def removeIfPredicate(predicate: Predicate[ShuffleLocation]): Boolean = {
+    def removeIfPredicate(predicate: ShuffleLocation => Boolean): Boolean = {
       var missingPartition = false
       if (locations.isEmpty) {
         return missingPartition
       }
-      locations.removeIf(predicate)
+      locations = locations.filter(predicate)
       if (locations.isEmpty) {
         missingPartition = true
       }

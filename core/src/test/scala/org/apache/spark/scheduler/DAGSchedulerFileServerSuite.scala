@@ -37,7 +37,7 @@ class DAGSchedulerFileServerSuite extends DAGSchedulerSuite {
     override def host(): String = hostname
     override def port(): Int = portInt
   }
-  
+
   class FileServerMapShuffleLocations(mapShuffleLocationsInput: Buffer[Buffer[ShuffleLocation]])
     extends MapShuffleLocations {
     val mapShuffleLocations = mapShuffleLocationsInput
