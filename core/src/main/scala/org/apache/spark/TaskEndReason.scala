@@ -82,7 +82,7 @@ case object Resubmitted extends TaskFailedReason {
  */
 @DeveloperApi
 case class FetchFailed(
-    shuffleLocation: Seq[ShuffleLocation],  // Note that shuffleLocation can be null
+    shuffleLocation: Seq[ShuffleLocation],  // Note that shuffleLocation cannot be null
     shuffleId: Int,
     mapId: Int,
     reduceId: Int,

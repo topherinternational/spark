@@ -1492,7 +1492,7 @@ class DAGSchedulerSuite extends SparkFunSuite with LocalSparkContext with TimeLi
     runEvent(ExecutorLost("exec-hostA", ExecutorKilled))
     runEvent(makeCompletionEvent(
       taskSets(1).tasks(0),
-      FetchFailed(null, firstShuffleId, 2, 0, "Fetch failed"),
+      FetchFailed(Seq.empty, firstShuffleId, 2, 0, "Fetch failed"),
       null))
 
     // so we resubmit stage 0, which completes happily

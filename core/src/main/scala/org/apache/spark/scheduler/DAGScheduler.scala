@@ -1627,7 +1627,7 @@ private[spark] class DAGScheduler(
           }
 
           // TODO: mark the executor as failed only if there were lots of fetch failures on it
-          if (shuffleLocations != null) {
+          if (!shuffleLocations.isEmpty) {
             val toRemoveHost =
               if (env.conf.get(config.SHUFFLE_IO_PLUGIN_CLASS) ==
                 classOf[DefaultShuffleDataIO].getName) {

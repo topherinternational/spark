@@ -1397,7 +1397,7 @@ class TaskSetManagerSuite extends SparkFunSuite with LocalSparkContext with Logg
     // fail fetch
     taskSetManager1.handleFailedTask(
       taskSetManager1.taskAttempts.head.head.taskId, TaskState.FAILED,
-      FetchFailed(null, 0, 0, 0, "fetch failed"))
+      FetchFailed(Seq.empty, 0, 0, 0, "fetch failed"))
 
     assert(taskSetManager1.isZombie)
     assert(taskSetManager1.runningTasks === 9)
