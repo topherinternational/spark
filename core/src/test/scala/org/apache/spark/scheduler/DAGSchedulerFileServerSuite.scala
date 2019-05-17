@@ -124,7 +124,7 @@ class DAGSchedulerFileServerSuite extends DAGSchedulerSuite {
 
     // Perform map task
     val mapStatus1 = makeFileServerMapStatus("hostA", "hostB", "hostC", "hostD")
-    val mapStatus2 = makeFileServerMapStatus("hostA", "hostE", "hostC", "hostE")
+    val mapStatus2 = makeFileServerMapStatus("hostA", "hostE", "hostB", "hostE")
     complete(taskSets(0), Seq((Success, mapStatus1), (Success, mapStatus2)))
     assertMapOutputTrackerContains(shuffleId,
       Seq(mapStatus1.mapShuffleLocations, mapStatus2.mapShuffleLocations))
@@ -133,9 +133,7 @@ class DAGSchedulerFileServerSuite extends DAGSchedulerSuite {
     complete(taskSets(1), Seq((Success, 42), (FetchFailed(
       Seq(
         shuffleLocation("hostA"),
-        shuffleLocation("hostB"),
-        shuffleLocation("hostC"),
-        shuffleLocation("hostD")),
+        shuffleLocation("hostB")),
       shuffleId, 0, 0, "ignored"), null)))
     assert(scheduler.failedStages.size > 0)
     assert(mapOutputTracker.getNumAvailableOutputs(shuffleId) == 1)
