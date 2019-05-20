@@ -1024,7 +1024,7 @@ private[spark] object JsonProtocol {
         DefaultMapShuffleLocations.get(block)
       })
     } else {
-      null
+      Seq.empty
     }
   }
 
