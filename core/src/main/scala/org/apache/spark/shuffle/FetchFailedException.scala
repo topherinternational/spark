@@ -71,4 +71,4 @@ private[spark] class MetadataFetchFailedException(
     shuffleId: Int,
     reduceId: Int,
     message: String)
-  extends FetchFailedException(null, shuffleId, -1, reduceId, message)
+  extends FetchFailedException(Seq.empty, shuffleId, -1, reduceId, message)
