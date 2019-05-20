@@ -19,7 +19,7 @@ package org.apache.spark.sql.catalyst.trees
 
 import java.util.UUID
 
-import scala.collection.Map
+import scala.collection.{mutable, Map}
 import scala.reflect.ClassTag
 
 import org.apache.commons.lang3.ClassUtils
@@ -74,12 +74,22 @@ object CurrentOrigin {
   }
 }
 
+// The name of the tree node tag. This is preferred over using string directly, as we can easily
+// find all the defined tags.
+case class TreeNodeTagName(name: String)
+
 // scalastyle:off
 abstract class TreeNode[BaseType <: TreeNode[BaseType]] extends Product {
 // scalastyle:on
   self: BaseType =>
 
   val origin: Origin = CurrentOrigin.get
+
+  /**
+   * A mutable map for holding auxiliary information of this tree node. It will be carried over
+   * when this node is copied via `makeCopy`, or transformed via `transformUp`/`transformDown`.
+   */
+  val tags: mutable.Map[TreeNodeTagName, Any] = mutable.Map.empty
 
   /**
    * Returns a Seq of the children of this node.
@@ -264,6 +274,8 @@ abstract class TreeNode[BaseType <: TreeNode[BaseType]] extends Product {
     if (this fastEquals afterRule) {
       mapChildren(_.transformDown(rule))
     } else {
+      // If the transform function replaces this node with a new one, carry over the tags.
+      afterRule.tags ++= this.tags
       afterRule.mapChildren(_.transformDown(rule))
     }
   }
@@ -277,7 +289,7 @@ abstract class TreeNode[BaseType <: TreeNode[BaseType]] extends Product {
    */
   def transformUp(rule: PartialFunction[BaseType, BaseType]): BaseType = {
     val afterRuleOnChildren = mapChildren(_.transformUp(rule))
-    if (this fastEquals afterRuleOnChildren) {
+    val newNode = if (this fastEquals afterRuleOnChildren) {
       CurrentOrigin.withOrigin(origin) {
         rule.applyOrElse(this, identity[BaseType])
       }
@@ -286,6 +298,9 @@ abstract class TreeNode[BaseType <: TreeNode[BaseType]] extends Product {
         rule.applyOrElse(afterRuleOnChildren, identity[BaseType])
       }
     }
+    // If the transform function replaces this node with a new one, carry over the tags.
+    newNode.tags ++= this.tags
+    newNode
   }
 
   /**
@@ -404,7 +419,9 @@ abstract class TreeNode[BaseType <: TreeNode[BaseType]] extends Product {
 
     try {
       CurrentOrigin.withOrigin(origin) {
-        defaultCtor.newInstance(allArgs.toArray: _*).asInstanceOf[BaseType]
+        val res = defaultCtor.newInstance(allArgs.toArray: _*).asInstanceOf[BaseType]
+        res.tags ++= this.tags
+        res
       }
     } catch {
       case e: java.lang.IllegalArgumentException =>
