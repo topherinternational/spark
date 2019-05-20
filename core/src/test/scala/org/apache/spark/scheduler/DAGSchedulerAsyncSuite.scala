@@ -60,27 +60,16 @@ class DAGSchedulerAsyncSuite extends DAGSchedulerSuite {
     override def execId(): Optional[String] = Optional.of(exec)
   }
 
-  class DFSShuffleLocation extends ShuffleLocation {
-    override def host(): String = "hdfs"
-    override def port(): Int = 1234
-  }
-
-  val dfsLocation = new DFSShuffleLocation
-
   class AsyncMapShuffleLocations(asyncLocation: AsyncShuffleLocation)
     extends MapShuffleLocations {
-    var locations : Buffer[ShuffleLocation] = if (asyncLocation == null) {
-      Buffer(dfsLocation)
-    } else {
-      Buffer(asyncLocation, dfsLocation)
-    }
+    var locations : Buffer[ShuffleLocation] = Buffer(asyncLocation)
 
     override def getLocationsForBlock(reduceId: Int): util.List[ShuffleLocation] =
       locations.asJava
 
     override def invalidateShuffleLocation(host: String, port: Optional[Integer]): Boolean = {
       removeIfPredicate(loc =>
-        loc.host() === host && (!port.isPresent || loc.port() === port.get()))
+        loc.host() != host || (port.isPresent && loc.port() != port.get()))
     }
 
     override def invalidateShuffleLocation(executorId: String): Boolean = {
@@ -143,7 +132,7 @@ class DAGSchedulerAsyncSuite extends DAGSchedulerSuite {
     // but the other shuffle block is still available
     complete(taskSets(1), Seq(
       (Success, 42),
-      (FetchFailed(Seq(makeAsyncShuffleLocation("hostA"), dfsLocation),
+      (FetchFailed(Seq(makeAsyncShuffleLocation("hostA")),
         shuffleId, 0, 0, "ignored"), null)))
     assert(scheduler.failedStages.size > 0)
     assert(mapOutputTracker.getNumAvailableOutputs(shuffleId) == 1)
@@ -172,7 +161,7 @@ class DAGSchedulerAsyncSuite extends DAGSchedulerSuite {
     // other task is still intact because it was uploaded to the remove dfs
     complete(taskSets(1), Seq(
       (Success, 42),
-      (FetchFailed(Seq(makeAsyncShuffleLocation("hostA"), dfsLocation),
+      (FetchFailed(Seq(makeAsyncShuffleLocation("hostA")),
         shuffleId, 0, 0, "ignored"), null)))
     assert(scheduler.failedStages.size > 0)
     assert(mapOutputTracker.getNumAvailableOutputs(shuffleId) == 1)
@@ -207,7 +196,7 @@ class DAGSchedulerAsyncSuite extends DAGSchedulerSuite {
     // the second location was written by a different executor
     complete(taskSets(1), Seq(
       (Success, 42),
-      (FetchFailed(Seq(makeAsyncShuffleLocation("hostA"), dfsLocation),
+      (FetchFailed(Seq(makeAsyncShuffleLocation("hostA")),
         shuffleId, 0, 0, "ignored"), null)))
     assert(scheduler.failedStages.size > 0)
     assert(mapOutputTracker.getNumAvailableOutputs(shuffleId) == 1)
