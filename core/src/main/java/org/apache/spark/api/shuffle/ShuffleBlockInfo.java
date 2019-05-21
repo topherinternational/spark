@@ -18,6 +18,7 @@
 package org.apache.spark.api.shuffle;
 
 import org.apache.spark.api.java.Optional;
+import org.apache.spark.storage.BlockManagerId;
 
 import java.util.Objects;
 
@@ -31,14 +32,16 @@ public class ShuffleBlockInfo {
   private final int mapId;
   private final int reduceId;
   private final long length;
+  private final BlockManagerId blockManagerId;
   private final Optional<ShuffleLocation> shuffleLocation;
 
   public ShuffleBlockInfo(int shuffleId, int mapId, int reduceId, long length,
-    Optional<ShuffleLocation> shuffleLocation) {
+    BlockManagerId blockManagerId, Optional<ShuffleLocation> shuffleLocation) {
     this.shuffleId = shuffleId;
     this.mapId = mapId;
     this.reduceId = reduceId;
     this.length = length;
+    this.blockManagerId = blockManagerId;
     this.shuffleLocation = shuffleLocation;
   }
 
@@ -58,6 +61,10 @@ public class ShuffleBlockInfo {
     return length;
   }
 
+  public BlockManagerId getBlockManagerId() {
+    return blockManagerId;
+  }
+
   public Optional<ShuffleLocation> getShuffleLocation() {
     return shuffleLocation;
   }
@@ -69,6 +76,7 @@ public class ShuffleBlockInfo {
         && mapId == ((ShuffleBlockInfo) other).mapId
         && reduceId == ((ShuffleBlockInfo) other).reduceId
         && length == ((ShuffleBlockInfo) other).length
+        && Objects.equals(blockManagerId, ((ShuffleBlockInfo) other).blockManagerId)
         && Objects.equals(shuffleLocation, ((ShuffleBlockInfo) other).shuffleLocation);
   }
 
