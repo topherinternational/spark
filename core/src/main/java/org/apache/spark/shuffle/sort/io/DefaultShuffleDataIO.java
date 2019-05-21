@@ -23,7 +23,7 @@ import org.apache.spark.api.shuffle.ShuffleExecutorComponents;
 import org.apache.spark.api.shuffle.ShuffleDataIO;
 import org.apache.spark.shuffle.sort.lifecycle.DefaultShuffleDriverComponents;
 
-public class DefaultShuffleDataIO implements ShuffleDataIO {
+public final class DefaultShuffleDataIO implements ShuffleDataIO {
 
   private final SparkConf sparkConf;
 

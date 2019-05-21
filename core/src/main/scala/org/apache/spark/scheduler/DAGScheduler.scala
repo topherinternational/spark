@@ -30,7 +30,6 @@ import scala.concurrent.duration._
 import scala.language.existentials
 import scala.language.postfixOps
 import scala.util.control.NonFatal
-
 import org.apache.commons.lang3.SerializationUtils
 
 import org.apache.spark._
@@ -43,6 +42,7 @@ import org.apache.spark.network.util.JavaUtils
 import org.apache.spark.partial.{ApproximateActionListener, ApproximateEvaluator, PartialResult}
 import org.apache.spark.rdd.{DeterministicLevel, RDD, RDDCheckpointData}
 import org.apache.spark.rpc.RpcTimeout
+import org.apache.spark.shuffle.sort.io.DefaultShuffleDataIO
 import org.apache.spark.storage._
 import org.apache.spark.storage.BlockManagerMessages.BlockManagerHeartbeat
 import org.apache.spark.util._
@@ -1626,7 +1626,8 @@ private[spark] class DAGScheduler(
           }
 
           // TODO: mark the executor as failed only if there were lots of fetch failures on it
-          if (bmAddress != null) {
+          if (bmAddress != null && env.conf.get(config.SHUFFLE_IO_PLUGIN_CLASS) ==
+            classOf[DefaultShuffleDataIO].getName) {
             val hostToUnregisterOutputs = if (env.blockManager.externalShuffleServiceEnabled &&
               unRegisterOutputOnHostOnFetchFailure) {
               // We had a fetch failure with the external shuffle service, so we
