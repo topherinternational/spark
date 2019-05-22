@@ -35,8 +35,13 @@ public class ShuffleBlockInfo {
   private final BlockManagerId blockManagerId;
   private final Optional<ShuffleLocation> shuffleLocation;
 
-  public ShuffleBlockInfo(int shuffleId, int mapId, int reduceId, long length,
-    BlockManagerId blockManagerId, Optional<ShuffleLocation> shuffleLocation) {
+  public ShuffleBlockInfo(
+      int shuffleId,
+      int mapId,
+      int reduceId,
+      long length,
+      BlockManagerId blockManagerId,
+      Optional<ShuffleLocation> shuffleLocation) {
     this.shuffleId = shuffleId;
     this.mapId = mapId;
     this.reduceId = reduceId;
@@ -82,6 +87,6 @@ public class ShuffleBlockInfo {
 
   @Override
   public int hashCode() {
-    return Objects.hash(shuffleId, mapId, reduceId, length, shuffleLocation);
+    return Objects.hash(shuffleId, mapId, reduceId, length, blockManagerId, shuffleLocation);
   }
 }
