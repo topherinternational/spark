@@ -18,6 +18,8 @@
 package org.apache.spark.shuffle
 
 import org.apache.spark.{FetchFailed, TaskContext, TaskFailedReason}
+import org.apache.spark.api.shuffle.ShuffleLocation
+import org.apache.spark.shuffle.sort.DefaultMapShuffleLocations
 import org.apache.spark.storage.BlockManagerId
 import org.apache.spark.util.Utils
 
@@ -33,21 +35,23 @@ import org.apache.spark.util.Utils
  * (or risk triggering any other exceptions).  See SPARK-19276.
  */
 private[spark] class FetchFailedException(
-    bmAddress: BlockManagerId,
+    shuffleLocation: ShuffleLocation,
     shuffleId: Int,
     mapId: Int,
     reduceId: Int,
+    maybeBmAddr: Option[BlockManagerId],
     message: String,
     cause: Throwable = null)
   extends Exception(message, cause) {
 
   def this(
-      bmAddress: BlockManagerId,
-      shuffleId: Int,
-      mapId: Int,
-      reduceId: Int,
-      cause: Throwable) {
-    this(bmAddress, shuffleId, mapId, reduceId, cause.getMessage, cause)
+    shuffleLocation: ShuffleLocation,
+    shuffleId: Int,
+    mapId: Int,
+    reduceId: Int,
+    maybeBmAddr: Option[BlockManagerId],
+    cause: Throwable) {
+    this(shuffleLocation, shuffleId, mapId, reduceId, maybeBmAddr, cause.getMessage, cause)
   }
 
   // SPARK-19276. We set the fetch failure in the task context, so that even if there is user-code
@@ -56,8 +60,13 @@ private[spark] class FetchFailedException(
   // because the TaskContext is not defined in some test cases.
   Option(TaskContext.get()).map(_.setFetchFailed(this))
 
-  def toTaskFailedReason: TaskFailedReason = FetchFailed(bmAddress, shuffleId, mapId, reduceId,
-    Utils.exceptionString(this))
+  def toTaskFailedReason: TaskFailedReason =
+    FetchFailed(shuffleLocation,
+      shuffleId,
+      mapId,
+      reduceId,
+      maybeBmAddr,
+      Utils.exceptionString(this))
 }
 
 /**
@@ -67,4 +76,31 @@ private[spark] class MetadataFetchFailedException(
     shuffleId: Int,
     reduceId: Int,
     message: String)
-  extends FetchFailedException(null, shuffleId, -1, reduceId, message)
+  extends FetchFailedException(null, shuffleId, -1, reduceId, Option.empty, message)
+
+
+private[spark] class DefaultFetchFailedException(
+    bmAddress: BlockManagerId,
+    shuffleId: Int,
+    mapId: Int,
+    reduceId: Int,
+    message: String,
+    cause: Throwable = null) extends FetchFailedException(
+  DefaultMapShuffleLocations.get(bmAddress),
+  shuffleId,
+  mapId,
+  reduceId,
+  Some(bmAddress),
+  message,
+  cause) {
+
+  def this(
+          blockManagerId: BlockManagerId,
+          shuffleId: Int,
+          mapId: Int,
+          reduceId: Int,
+          cause: Throwable
+          ) {
+    this(blockManagerId, shuffleId, mapId, reduceId, cause.getMessage, cause)
+  }
+}

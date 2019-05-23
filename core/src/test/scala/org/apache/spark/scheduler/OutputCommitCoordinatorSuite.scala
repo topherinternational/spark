@@ -23,7 +23,6 @@ import java.util.concurrent.TimeoutException
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
-
 import org.apache.hadoop.mapred._
 import org.apache.hadoop.mapreduce.TaskType
 import org.mockito.ArgumentMatchers.{any, eq => meq}
@@ -33,9 +32,11 @@ import org.mockito.stubbing.Answer
 import org.scalatest.BeforeAndAfter
 
 import org.apache.spark._
+import org.apache.spark.api.shuffle.ShuffleDriverComponents
 import org.apache.spark.internal.io.{FileCommitProtocol, HadoopMapRedCommitProtocol, SparkHadoopWriterUtils}
 import org.apache.spark.rdd.{FakeOutputCommitter, RDD}
-import org.apache.spark.shuffle.FetchFailedException
+import org.apache.spark.shuffle.{DefaultFetchFailedException, FetchFailedException}
+import org.apache.spark.shuffle.sort.lifecycle.DefaultShuffleDriverComponents
 import org.apache.spark.util.{ThreadUtils, Utils}
 
 /**
@@ -87,12 +88,13 @@ class OutputCommitCoordinatorSuite extends SparkFunSuite with BeforeAndAfter {
       override private[spark] def createSparkEnv(
           conf: SparkConf,
           isLocal: Boolean,
-          listenerBus: LiveListenerBus): SparkEnv = {
+          listenerBus: LiveListenerBus,
+          driverComponents: ShuffleDriverComponents): SparkEnv = {
         outputCommitCoordinator = spy(new OutputCommitCoordinator(conf, isDriver = true))
         // Use Mockito.spy() to maintain the default infrastructure everywhere else.
         // This mocking allows us to control the coordinator responses in test cases.
         SparkEnv.createDriverEnv(conf, isLocal, listenerBus,
-          SparkContext.numDriverCores(master), Some(outputCommitCoordinator))
+          SparkContext.numDriverCores(master), driverComponents, Some(outputCommitCoordinator))
       }
     }
     // Use Mockito.spy() to maintain the default infrastructure everywhere else
@@ -257,7 +259,7 @@ class OutputCommitCoordinatorSuite extends SparkFunSuite with BeforeAndAfter {
       .reduceByKey { case (_, _) =>
         val ctx = TaskContext.get()
         if (ctx.stageAttemptNumber() == 0) {
-          throw new FetchFailedException(SparkEnv.get.blockManager.blockManagerId, 1, 1, 1,
+          throw new DefaultFetchFailedException(SparkEnv.get.blockManager.blockManagerId, 1, 1, 1,
             new Exception("Failure for test."))
         } else {
           ctx.stageId()

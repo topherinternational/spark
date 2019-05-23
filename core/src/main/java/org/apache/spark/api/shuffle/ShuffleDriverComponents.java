@@ -30,4 +30,10 @@ public interface ShuffleDriverComponents {
   void cleanupApplication() throws IOException;
 
   void removeShuffleData(int shuffleId, boolean blocking) throws IOException;
+
+  default boolean shouldRemoveMapOutputOnLostBlock(
+      ShuffleLocation lostLocation,
+      MapShuffleLocations mapOutputLocations) {
+    return false;
+  }
 }

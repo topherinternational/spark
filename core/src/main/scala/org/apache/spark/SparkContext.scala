@@ -257,8 +257,10 @@ class SparkContext(config: SparkConf) extends SafeLogging {
   private[spark] def createSparkEnv(
       conf: SparkConf,
       isLocal: Boolean,
-      listenerBus: LiveListenerBus): SparkEnv = {
-    SparkEnv.createDriverEnv(conf, isLocal, listenerBus, SparkContext.numDriverCores(master, conf))
+      listenerBus: LiveListenerBus,
+      shuffleDriverComponents: ShuffleDriverComponents): SparkEnv = {
+    SparkEnv.createDriverEnv(conf, isLocal, listenerBus, SparkContext.numDriverCores(master, conf),
+      shuffleDriverComponents)
   }
 
   private[spark] def env: SparkEnv = _env
@@ -429,8 +431,17 @@ class SparkContext(config: SparkConf) extends SafeLogging {
     _statusStore = AppStatusStore.createLiveStore(conf, appStatusSource)
     listenerBus.addToStatusQueue(_statusStore.listener.get)
 
+
+    val configuredPluginClasses = conf.get(SHUFFLE_IO_PLUGIN_CLASS)
+    val maybeIO = Utils.loadExtensions(
+      classOf[ShuffleDataIO], Seq(configuredPluginClasses), conf)
+    require(maybeIO.size == 1, s"Failed to load plugins of type $configuredPluginClasses")
+    _shuffleDriverComponents = maybeIO.head.driver()
+    _shuffleDriverComponents.initializeApplication().asScala.foreach {
+      case (k, v) => _conf.set(ShuffleDataIO.SHUFFLE_SPARK_CONF_PREFIX + k, v) }
+
     // Create the Spark execution environment (cache, map output tracker, etc)
-    _env = createSparkEnv(_conf, isLocal, listenerBus)
+    _env = createSparkEnv(_conf, isLocal, listenerBus, _shuffleDriverComponents)
     SparkEnv.set(_env)
 
     // If running the REPL, register the repl's output dir with the file server.
@@ -492,14 +503,6 @@ class SparkContext(config: SparkConf) extends SafeLogging {
     executorEnvs("SPARK_EXECUTOR_MEMORY") = executorMemory + "m"
     executorEnvs ++= _conf.getExecutorEnv
     executorEnvs("SPARK_USER") = sparkUser
-
-    val configuredPluginClasses = conf.get(SHUFFLE_IO_PLUGIN_CLASS)
-    val maybeIO = Utils.loadExtensions(
-      classOf[ShuffleDataIO], Seq(configuredPluginClasses), conf)
-    require(maybeIO.size == 1, s"Failed to load plugins of type $configuredPluginClasses")
-    _shuffleDriverComponents = maybeIO.head.driver()
-    _shuffleDriverComponents.initializeApplication().asScala.foreach {
-      case (k, v) => _conf.set(ShuffleDataIO.SHUFFLE_SPARK_CONF_PREFIX + k, v) }
 
     // We need to register "HeartbeatReceiver" before "createTaskScheduler" because Executor will
     // retrieve "HeartbeatReceiver" in the constructor. (SPARK-6640)

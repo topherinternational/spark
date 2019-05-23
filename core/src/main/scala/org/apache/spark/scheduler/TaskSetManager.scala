@@ -848,9 +848,9 @@ private[spark] class TaskSetManager(
         }
         isZombie = true
 
-        if (fetchFailed.bmAddress != null) {
+        if (fetchFailed.maybeBmAddr != null && fetchFailed.maybeBmAddr.isDefined) {
           blacklistTracker.foreach(_.updateBlacklistForFetchFailure(
-            fetchFailed.bmAddress.host, fetchFailed.bmAddress.executorId))
+            fetchFailed.maybeBmAddr.get.host, fetchFailed.maybeBmAddr.get.executorId))
         }
 
         None

@@ -28,7 +28,7 @@ import scala.concurrent.duration.Duration
 import scala.reflect.ClassTag
 import scala.util.control.NonFatal
 
-import org.apache.spark.api.shuffle.{MapShuffleLocations, ShuffleLocation}
+import org.apache.spark.api.shuffle.{MapShuffleLocations, ShuffleDriverComponents, ShuffleLocation}
 import org.apache.spark.broadcast.{Broadcast, BroadcastManager}
 import org.apache.spark.internal.Logging
 import org.apache.spark.internal.config._
@@ -102,8 +102,18 @@ private class ShuffleStatus(numPartitions: Int) {
    * This is a no-op if there is no registered map output or if the registered output is from a
    * different block manager.
    */
-  def removeMapOutput(mapId: Int, bmAddress: BlockManagerId): Unit = synchronized {
-    if (mapStatuses(mapId) != null && mapStatuses(mapId).location == bmAddress) {
+  def removeMapOutput(mapId: Int, shuffleLoc: ShuffleLocation): Unit = synchronized {
+    if (mapStatuses(mapId) != null && mapStatuses(mapId).mapShuffleLocations == shuffleLoc) {
+      _numAvailableOutputs -= 1
+      mapStatuses(mapId) = null
+      invalidateSerializedMapOutputStatusCache()
+    }
+  }
+
+  def removeMapOutput(mapId: Int, reduceId: Int, shuffleLoc: ShuffleLocation)
+    : Unit = synchronized {
+    if (mapStatuses(mapId) != null && mapStatuses(mapId).mapShuffleLocations != null &&
+      mapStatuses(mapId).mapShuffleLocations.getLocationForBlock(reduceId) == shuffleLoc) {
       _numAvailableOutputs -= 1
       mapStatuses(mapId) = null
       invalidateSerializedMapOutputStatusCache()
@@ -134,6 +144,18 @@ private class ShuffleStatus(numPartitions: Int) {
   def removeOutputsByFilter(f: (BlockManagerId) => Boolean): Unit = synchronized {
     for (mapId <- 0 until mapStatuses.length) {
       if (mapStatuses(mapId) != null && f(mapStatuses(mapId).location)) {
+        _numAvailableOutputs -= 1
+        mapStatuses(mapId) = null
+        invalidateSerializedMapOutputStatusCache()
+      }
+    }
+  }
+
+  def removeOutputsByShuffleLocation(
+    shuffleLoc: ShuffleLocation,
+    f: (ShuffleLocation, MapShuffleLocations) => Boolean) : Unit = synchronized {
+    for (mapId <- 0 until mapStatuses.length) {
+      if (mapStatuses(mapId) != null && f(shuffleLoc, mapStatuses(mapId).mapShuffleLocations)) {
         _numAvailableOutputs -= 1
         mapStatuses(mapId) = null
         invalidateSerializedMapOutputStatusCache()
@@ -319,6 +341,7 @@ private[spark] abstract class MapOutputTracker(conf: SparkConf) extends Logging 
 private[spark] class MapOutputTrackerMaster(
     conf: SparkConf,
     broadcastManager: BroadcastManager,
+    shuffleDriverComponents: ShuffleDriverComponents,
     isLocal: Boolean)
   extends MapOutputTracker(conf) {
 
@@ -423,15 +446,37 @@ private[spark] class MapOutputTrackerMaster(
     shuffleStatuses(shuffleId).addMapOutput(mapId, status)
   }
 
-  /** Unregister map output information of the given shuffle, mapper and block manager */
-  def unregisterMapOutput(shuffleId: Int, mapId: Int, bmAddress: BlockManagerId) {
+  def unregisterMapOutput(
+    shuffleId: Int,
+    mapId: Int,
+    reduceId: Int,
+    shuffleLoc: ShuffleLocation): Unit = {
     shuffleStatuses.get(shuffleId) match {
       case Some(shuffleStatus) =>
-        shuffleStatus.removeMapOutput(mapId, bmAddress)
+        shuffleStatus.removeMapOutput(mapId, reduceId, shuffleLoc)
         incrementEpoch()
       case None =>
         throw new SparkException("unregisterMapOutput called for nonexistent shuffle ID")
     }
+  }
+
+  /** Unregister map output information of the given shuffle, mapper and block manager */
+  def unregisterMapOutput(shuffleId: Int, mapId: Int, shuffleLoc: ShuffleLocation) {
+    shuffleStatuses.get(shuffleId) match {
+      case Some(shuffleStatus) =>
+        shuffleStatus.removeMapOutput(mapId, shuffleLoc)
+        incrementEpoch()
+      case None =>
+        throw new SparkException("unregisterMapOutput called for nonexistent shuffle ID")
+    }
+  }
+
+  def removeMapAtLocation(shuffleLoc: ShuffleLocation): Unit = {
+    shuffleStatuses.valuesIterator.foreach {
+      _.removeOutputsByShuffleLocation(
+        shuffleLoc,
+        shuffleDriverComponents.shouldRemoveMapOutputOnLostBlock) }
+    incrementEpoch()
   }
 
   /** Unregister all map output information of the given shuffle. */

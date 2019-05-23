@@ -1478,7 +1478,7 @@ private[spark] class DAGScheduler(
             }
         }
 
-      case FetchFailed(bmAddress, shuffleId, mapId, _, failureMessage) =>
+      case FetchFailed(shuffleLocation, shuffleId, mapId, reduceId, maybeBmAddr, failureMessage) =>
         val failedStage = stageIdToStage(task.stageId)
         val mapStage = shuffleIdToMapStage(shuffleId)
 
@@ -1511,7 +1511,7 @@ private[spark] class DAGScheduler(
             mapOutputTracker.unregisterAllMapOutput(shuffleId)
           } else if (mapId != -1) {
             // Mark the map whose fetch failed as broken in the map stage
-            mapOutputTracker.unregisterMapOutput(shuffleId, mapId, bmAddress)
+            mapOutputTracker.unregisterMapOutput(shuffleId, mapId, reduceId, shuffleLocation)
           }
 
           if (failedStage.rdd.isBarrier()) {
@@ -1626,22 +1626,22 @@ private[spark] class DAGScheduler(
           }
 
           // TODO: mark the executor as failed only if there were lots of fetch failures on it
-          if (bmAddress != null) {
-            val hostToUnregisterOutputs = if (env.blockManager.externalShuffleServiceEnabled &&
-              unRegisterOutputOnHostOnFetchFailure) {
-              // We had a fetch failure with the external shuffle service, so we
-              // assume all shuffle data on the node is bad.
-              Some(bmAddress.host)
-            } else {
-              // Unregister shuffle data just for one executor (we don't have any
-              // reason to believe shuffle data has been lost for the entire host).
-              None
+          if (shuffleLocation != null) {
+            var shouldAttemptRemoval = true
+            if (maybeBmAddr.isDefined) {
+              val execId = maybeBmAddr.get.executorId
+              if (!failedEpoch.contains(execId) || failedEpoch(execId) < task.epoch) {
+                failedEpoch(execId) = task.epoch
+                logInfo("Executor lost: %s (epoch %d)".format(execId, task.epoch))
+                blockManagerMaster.removeExecutor(execId)
+              } else {
+                shouldAttemptRemoval = false
+              }
             }
-            removeExecutorAndUnregisterOutputs(
-              execId = bmAddress.executorId,
-              fileLost = true,
-              hostToUnregisterOutputs = hostToUnregisterOutputs,
-              maybeEpoch = Some(task.epoch))
+
+            if (shouldAttemptRemoval) {
+              mapOutputTracker.removeMapAtLocation(shuffleLocation)
+            }
           }
         }
 

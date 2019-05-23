@@ -30,6 +30,7 @@ import org.apache.spark.rpc.{RpcAddress, RpcCallContext, RpcEnv}
 import org.apache.spark.scheduler.{CompressedMapStatus, MapStatus}
 import org.apache.spark.shuffle.FetchFailedException
 import org.apache.spark.shuffle.sort.DefaultMapShuffleLocations
+import org.apache.spark.shuffle.sort.lifecycle.DefaultShuffleDriverComponents
 import org.apache.spark.storage.{BlockManagerId, ShuffleBlockId}
 
 class MapOutputTrackerSuite extends SparkFunSuite {
@@ -38,7 +39,9 @@ class MapOutputTrackerSuite extends SparkFunSuite {
   private def newTrackerMaster(sparkConf: SparkConf = conf) = {
     val broadcastManager = new BroadcastManager(true, sparkConf,
       new SecurityManager(sparkConf))
-    new MapOutputTrackerMaster(sparkConf, broadcastManager, true)
+    val driverComponents = new DefaultShuffleDriverComponents()
+    driverComponents.initializeApplication()
+    new MapOutputTrackerMaster(sparkConf, broadcastManager, driverComponents, true)
   }
 
   def createRpcEnv(name: String, host: String = "localhost", port: Int = 0,
@@ -119,8 +122,10 @@ class MapOutputTrackerSuite extends SparkFunSuite {
 
     assert(0 == tracker.getNumCachedSerializedBroadcast)
     // As if we had two simultaneous fetch failures
-    tracker.unregisterMapOutput(10, 0, BlockManagerId("a", "hostA", 1000))
-    tracker.unregisterMapOutput(10, 0, BlockManagerId("a", "hostA", 1000))
+    tracker.unregisterMapOutput(10, 0,
+      DefaultMapShuffleLocations.get(BlockManagerId("a", "hostA", 1000)))
+    tracker.unregisterMapOutput(10, 0,
+      DefaultMapShuffleLocations.get(BlockManagerId("a", "hostA", 1000)))
 
     // The remaining reduce task might try to grab the output despite the shuffle failure;
     // this should cause it to fail, and the scheduler will ignore the failure due to the
@@ -160,7 +165,8 @@ class MapOutputTrackerSuite extends SparkFunSuite {
     assert(0 == masterTracker.getNumCachedSerializedBroadcast)
 
     val masterTrackerEpochBeforeLossOfMapOutput = masterTracker.getEpoch
-    masterTracker.unregisterMapOutput(10, 0, BlockManagerId("a", "hostA", 1000))
+    masterTracker.unregisterMapOutput(10, 0,
+      DefaultMapShuffleLocations.get(BlockManagerId("a", "hostA", 1000)))
     assert(masterTracker.getEpoch > masterTrackerEpochBeforeLossOfMapOutput)
     slaveTracker.updateEpoch(masterTracker.getEpoch)
     intercept[FetchFailedException] { slaveTracker.getMapSizesByShuffleLocation(10, 0) }
