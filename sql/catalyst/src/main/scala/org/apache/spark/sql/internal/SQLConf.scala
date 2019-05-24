@@ -1673,6 +1673,15 @@ object SQLConf {
       .booleanConf
       .createWithDefault(false)
 
+  val LEGACY_PASS_PARTITION_BY_AS_OPTIONS =
+    buildConf("spark.sql.legacy.sources.write.passPartitionByAsOptions")
+      .internal()
+      .doc("Whether to pass the partitionBy columns as options in DataFrameWriter. " +
+        "Data source V1 now silently drops partitionBy columns for non-file-format sources; " +
+        "turning the flag on provides a way for these sources to see these partitionBy columns.")
+      .booleanConf
+      .createWithDefault(false)
+
   val NAME_NON_STRUCT_GROUPING_KEY_AS_VALUE =
     buildConf("spark.sql.legacy.dataset.nameNonStructGroupingKeyAsValue")
       .internal()
@@ -2102,9 +2111,9 @@ class SQLConf extends Serializable with Logging {
   def continuousStreamingExecutorPollIntervalMs: Long =
     getConf(CONTINUOUS_STREAMING_EXECUTOR_POLL_INTERVAL_MS)
 
-  def userV1SourceReaderList: String = getConf(USE_V1_SOURCE_READER_LIST)
+  def useV1SourceReaderList: String = getConf(USE_V1_SOURCE_READER_LIST)
 
-  def userV1SourceWriterList: String = getConf(USE_V1_SOURCE_WRITER_LIST)
+  def useV1SourceWriterList: String = getConf(USE_V1_SOURCE_WRITER_LIST)
 
   def disabledV2StreamingWriters: String = getConf(DISABLED_V2_STREAMING_WRITERS)
 
