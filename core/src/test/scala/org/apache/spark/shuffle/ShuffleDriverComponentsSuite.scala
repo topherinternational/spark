@@ -22,10 +22,11 @@ import java.util
 import com.google.common.collect.ImmutableMap
 
 import org.apache.spark.{LocalSparkContext, SparkConf, SparkContext, SparkEnv, SparkFunSuite}
-import org.apache.spark.api.shuffle.{ShuffleDataIO, ShuffleDriverComponents, ShuffleExecutorComponents, ShuffleReadSupport, ShuffleWriteSupport}
+import org.apache.spark.api.java.Optional
+import org.apache.spark.api.shuffle.{ShuffleDataIO, ShuffleDriverComponents, ShuffleExecutorComponents, ShuffleLocationComponents, ShuffleReadSupport, ShuffleWriteSupport}
 import org.apache.spark.internal.config.SHUFFLE_IO_PLUGIN_CLASS
 import org.apache.spark.shuffle.io.DefaultShuffleReadSupport
-import org.apache.spark.shuffle.sort.io.DefaultShuffleWriteSupport
+import org.apache.spark.shuffle.sort.io.{DefaultShuffleLocationComponents, DefaultShuffleWriteSupport}
 
 class ShuffleDriverComponentsSuite extends SparkFunSuite with LocalSparkContext {
   test(s"test serialization of shuffle initialization conf to executors") {
@@ -56,6 +57,8 @@ class TestShuffleDataIO(sparkConf: SparkConf) extends ShuffleDataIO {
 
   override def executor(): ShuffleExecutorComponents =
     new TestShuffleExecutorComponents(sparkConf)
+
+  override def shuffleLocations(): Optional[ShuffleLocationComponents] = Optional.empty()
 }
 
 class TestShuffleExecutorComponents(sparkConf: SparkConf) extends ShuffleExecutorComponents {

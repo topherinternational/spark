@@ -28,6 +28,7 @@ import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.Map
 import scala.concurrent.duration._
 import scala.language.postfixOps
+
 import org.mockito.ArgumentCaptor
 import org.mockito.ArgumentMatchers.{any, eq => meq}
 import org.mockito.Mockito.{inOrder, verify, when}
@@ -47,7 +48,8 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.rpc.{RpcEndpointRef, RpcEnv, RpcTimeout}
 import org.apache.spark.scheduler.{FakeTask, ResultTask, Task, TaskDescription}
 import org.apache.spark.serializer.{JavaSerializer, SerializerManager}
-import org.apache.spark.shuffle.{DefaultFetchFailedException, FetchFailedException}
+import org.apache.spark.shuffle.FetchFailedException
+import org.apache.spark.shuffle.sort.DefaultMapShuffleLocations
 import org.apache.spark.storage.{BlockManager, BlockManagerId}
 import org.apache.spark.util.{LongAccumulator, UninterruptibleThread}
 
@@ -436,11 +438,13 @@ class FetchFailureThrowingRDD(sc: SparkContext) extends RDD[Int](sc, Nil) {
     new Iterator[Int] {
       override def hasNext: Boolean = true
       override def next(): Int = {
-        throw new DefaultFetchFailedException(
-          bmAddress = BlockManagerId("1", "hostA", 1234),
+        val bmAddress = BlockManagerId("1", "hostA", 1234)
+        throw new FetchFailedException(
+          shuffleLocation = DefaultMapShuffleLocations.get(bmAddress),
           shuffleId = 0,
           mapId = 0,
           reduceId = 0,
+          maybeBmAddr = Some(bmAddress),
           message = "fake fetch failure"
         )
       }

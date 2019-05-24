@@ -28,7 +28,7 @@ import scala.concurrent.duration.Duration
 import scala.reflect.ClassTag
 import scala.util.control.NonFatal
 
-import org.apache.spark.api.shuffle.{MapShuffleLocations, ShuffleDriverComponents, ShuffleLocation}
+import org.apache.spark.api.shuffle.{MapShuffleLocations, ShuffleDriverComponents, ShuffleLocation, ShuffleLocationComponents}
 import org.apache.spark.broadcast.{Broadcast, BroadcastManager}
 import org.apache.spark.internal.Logging
 import org.apache.spark.internal.config._
@@ -98,18 +98,8 @@ private class ShuffleStatus(numPartitions: Int) {
   }
 
   /**
-   * Remove the map output which was served by the specified block manager.
-   * This is a no-op if there is no registered map output or if the registered output is from a
-   * different block manager.
+   * Remove the map output which contains the specific shuffle location for the given reduce Id.
    */
-  def removeMapOutput(mapId: Int, shuffleLoc: ShuffleLocation): Unit = synchronized {
-    if (mapStatuses(mapId) != null && mapStatuses(mapId).mapShuffleLocations == shuffleLoc) {
-      _numAvailableOutputs -= 1
-      mapStatuses(mapId) = null
-      invalidateSerializedMapOutputStatusCache()
-    }
-  }
-
   def removeMapOutput(mapId: Int, reduceId: Int, shuffleLoc: ShuffleLocation)
     : Unit = synchronized {
     if (mapStatuses(mapId) != null && mapStatuses(mapId).mapShuffleLocations != null &&
@@ -341,7 +331,7 @@ private[spark] abstract class MapOutputTracker(conf: SparkConf) extends Logging 
 private[spark] class MapOutputTrackerMaster(
     conf: SparkConf,
     broadcastManager: BroadcastManager,
-    shuffleDriverComponents: ShuffleDriverComponents,
+    shuffleLocationComponents: Option[ShuffleLocationComponents],
     isLocal: Boolean)
   extends MapOutputTracker(conf) {
 
@@ -446,6 +436,7 @@ private[spark] class MapOutputTrackerMaster(
     shuffleStatuses(shuffleId).addMapOutput(mapId, status)
   }
 
+  /** Unregister map output information of the given shuffle, mapper, reducer and location */
   def unregisterMapOutput(
     shuffleId: Int,
     mapId: Int,
@@ -460,22 +451,14 @@ private[spark] class MapOutputTrackerMaster(
     }
   }
 
-  /** Unregister map output information of the given shuffle, mapper and block manager */
-  def unregisterMapOutput(shuffleId: Int, mapId: Int, shuffleLoc: ShuffleLocation) {
-    shuffleStatuses.get(shuffleId) match {
-      case Some(shuffleStatus) =>
-        shuffleStatus.removeMapOutput(mapId, shuffleLoc)
-        incrementEpoch()
-      case None =>
-        throw new SparkException("unregisterMapOutput called for nonexistent shuffle ID")
-    }
-  }
-
   def removeMapAtLocation(shuffleLoc: ShuffleLocation): Unit = {
-    shuffleStatuses.valuesIterator.foreach {
-      _.removeOutputsByShuffleLocation(
-        shuffleLoc,
-        shuffleDriverComponents.shouldRemoveMapOutputOnLostBlock) }
+    shuffleStatuses.valuesIterator.foreach { mapStatuses =>
+      if (shuffleLocationComponents.isDefined) {
+        mapStatuses.removeOutputsByShuffleLocation(
+          shuffleLoc,
+          shuffleLocationComponents.get.shouldRemoveMapOutputOnLostBlock)
+      }
+    }
     incrementEpoch()
   }
 

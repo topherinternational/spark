@@ -17,18 +17,22 @@
 
 package org.apache.spark.api.shuffle;
 
-import java.io.IOException;
-import java.util.Map;
+import org.apache.spark.annotation.Experimental;
 
-public interface ShuffleDriverComponents {
+/**
+ * :: Experimental ::
+ * An interface for interaction with shuffle locations.
+ *
+ * @since 3.0.0
+ */
+@Experimental
+public interface ShuffleLocationComponents {
 
   /**
-   * @return additional SparkConf values necessary for the executors.
+   * Returns whether the MapShuffleLocations now has missing data based on the
+   * removal of the lost shuffle location.
    */
-  Map<String, String> initializeApplication();
-
-  void cleanupApplication() throws IOException;
-
-  void removeShuffleData(int shuffleId, boolean blocking) throws IOException;
-
+  boolean shouldRemoveMapOutputOnLostBlock(
+      ShuffleLocation lostLocation,
+      MapShuffleLocations mapOutputLocations);
 }

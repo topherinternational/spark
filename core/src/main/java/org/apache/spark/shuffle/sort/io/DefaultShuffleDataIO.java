@@ -18,9 +18,10 @@
 package org.apache.spark.shuffle.sort.io;
 
 import org.apache.spark.SparkConf;
-import org.apache.spark.api.shuffle.ShuffleDriverComponents;
-import org.apache.spark.api.shuffle.ShuffleExecutorComponents;
-import org.apache.spark.api.shuffle.ShuffleDataIO;
+import org.apache.spark.api.java.Optional;
+import org.apache.spark.api.shuffle.*;
+import org.apache.spark.internal.config.package$;
+import org.apache.spark.shuffle.sort.DefaultMapShuffleLocations;
 import org.apache.spark.shuffle.sort.lifecycle.DefaultShuffleDriverComponents;
 
 public class DefaultShuffleDataIO implements ShuffleDataIO {
@@ -39,5 +40,10 @@ public class DefaultShuffleDataIO implements ShuffleDataIO {
   @Override
   public ShuffleDriverComponents driver() {
     return new DefaultShuffleDriverComponents();
+  }
+
+  @Override
+  public Optional<ShuffleLocationComponents> shuffleLocations() {
+    return Optional.of(new DefaultShuffleLocationComponents(sparkConf));
   }
 }

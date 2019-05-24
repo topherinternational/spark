@@ -25,6 +25,7 @@ import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.language.{implicitConversions, postfixOps}
 import scala.reflect.ClassTag
+
 import org.apache.commons.lang3.RandomUtils
 import org.mockito.{ArgumentMatchers => mc}
 import org.mockito.Mockito.{mock, times, verify, when}
@@ -33,7 +34,6 @@ import org.scalatest.concurrent.{Signaler, ThreadSignaler, TimeLimits}
 import org.scalatest.concurrent.Eventually._
 
 import org.apache.spark._
-import org.apache.spark.api.shuffle.ShuffleDriverComponents
 import org.apache.spark.broadcast.BroadcastManager
 import org.apache.spark.executor.DataReadMethod
 import org.apache.spark.internal.config._
@@ -51,7 +51,7 @@ import org.apache.spark.scheduler.LiveListenerBus
 import org.apache.spark.security.{CryptoStreamUtils, EncryptionFunSuite}
 import org.apache.spark.serializer.{JavaSerializer, KryoSerializer, SerializerManager}
 import org.apache.spark.shuffle.sort.SortShuffleManager
-import org.apache.spark.shuffle.sort.lifecycle.DefaultShuffleDriverComponents
+import org.apache.spark.shuffle.sort.io.DefaultShuffleLocationComponents
 import org.apache.spark.storage.BlockManagerMessages._
 import org.apache.spark.util._
 import org.apache.spark.util.io.ChunkedByteBuffer
@@ -71,11 +71,10 @@ class BlockManagerSuite extends SparkFunSuite with Matchers with BeforeAndAfterE
   var master: BlockManagerMaster = null
   val securityMgr = new SecurityManager(new SparkConf(false))
   val bcastManager = new BroadcastManager(true, new SparkConf(false), securityMgr)
-  val shuffleDriverComponents = new DefaultShuffleDriverComponents()
-  shuffleDriverComponents.initializeApplication()
+  val shuffleLocationComponents = new DefaultShuffleLocationComponents(new SparkConf(false))
   val mapOutputTracker = new MapOutputTrackerMaster(new SparkConf(false),
     bcastManager,
-    shuffleDriverComponents,
+    Some(shuffleLocationComponents),
     true)
   val shuffleManager = new SortShuffleManager(new SparkConf(false))
 

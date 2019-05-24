@@ -21,7 +21,8 @@ import scala.collection.mutable.ArrayBuffer
 
 import org.apache.spark.executor.TaskMetrics
 import org.apache.spark.scheduler.AccumulableInfo
-import org.apache.spark.shuffle.{DefaultFetchFailedException, FetchFailedException}
+import org.apache.spark.shuffle.FetchFailedException
+import org.apache.spark.shuffle.sort.DefaultMapShuffleLocations
 import org.apache.spark.util.{AccumulatorContext, AccumulatorV2}
 
 
@@ -137,11 +138,12 @@ class InternalAccumulatorSuite extends SparkFunSuite with LocalSparkContext {
       val taskContext = TaskContext.get()
       val isFirstStageAttempt = taskContext.taskAttemptId() < numPartitions * 2L
       if (isFirstStageAttempt) {
-        throw new DefaultFetchFailedException(
-          SparkEnv.get.blockManager.blockManagerId,
+        throw new FetchFailedException(
+          DefaultMapShuffleLocations.get(SparkEnv.get.blockManager.blockManagerId),
           sid,
           taskContext.partitionId(),
           taskContext.partitionId(),
+          Some(SparkEnv.get.blockManager.blockManagerId),
           "simulated fetch failure")
       } else {
         iter

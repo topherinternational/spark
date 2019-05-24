@@ -31,7 +31,7 @@ import org.apache.hadoop.conf.Configuration
 import org.apache.spark.annotation.DeveloperApi
 import org.apache.spark.api.conda.CondaEnvironment.CondaSetupInstructions
 import org.apache.spark.api.python.PythonWorkerFactory
-import org.apache.spark.api.shuffle.ShuffleDriverComponents
+import org.apache.spark.api.shuffle.ShuffleDataIO
 import org.apache.spark.broadcast.BroadcastManager
 import org.apache.spark.internal.{config, Logging}
 import org.apache.spark.internal.config._
@@ -201,7 +201,7 @@ object SparkEnv extends Logging {
       isLocal: Boolean,
       listenerBus: LiveListenerBus,
       numCores: Int,
-      shuffleDriverComponents: ShuffleDriverComponents,
+      shuffleDataIO: ShuffleDataIO,
       mockOutputCommitCoordinator: Option[OutputCommitCoordinator] = None): SparkEnv = {
     assert(conf.contains(DRIVER_HOST_ADDRESS),
       s"${DRIVER_HOST_ADDRESS.key} is not set on the driver!")
@@ -223,7 +223,7 @@ object SparkEnv extends Logging {
       isLocal,
       numCores,
       ioEncryptionKey,
-      shuffleDriverComponents = Some(shuffleDriverComponents),
+      shuffleDataIO = Some(shuffleDataIO),
       listenerBus = listenerBus,
       mockOutputCommitCoordinator = mockOutputCommitCoordinator
     )
@@ -267,7 +267,7 @@ object SparkEnv extends Logging {
       isLocal: Boolean,
       numUsableCores: Int,
       ioEncryptionKey: Option[Array[Byte]],
-      shuffleDriverComponents: Option[ShuffleDriverComponents] = Option.empty,
+      shuffleDataIO: Option[ShuffleDataIO] = Option.empty,
       listenerBus: LiveListenerBus = null,
       mockOutputCommitCoordinator: Option[OutputCommitCoordinator] = None): SparkEnv = {
 
@@ -346,7 +346,8 @@ object SparkEnv extends Logging {
     val broadcastManager = new BroadcastManager(isDriver, conf, securityManager)
 
     val mapOutputTracker = if (isDriver) {
-      new MapOutputTrackerMaster(conf, broadcastManager, shuffleDriverComponents.get, isLocal)
+      new MapOutputTrackerMaster(
+        conf, broadcastManager, Some(shuffleDataIO.get.shuffleLocations().orNull()), isLocal)
     } else {
       new MapOutputTrackerWorker(conf)
     }

@@ -33,16 +33,10 @@ import java.util.Map;
 public class DefaultShuffleDriverComponents implements ShuffleDriverComponents {
 
   private BlockManagerMaster blockManagerMaster;
-  private boolean externalShuffleServiceEnabled;
-  private boolean unRegisterOutputHostOnFetchFailure;
 
   @Override
   public Map<String, String> initializeApplication() {
     blockManagerMaster = SparkEnv.get().blockManager().master();
-    SparkConf sparkConf = SparkEnv.get().conf();
-    externalShuffleServiceEnabled = (boolean) sparkConf.get(package$.MODULE$.SHUFFLE_SERVICE_ENABLED());
-    unRegisterOutputHostOnFetchFailure = (boolean)
-        sparkConf.get(package$.MODULE$.UNREGISTER_OUTPUT_ON_HOST_ON_FETCH_FAILURE());
     return ImmutableMap.of();
   }
 
@@ -55,19 +49,6 @@ public class DefaultShuffleDriverComponents implements ShuffleDriverComponents {
   public void removeShuffleData(int shuffleId, boolean blocking) throws IOException {
     checkInitialized();
     blockManagerMaster.removeShuffle(shuffleId, blocking);
-  }
-
-  @Override
-  public boolean shouldRemoveMapOutputOnLostBlock(
-      ShuffleLocation lostLocation,
-      MapShuffleLocations mapOutputLocations) {
-    DefaultMapShuffleLocations mapStatusLoc = (DefaultMapShuffleLocations) mapOutputLocations;
-    DefaultMapShuffleLocations lostLoc = (DefaultMapShuffleLocations) lostLocation;
-    if (externalShuffleServiceEnabled && unRegisterOutputHostOnFetchFailure) {
-      return mapStatusLoc.getBlockManagerId().host().equals(lostLoc.getBlockManagerId().host());
-    } else {
-      return mapStatusLoc.getBlockManagerId().executorId().equals(mapStatusLoc.getBlockManagerId().executorId());
-    }
   }
 
   private void checkInitialized() {

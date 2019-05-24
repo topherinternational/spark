@@ -24,6 +24,7 @@ import scala.annotation.meta.param
 import scala.collection.mutable.{ArrayBuffer, HashMap, HashSet, Map}
 import scala.language.reflectiveCalls
 import scala.util.control.NonFatal
+
 import org.scalatest.concurrent.{Signaler, ThreadSignaler, TimeLimits}
 import org.scalatest.time.SpanSugar._
 
@@ -34,9 +35,9 @@ import org.apache.spark.executor.ExecutorMetrics
 import org.apache.spark.internal.config
 import org.apache.spark.rdd.{DeterministicLevel, RDD}
 import org.apache.spark.scheduler.SchedulingMode.SchedulingMode
-import org.apache.spark.shuffle.{DefaultFetchFailedException, FetchFailedException, MetadataFetchFailedException}
+import org.apache.spark.shuffle.{FetchFailedException, MetadataFetchFailedException}
 import org.apache.spark.shuffle.sort.DefaultMapShuffleLocations
-import org.apache.spark.shuffle.sort.lifecycle.DefaultShuffleDriverComponents
+import org.apache.spark.shuffle.sort.io.DefaultShuffleLocationComponents
 import org.apache.spark.storage.{BlockId, BlockManagerId, BlockManagerMaster}
 import org.apache.spark.util.{AccumulatorContext, AccumulatorV2, CallSite, LongAccumulator, Utils}
 
@@ -252,11 +253,9 @@ class DAGSchedulerSuite extends SparkFunSuite with LocalSparkContext with TimeLi
     results.clear()
     securityMgr = new SecurityManager(conf)
     broadcastManager = new BroadcastManager(true, conf, securityMgr)
-    val driverComponents = new DefaultShuffleDriverComponents()
-    driverComponents.initializeApplication()
     mapOutputTracker = new MapOutputTrackerMaster(conf,
       broadcastManager,
-      driverComponents,
+      Some(new DefaultShuffleLocationComponents(testConf)),
       true) {
       override def sendTracker(message: Any): Unit = {
         // no-op, just so we can stop this to avoid leaking threads
@@ -480,8 +479,8 @@ class DAGSchedulerSuite extends SparkFunSuite with LocalSparkContext with TimeLi
 
     // reduce stage fails with a fetch failure from one host
     complete(taskSets(2), Seq(
-      (makeFetchFailed(BlockManagerId("exec-hostA2", "hostA", 12345), firstShuffleId, 0, 0, "ignored"),
-        null)
+      (makeFetchFailed(BlockManagerId("exec-hostA2", "hostA", 12345),
+        firstShuffleId, 0, 0, "ignored"), null)
     ))
 
     // Here is the main assertion -- make sure that we de-register
@@ -1496,8 +1495,7 @@ class DAGSchedulerSuite extends SparkFunSuite with LocalSparkContext with TimeLi
     runEvent(ExecutorLost("exec-hostA", ExecutorKilled))
     runEvent(makeCompletionEvent(
       taskSets(1).tasks(0),
-      makeFetchFailed(null, firstShuffleId, 2, 0, "Fetch failed"),
-      null))
+      FetchFailed(null, firstShuffleId, 2, 0, None, "Fetch failed"), null))
 
     // so we resubmit stage 0, which completes happily
     scheduler.resubmitFailedStages()
@@ -1838,7 +1836,8 @@ class DAGSchedulerSuite extends SparkFunSuite with LocalSparkContext with TimeLi
       (Success, makeMapStatus("hostC", 1))))
     // fail the third stage because hostA went down
     complete(taskSets(2), Seq(
-      (makeFetchFailed(makeBlockManagerId("hostA"), shuffleDepTwo.shuffleId, 0, 0, "ignored"), null)))
+      (makeFetchFailed(makeBlockManagerId("hostA"),
+        shuffleDepTwo.shuffleId, 0, 0, "ignored"), null)))
     // TODO assert this:
     // blockManagerMaster.removeExecutor("exec-hostA")
     // have DAGScheduler try again
@@ -1869,7 +1868,8 @@ class DAGSchedulerSuite extends SparkFunSuite with LocalSparkContext with TimeLi
       (Success, makeMapStatus("hostB", 1))))
     // pretend stage 2 failed because hostA went down
     complete(taskSets(2), Seq(
-      (makeFetchFailed(makeBlockManagerId("hostA"), shuffleDepTwo.shuffleId, 0, 0, "ignored"), null)))
+      (makeFetchFailed(makeBlockManagerId("hostA"),
+        shuffleDepTwo.shuffleId, 0, 0, "ignored"), null)))
     // TODO assert this:
     // blockManagerMaster.removeExecutor("exec-hostA")
     // DAGScheduler should notice the cached copy of the second shuffle and try to get it rerun.
@@ -2488,7 +2488,7 @@ class DAGSchedulerSuite extends SparkFunSuite with LocalSparkContext with TimeLi
         rdd1.dependencies.head.asInstanceOf[ShuffleDependency[_, _, _]].shuffleHandle
       rdd1.map {
         case (x, _) if (x == 1) =>
-          throw new DefaultFetchFailedException(
+          throwFetchFailedException(
             BlockManagerId("1", "1", 1), shuffleHandle.shuffleId, 0, 0, "test")
         case (x, _) => x
       }.count()
@@ -2501,7 +2501,7 @@ class DAGSchedulerSuite extends SparkFunSuite with LocalSparkContext with TimeLi
         rdd1.dependencies.head.asInstanceOf[ShuffleDependency[_, _, _]].shuffleHandle
       rdd1.map {
         case (x, _) if (x == 1) && FailThisAttempt._fail.getAndSet(false) =>
-          throw new DefaultFetchFailedException(
+          throwFetchFailedException(
             BlockManagerId("1", "1", 1), shuffleHandle.shuffleId, 0, 0, "test")
       }
     }
@@ -2944,7 +2944,23 @@ object DAGSchedulerSuite {
     mapId: Int,
     reduceId: Int,
     message: String): FetchFailed = {
-    FetchFailed(DefaultMapShuffleLocations.get(bmAddress), shuffleId, mapId, reduceId, Some(bmAddress), message)
+    FetchFailed(DefaultMapShuffleLocations.get(bmAddress),
+      shuffleId, mapId, reduceId, Some(bmAddress), message)
+  }
+
+  def throwFetchFailedException(
+    bmAddress: BlockManagerId,
+    shuffleId: Int,
+    mapId: Int,
+    reduceId: Int,
+    message: String): FetchFailedException = {
+    throw new FetchFailedException(
+      DefaultMapShuffleLocations.get(bmAddress),
+      shuffleId,
+      mapId,
+      reduceId,
+      Some(bmAddress),
+      message)
   }
 }
 

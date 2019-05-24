@@ -18,6 +18,7 @@
 package org.apache.spark.api.shuffle;
 
 import org.apache.spark.annotation.Experimental;
+import org.apache.spark.api.java.Optional;
 
 /**
  * :: Experimental ::
@@ -31,4 +32,6 @@ public interface ShuffleDataIO {
 
   ShuffleDriverComponents driver();
   ShuffleExecutorComponents executor();
+  Optional<ShuffleLocationComponents> shuffleLocations();
+
 }

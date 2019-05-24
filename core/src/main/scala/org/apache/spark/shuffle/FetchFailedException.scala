@@ -77,30 +77,3 @@ private[spark] class MetadataFetchFailedException(
     reduceId: Int,
     message: String)
   extends FetchFailedException(null, shuffleId, -1, reduceId, Option.empty, message)
-
-
-private[spark] class DefaultFetchFailedException(
-    bmAddress: BlockManagerId,
-    shuffleId: Int,
-    mapId: Int,
-    reduceId: Int,
-    message: String,
-    cause: Throwable = null) extends FetchFailedException(
-  DefaultMapShuffleLocations.get(bmAddress),
-  shuffleId,
-  mapId,
-  reduceId,
-  Some(bmAddress),
-  message,
-  cause) {
-
-  def this(
-          blockManagerId: BlockManagerId,
-          shuffleId: Int,
-          mapId: Int,
-          reduceId: Int,
-          cause: Throwable
-          ) {
-    this(blockManagerId, shuffleId, mapId, reduceId, cause.getMessage, cause)
-  }
-}

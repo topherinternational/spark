@@ -19,10 +19,11 @@ package org.apache.spark.ui
 
 import java.net.{HttpURLConnection, URL}
 import java.util.Locale
-
 import javax.servlet.http.{HttpServletRequest, HttpServletResponse}
+
 import scala.io.Source
 import scala.xml.Node
+
 import com.gargoylesoftware.htmlunit.DefaultCssErrorHandler
 import org.json4s._
 import org.json4s.jackson.JsonMethods
@@ -41,7 +42,8 @@ import org.apache.spark.deploy.history.HistoryServerSuite
 import org.apache.spark.internal.config._
 import org.apache.spark.internal.config.Status._
 import org.apache.spark.internal.config.UI._
-import org.apache.spark.shuffle.{DefaultFetchFailedException, FetchFailedException}
+import org.apache.spark.shuffle.FetchFailedException
+import org.apache.spark.shuffle.sort.DefaultMapShuffleLocations
 import org.apache.spark.status.api.v1.{JacksonMessageWriter, RDDDataDistribution, StageStatus}
 
 private[spark] class SparkUICssErrorHandler extends DefaultCssErrorHandler {
@@ -314,7 +316,13 @@ class UISeleniumSuite extends SparkFunSuite with WebBrowser with Matchers with B
           val mapId = 0
           val reduceId = taskContext.partitionId()
           val message = "Simulated fetch failure"
-          throw new DefaultFetchFailedException(bmAddress, shuffleId, mapId, reduceId, message)
+          throw new FetchFailedException(
+            DefaultMapShuffleLocations.get(bmAddress),
+            shuffleId,
+            mapId,
+            reduceId,
+            Some(bmAddress),
+            message)
         } else {
           x
         }

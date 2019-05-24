@@ -258,9 +258,9 @@ class SparkContext(config: SparkConf) extends SafeLogging {
       conf: SparkConf,
       isLocal: Boolean,
       listenerBus: LiveListenerBus,
-      shuffleDriverComponents: ShuffleDriverComponents): SparkEnv = {
+      shuffleDataIO: ShuffleDataIO): SparkEnv = {
     SparkEnv.createDriverEnv(conf, isLocal, listenerBus, SparkContext.numDriverCores(master, conf),
-      shuffleDriverComponents)
+      shuffleDataIO)
   }
 
   private[spark] def env: SparkEnv = _env
@@ -436,12 +436,9 @@ class SparkContext(config: SparkConf) extends SafeLogging {
     val maybeIO = Utils.loadExtensions(
       classOf[ShuffleDataIO], Seq(configuredPluginClasses), conf)
     require(maybeIO.size == 1, s"Failed to load plugins of type $configuredPluginClasses")
-    _shuffleDriverComponents = maybeIO.head.driver()
-    _shuffleDriverComponents.initializeApplication().asScala.foreach {
-      case (k, v) => _conf.set(ShuffleDataIO.SHUFFLE_SPARK_CONF_PREFIX + k, v) }
 
     // Create the Spark execution environment (cache, map output tracker, etc)
-    _env = createSparkEnv(_conf, isLocal, listenerBus, _shuffleDriverComponents)
+    _env = createSparkEnv(_conf, isLocal, listenerBus, maybeIO.head)
     SparkEnv.set(_env)
 
     // If running the REPL, register the repl's output dir with the file server.
@@ -503,6 +500,10 @@ class SparkContext(config: SparkConf) extends SafeLogging {
     executorEnvs("SPARK_EXECUTOR_MEMORY") = executorMemory + "m"
     executorEnvs ++= _conf.getExecutorEnv
     executorEnvs("SPARK_USER") = sparkUser
+
+    _shuffleDriverComponents = maybeIO.head.driver()
+    _shuffleDriverComponents.initializeApplication().asScala.foreach {
+      case (k, v) => _conf.set(ShuffleDataIO.SHUFFLE_SPARK_CONF_PREFIX + k, v) }
 
     // We need to register "HeartbeatReceiver" before "createTaskScheduler" because Executor will
     // retrieve "HeartbeatReceiver" in the constructor. (SPARK-6640)

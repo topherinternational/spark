@@ -627,7 +627,7 @@ class BasicSchedulerIntegrationSuite extends SchedulerIntegrationSuite[SingleCor
           backend.taskSuccess(taskDescription, DAGSchedulerSuite.makeMapStatus("hostA", 10))
         case (1, 0, 0) =>
           val fetchFailed = FetchFailed(DAGSchedulerSuite.makeShuffleLocation("hostA"),
-            shuffleId, 0, 0, Some(DAGSchedulerSuite.makeBlockManagerId("hostA")),  "ignored")
+            shuffleId, 0, 0, Some(DAGSchedulerSuite.makeBlockManagerId("hostA")), "ignored")
           backend.taskFailed(taskDescription, fetchFailed)
         case (1, _, partition) =>
           backend.taskSuccess(taskDescription, 42 + partition)
