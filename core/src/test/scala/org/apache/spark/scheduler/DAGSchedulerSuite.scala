@@ -239,7 +239,7 @@ class DAGSchedulerSuite extends SparkFunSuite with LocalSparkContext with TimeLi
     init(new SparkConf())
   }
 
-  private def init(testConf: SparkConf): Unit = {
+  def init(testConf: SparkConf): Unit = {
     sc = new SparkContext("local[2]", "DAGSchedulerSuite", testConf)
     sparkListener.submittedStageInfos.clear()
     sparkListener.successfulStages.clear()
@@ -255,7 +255,7 @@ class DAGSchedulerSuite extends SparkFunSuite with LocalSparkContext with TimeLi
     broadcastManager = new BroadcastManager(true, conf, securityMgr)
     mapOutputTracker = new MapOutputTrackerMaster(conf,
       broadcastManager,
-      Some(new DefaultShuffleLocationComponents(testConf)),
+      sc.shuffleLocationComponents,
       true) {
       override def sendTracker(message: Any): Unit = {
         // no-op, just so we can stop this to avoid leaking threads
@@ -312,7 +312,7 @@ class DAGSchedulerSuite extends SparkFunSuite with LocalSparkContext with TimeLi
     it.next.asInstanceOf[Tuple2[_, _]]._1
 
   /** Send the given CompletionEvent messages for the tasks in the TaskSet. */
-  private def complete(taskSet: TaskSet, results: Seq[(TaskEndReason, Any)]) {
+  def complete(taskSet: TaskSet, results: Seq[(TaskEndReason, Any)]) {
     assert(taskSet.tasks.size >= results.size)
     for ((result, i) <- results.zipWithIndex) {
       if (i < taskSet.tasks.size) {
@@ -338,7 +338,7 @@ class DAGSchedulerSuite extends SparkFunSuite with LocalSparkContext with TimeLi
   }
 
   /** Submits a job to the scheduler and returns the job id. */
-  private def submit(
+  def submit(
       rdd: RDD[_],
       partitions: Array[Int],
       func: (TaskContext, Iterator[_]) => _ = jobComputeFunc,
@@ -2877,7 +2877,7 @@ class DAGSchedulerSuite extends SparkFunSuite with LocalSparkContext with TimeLi
     }
   }
 
-  private def assertDataStructuresEmpty(): Unit = {
+  def assertDataStructuresEmpty(): Unit = {
     assert(scheduler.activeJobs.isEmpty)
     assert(scheduler.failedStages.isEmpty)
     assert(scheduler.jobIdToActiveJob.isEmpty)
