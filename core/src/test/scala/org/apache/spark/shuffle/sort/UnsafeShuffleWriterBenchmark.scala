@@ -43,7 +43,8 @@ object UnsafeShuffleWriterBenchmark extends ShuffleWriterBenchmarkBase {
   def getWriter(transferTo: Boolean): UnsafeShuffleWriter[String, String] = {
     val conf = new SparkConf(loadDefaults = false)
     conf.set("spark.file.transferTo", String.valueOf(transferTo))
-    val shuffleWriteSupport = new DefaultShuffleWriteSupport(conf, blockResolver)
+    val shuffleWriteSupport =
+      new DefaultShuffleWriteSupport(conf, blockResolver, blockManager.shuffleServerId)
 
     TaskContext.setTaskContext(taskContext)
     new UnsafeShuffleWriter[String, String](
