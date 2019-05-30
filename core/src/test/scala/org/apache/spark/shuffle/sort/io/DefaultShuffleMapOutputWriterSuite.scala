@@ -34,7 +34,6 @@ import org.apache.spark.{SparkConf, SparkFunSuite}
 import org.apache.spark.executor.ShuffleWriteMetrics
 import org.apache.spark.network.util.LimitedInputStream
 import org.apache.spark.shuffle.IndexShuffleBlockResolver
-import org.apache.spark.storage.BlockManagerId
 import org.apache.spark.util.Utils
 
 class DefaultShuffleMapOutputWriterSuite extends SparkFunSuite with BeforeAndAfterEach {
@@ -88,13 +87,7 @@ class DefaultShuffleMapOutputWriterSuite extends SparkFunSuite with BeforeAndAft
     }).when(blockResolver)
       .writeIndexFileAndCommit(anyInt, anyInt, any(classOf[Array[Long]]), any(classOf[File]))
     mapOutputWriter = new DefaultShuffleMapOutputWriter(
-      0,
-      0,
-      NUM_PARTITIONS,
-      BlockManagerId("0", "localhost", 9099),
-      shuffleWriteMetrics,
-      blockResolver,
-      conf)
+      0, 0, NUM_PARTITIONS, shuffleWriteMetrics, blockResolver, conf)
   }
 
   private def readRecordsFromFile(fromByte: Boolean): Array[Array[Int]] = {
