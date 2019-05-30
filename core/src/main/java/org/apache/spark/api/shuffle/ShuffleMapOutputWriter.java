@@ -20,6 +20,8 @@ package org.apache.spark.api.shuffle;
 import java.io.IOException;
 
 import org.apache.spark.annotation.Experimental;
+import org.apache.spark.api.java.Optional;
+import org.apache.spark.storage.BlockManagerId;
 
 /**
  * :: Experimental ::
@@ -31,7 +33,7 @@ import org.apache.spark.annotation.Experimental;
 public interface ShuffleMapOutputWriter {
   ShufflePartitionWriter getPartitionWriter(int partitionId) throws IOException;
 
-  void commitAllPartitions() throws IOException;
+  Optional<BlockManagerId> commitAllPartitions() throws IOException;
 
   void abort(Throwable error) throws IOException;
 }

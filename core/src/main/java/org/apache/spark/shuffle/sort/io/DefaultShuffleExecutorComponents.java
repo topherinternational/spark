@@ -53,7 +53,7 @@ public class DefaultShuffleExecutorComponents implements ShuffleExecutorComponen
   @Override
   public ShuffleWriteSupport writes() {
     checkInitialized();
-    return new DefaultShuffleWriteSupport(sparkConf, blockResolver);
+    return new DefaultShuffleWriteSupport(sparkConf, blockResolver, blockManager.shuffleServerId());
   }
 
   @Override

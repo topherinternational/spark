@@ -67,7 +67,7 @@ class TestShuffleExecutorComponents(sparkConf: SparkConf) extends ShuffleExecuto
   override def writes(): ShuffleWriteSupport = {
     val blockManager = SparkEnv.get.blockManager
     val blockResolver = new IndexShuffleBlockResolver(sparkConf, blockManager)
-    new DefaultShuffleWriteSupport(sparkConf, blockResolver)
+    new DefaultShuffleWriteSupport(sparkConf, blockResolver, blockManager.shuffleServerId)
   }
 
   override def reads(): ShuffleReadSupport = {

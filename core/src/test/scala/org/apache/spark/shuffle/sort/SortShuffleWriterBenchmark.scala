@@ -77,7 +77,8 @@ object SortShuffleWriterBenchmark extends ShuffleWriterBenchmarkBase {
 
     when(taskContext.taskMemoryManager()).thenReturn(taskMemoryManager)
     TaskContext.setTaskContext(taskContext)
-    val writeSupport = new DefaultShuffleWriteSupport(defaultConf, blockResolver)
+    val writeSupport =
+      new DefaultShuffleWriteSupport(defaultConf, blockResolver, blockManager.shuffleServerId)
 
     val shuffleWriter = new SortShuffleWriter[String, String, String](
       blockResolver,
