@@ -196,6 +196,7 @@ object BlockStoreShuffleReaderBenchmark extends BenchmarkBase {
       dataBlockId = remoteBlockManagerId
     }
 
+<<<<<<< HEAD
     when(mapOutputTracker.getMapSizesByShuffleLocation(0, 0, 1))
       .thenAnswer(new Answer[Iterator[(Option[ShuffleLocation], Seq[(BlockId, Long)])]] {
         def answer(invocationOnMock: InvocationOnMock):
@@ -208,6 +209,16 @@ object BlockStoreShuffleReaderBenchmark extends BenchmarkBase {
             .toIterator
         }
       })
+=======
+    when(mapOutputTracker.getMapSizesByExecutorId(0, 0, 1))
+      .thenReturn {
+        val shuffleBlockIdsAndSizes = (0 until NUM_MAPS).map { mapId =>
+          val shuffleBlockId = ShuffleBlockId(0, mapId, 0)
+          (shuffleBlockId, dataFileLength)
+        }
+        Seq((dataBlockId, shuffleBlockIdsAndSizes)).toIterator
+      }
+>>>>>>> parent of 16caee4274... [SPARK-25299] Shuffle locations api (#517)
 
     when(dependency.serializer).thenReturn(serializer)
     when(dependency.aggregator).thenReturn(aggregator)

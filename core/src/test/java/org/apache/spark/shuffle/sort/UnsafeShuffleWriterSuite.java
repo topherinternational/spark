@@ -172,8 +172,6 @@ public class UnsafeShuffleWriterSuite {
     when(shuffleDep.serializer()).thenReturn(serializer);
     when(shuffleDep.partitioner()).thenReturn(hashPartitioner);
     when(taskContext.taskMemoryManager()).thenReturn(taskMemoryManager);
-    when(blockManager.shuffleServerId()).thenReturn(BlockManagerId.apply(
-        "0", "localhost", 9099, Option.empty()));
 
     TaskContext$.MODULE$.setTaskContext(taskContext);
   }
@@ -189,7 +187,8 @@ public class UnsafeShuffleWriterSuite {
       taskContext,
       conf,
       taskContext.taskMetrics().shuffleWriteMetrics(),
-      new DefaultShuffleWriteSupport(conf, shuffleBlockResolver, blockManager.shuffleServerId()));
+      new DefaultShuffleWriteSupport(conf, shuffleBlockResolver)
+    );
   }
 
   private void assertSpillFilesWereCleanedUp() {
@@ -549,7 +548,7 @@ public class UnsafeShuffleWriterSuite {
         taskContext,
         conf,
         taskContext.taskMetrics().shuffleWriteMetrics(),
-        new DefaultShuffleWriteSupport(conf, shuffleBlockResolver, blockManager.shuffleServerId()));
+        new DefaultShuffleWriteSupport(conf, shuffleBlockResolver));
 
     // Peak memory should be monotonically increasing. More specifically, every time
     // we allocate a new page it should increase by exactly the size of the page.

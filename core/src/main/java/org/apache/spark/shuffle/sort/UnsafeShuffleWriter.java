@@ -219,7 +219,6 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
     final ShuffleMapOutputWriter mapWriter = shuffleWriteSupport
       .createMapOutputWriter(shuffleId, mapId, partitioner.numPartitions());
     final long[] partitionLengths;
-    Optional<MapShuffleLocations> mapLocations;
     try {
       try {
         partitionLengths = mergeSpills(spills, mapWriter);
@@ -230,7 +229,7 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
           }
         }
       }
-      mapLocations = mapWriter.commitAllPartitions();
+      mapWriter.commitAllPartitions();
     } catch (Exception e) {
       try {
         mapWriter.abort(e);
@@ -239,10 +238,7 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
       }
       throw e;
     }
-    mapStatus = MapStatus$.MODULE$.apply(
-        blockManager.shuffleServerId(),
-        mapLocations.orNull(),
-        partitionLengths);
+    mapStatus = MapStatus$.MODULE$.apply(blockManager.shuffleServerId(), partitionLengths);
   }
 
   @VisibleForTesting
