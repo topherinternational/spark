@@ -22,12 +22,11 @@ import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 
 import org.apache.spark.api.shuffle.MapShuffleLocations;
-import org.apache.spark.api.shuffle.ShuffleLocation;
 import org.apache.spark.storage.BlockManagerId;
 
 import java.util.Objects;
 
-public class DefaultMapShuffleLocations implements MapShuffleLocations, ShuffleLocation {
+public class DefaultMapShuffleLocations implements MapShuffleLocations {
 
   /**
    * We borrow the cache size from the BlockManagerId's cache - around 1MB, which should be
@@ -52,11 +51,6 @@ public class DefaultMapShuffleLocations implements MapShuffleLocations, ShuffleL
 
   public static DefaultMapShuffleLocations get(BlockManagerId blockManagerId) {
     return DEFAULT_SHUFFLE_LOCATIONS_CACHE.getUnchecked(blockManagerId);
-  }
-
-  @Override
-  public ShuffleLocation getLocationForBlock(int reduceId) {
-    return this;
   }
 
   public BlockManagerId getBlockManagerId() {

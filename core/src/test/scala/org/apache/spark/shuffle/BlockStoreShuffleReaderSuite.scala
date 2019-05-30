@@ -25,7 +25,7 @@ import org.mockito.invocation.InvocationOnMock
 import org.mockito.stubbing.Answer
 
 import org.apache.spark._
-import org.apache.spark.api.shuffle.ShuffleLocation
+import org.apache.spark.api.shuffle.MapShuffleLocations
 import org.apache.spark.internal.config
 import org.apache.spark.io.CompressionCodec
 import org.apache.spark.network.buffer.{ManagedBuffer, NioManagedBuffer}
@@ -119,9 +119,9 @@ class BlockStoreShuffleReaderSuite extends SparkFunSuite with LocalSparkContext 
       (Option.apply(DefaultMapShuffleLocations.get(localBlockManagerId)), shuffleBlockIdsAndSizes))
     val mapOutputTracker = mock(classOf[MapOutputTracker])
     when(mapOutputTracker.getMapSizesByShuffleLocation(shuffleId, reduceId, reduceId + 1))
-      .thenAnswer(new Answer[Iterator[(Option[ShuffleLocation], Seq[(BlockId, Long)])]] {
+      .thenAnswer(new Answer[Iterator[(Option[MapShuffleLocations], Seq[(BlockId, Long)])]] {
         def answer(invocationOnMock: InvocationOnMock):
-            Iterator[(Option[ShuffleLocation], Seq[(BlockId, Long)])] = {
+            Iterator[(Option[MapShuffleLocations], Seq[(BlockId, Long)])] = {
           blocksToRetrieve.iterator
         }
       })
