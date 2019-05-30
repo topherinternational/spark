@@ -26,7 +26,6 @@ import org.apache.spark.api.shuffle.{ShuffleBlockInfo, ShuffleReadSupport}
 import org.apache.spark.internal.config
 import org.apache.spark.serializer.SerializerManager
 import org.apache.spark.shuffle.ShuffleReadMetricsReporter
-import org.apache.spark.shuffle.sort.DefaultMapShuffleLocations
 import org.apache.spark.storage.{BlockManager, ShuffleBlockFetcherIterator}
 
 class DefaultShuffleReadSupport(
@@ -93,12 +92,7 @@ private class ShuffleBlockFetcherIterable(
       context,
       blockManager.shuffleClient,
       blockManager,
-      mapOutputTracker.getMapSizesByShuffleLocation(shuffleId, minReduceId, maxReduceId + 1)
-        .map { shuffleLocationInfo =>
-          val defaultShuffleLocation = shuffleLocationInfo._1
-            .get.asInstanceOf[DefaultMapShuffleLocations]
-          (defaultShuffleLocation.getBlockManagerId, shuffleLocationInfo._2)
-        },
+      mapOutputTracker.getMapSizesByExecutorId(shuffleId, minReduceId, maxReduceId + 1),
       serializerManager.wrapStream,
       maxBytesInFlight,
       maxReqsInFlight,
