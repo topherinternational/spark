@@ -18,6 +18,7 @@
 package org.apache.spark.api.shuffle;
 
 import org.apache.spark.api.java.Optional;
+import org.apache.spark.storage.BlockManagerId;
 
 import java.util.Objects;
 
@@ -31,10 +32,11 @@ public class ShuffleBlockInfo {
   private final int mapId;
   private final int reduceId;
   private final long length;
-  private final Optional<ShuffleLocation> shuffleLocation;
+  // TODO: should this be optional?
+  private final Optional<BlockManagerId> shuffleLocation;
 
   public ShuffleBlockInfo(int shuffleId, int mapId, int reduceId, long length,
-    Optional<ShuffleLocation> shuffleLocation) {
+    Optional<BlockManagerId> shuffleLocation) {
     this.shuffleId = shuffleId;
     this.mapId = mapId;
     this.reduceId = reduceId;
@@ -58,7 +60,7 @@ public class ShuffleBlockInfo {
     return length;
   }
 
-  public Optional<ShuffleLocation> getShuffleLocation() {
+  public Optional<BlockManagerId> getShuffleLocation() {
     return shuffleLocation;
   }
 

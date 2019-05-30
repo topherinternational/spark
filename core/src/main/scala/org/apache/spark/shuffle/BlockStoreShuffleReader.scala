@@ -27,7 +27,8 @@ import org.apache.spark.api.shuffle.{ShuffleBlockInfo, ShuffleReadSupport}
 import org.apache.spark.internal.{config, Logging}
 import org.apache.spark.io.CompressionCodec
 import org.apache.spark.serializer.SerializerManager
-import org.apache.spark.storage.{BlockManager, ShuffleBlockFetcherIterator}
+import org.apache.spark.shuffle.io.DefaultShuffleReadSupport
+import org.apache.spark.storage.ShuffleBlockId
 import org.apache.spark.util.CompletionIterator
 import org.apache.spark.util.collection.ExternalSorter
 
@@ -55,12 +56,11 @@ private[spark] class BlockStoreShuffleReader[K, C](
 
   /** Read the combined key-values for this reduce task */
   override def read(): Iterator[Product2[K, C]] = {
-<<<<<<< HEAD
     val streamsIterator =
       shuffleReadSupport.getPartitionReaders(new Iterable[ShuffleBlockInfo] {
         override def iterator: Iterator[ShuffleBlockInfo] = {
           mapOutputTracker
-            .getMapSizesByShuffleLocation(handle.shuffleId, startPartition, endPartition)
+            .getMapSizesByExecutorId(handle.shuffleId, startPartition, endPartition)
             .flatMap { shuffleLocationInfo =>
               shuffleLocationInfo._2.map { blockInfo =>
                 val block = blockInfo._1.asInstanceOf[ShuffleBlockId]
@@ -69,26 +69,11 @@ private[spark] class BlockStoreShuffleReader[K, C](
                   block.mapId,
                   block.reduceId,
                   blockInfo._2,
-                  Optional.ofNullable(shuffleLocationInfo._1.orNull))
+                  Optional.ofNullable(shuffleLocationInfo._1))
               }
             }
         }
       }.asJava).iterator()
-=======
-    val wrappedStreams = new ShuffleBlockFetcherIterator(
-      context,
-      blockManager.shuffleClient,
-      blockManager,
-      mapOutputTracker.getMapSizesByExecutorId(handle.shuffleId, startPartition, endPartition),
-      serializerManager.wrapStream,
-      // Note: we use getSizeAsMb when no suffix is provided for backwards compatibility
-      SparkEnv.get.conf.get(config.REDUCER_MAX_SIZE_IN_FLIGHT) * 1024 * 1024,
-      SparkEnv.get.conf.get(config.REDUCER_MAX_REQS_IN_FLIGHT),
-      SparkEnv.get.conf.get(config.REDUCER_MAX_BLOCKS_IN_FLIGHT_PER_ADDRESS),
-      SparkEnv.get.conf.get(config.MAX_REMOTE_BLOCK_SIZE_FETCH_TO_MEM),
-      SparkEnv.get.conf.get(config.SHUFFLE_DETECT_CORRUPT),
-      readMetrics).toCompletionIterator
->>>>>>> parent of 16caee4274... [SPARK-25299] Shuffle locations api (#517)
 
     val retryingWrappedStreams = new Iterator[InputStream] {
       override def hasNext: Boolean = streamsIterator.hasNext

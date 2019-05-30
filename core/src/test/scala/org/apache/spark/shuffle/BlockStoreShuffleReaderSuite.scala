@@ -25,16 +25,11 @@ import org.mockito.invocation.InvocationOnMock
 import org.mockito.stubbing.Answer
 
 import org.apache.spark._
-import org.apache.spark.api.shuffle.ShuffleLocation
 import org.apache.spark.internal.config
 import org.apache.spark.io.CompressionCodec
 import org.apache.spark.network.buffer.{ManagedBuffer, NioManagedBuffer}
 import org.apache.spark.serializer.{JavaSerializer, SerializerManager}
-<<<<<<< HEAD
 import org.apache.spark.shuffle.io.DefaultShuffleReadSupport
-import org.apache.spark.shuffle.sort.DefaultMapShuffleLocations
-=======
->>>>>>> parent of 16caee4274... [SPARK-25299] Shuffle locations api (#517)
 import org.apache.spark.storage.{BlockManager, BlockManagerId, ShuffleBlockId}
 import org.apache.spark.storage.BlockId
 
@@ -114,32 +109,20 @@ class BlockStoreShuffleReaderSuite extends SparkFunSuite with LocalSparkContext 
 
     // Make a mocked MapOutputTracker for the shuffle reader to use to determine what
     // shuffle data to read.
-<<<<<<< HEAD
-    val shuffleBlockIdsAndSizes = (0 until numMaps).map { mapId =>
-      val shuffleBlockId = ShuffleBlockId(shuffleId, mapId, reduceId)
-      (shuffleBlockId, byteOutputStream.size().toLong)
-=======
     val mapOutputTracker = mock(classOf[MapOutputTracker])
-    when(mapOutputTracker.getMapSizesByExecutorId(shuffleId, reduceId, reduceId + 1)).thenReturn {
-      // Test a scenario where all data is local, to avoid creating a bunch of additional mocks
-      // for the code to read data over the network.
-      val shuffleBlockIdsAndSizes = (0 until numMaps).map { mapId =>
-        val shuffleBlockId = ShuffleBlockId(shuffleId, mapId, reduceId)
-        (shuffleBlockId, byteOutputStream.size().toLong)
-      }
-      Seq((localBlockManagerId, shuffleBlockIdsAndSizes)).toIterator
->>>>>>> parent of 16caee4274... [SPARK-25299] Shuffle locations api (#517)
-    }
-    val blocksToRetrieve = Seq(
-      (Option.apply(DefaultMapShuffleLocations.get(localBlockManagerId)), shuffleBlockIdsAndSizes))
-    val mapOutputTracker = mock(classOf[MapOutputTracker])
-    when(mapOutputTracker.getMapSizesByShuffleLocation(shuffleId, reduceId, reduceId + 1))
-      .thenAnswer(new Answer[Iterator[(Option[ShuffleLocation], Seq[(BlockId, Long)])]] {
+    when(mapOutputTracker.getMapSizesByExecutorId(shuffleId, reduceId, reduceId + 1))
+      .thenAnswer(new Answer[Iterator[(BlockManagerId, Seq[(BlockId, Long)])]] {
         def answer(invocationOnMock: InvocationOnMock):
-            Iterator[(Option[ShuffleLocation], Seq[(BlockId, Long)])] = {
-          blocksToRetrieve.iterator
+        Iterator[(BlockManagerId, Seq[(BlockId, Long)])] = {
+          // Test a scenario where all data is local, to avoid creating a bunch of additional mocks
+          // for the code to read data over the network.
+          val shuffleBlockIdsAndSizes = (0 until numMaps).map { mapId =>
+            val shuffleBlockId = ShuffleBlockId(shuffleId, mapId, reduceId)
+            (shuffleBlockId, byteOutputStream.size().toLong)
+          }
+          Seq((localBlockManagerId, shuffleBlockIdsAndSizes)).toIterator
         }
-      })
+    })
 
     // Create a mocked shuffle handle to pass into HashShuffleReader.
     val shuffleHandle = {
