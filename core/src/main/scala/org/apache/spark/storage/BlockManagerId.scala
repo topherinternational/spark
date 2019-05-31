@@ -127,6 +127,9 @@ private[spark] object BlockManagerId {
       topologyInfo: Option[String] = None): BlockManagerId =
     getCachedBlockManagerId(new BlockManagerId(execId, host, port, topologyInfo))
 
+  def apply(host: String, port: Int): BlockManagerId =
+    getCachedBlockManagerId(new BlockManagerId(null, host, port, None))
+
   def apply(in: ObjectInput): BlockManagerId = {
     val obj = new BlockManagerId()
     obj.readExternal(in)

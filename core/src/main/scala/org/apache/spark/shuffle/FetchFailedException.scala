@@ -68,3 +68,12 @@ private[spark] class MetadataFetchFailedException(
     reduceId: Int,
     message: String)
   extends FetchFailedException(null, shuffleId, -1, reduceId, message)
+
+private[spark] class RemoteFetchFailedException(
+    shuffleId: Int,
+    mapId: Int,
+    reduceId: Int,
+    message: String,
+    host: String,
+    port: Int)
+  extends FetchFailedException(BlockManagerId(host, port), shuffleId, mapId, reduceId, message)
