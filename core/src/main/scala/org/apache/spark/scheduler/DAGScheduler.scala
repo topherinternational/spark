@@ -163,6 +163,8 @@ private[spark] class DAGScheduler(
 
   private[scheduler] val activeJobs = new HashSet[ActiveJob]
 
+  private[scheduler] val shuffleDriverComponents = sc.shuffleDriverComponents
+
   /**
    * Contains the locations that each RDD's partitions are cached on.  This map's keys are RDD ids
    * and its values are arrays indexed by partition numbers. Each array value is the set of
@@ -1637,16 +1639,16 @@ private[spark] class DAGScheduler(
 
           // TODO: mark the executor as failed only if there were lots of fetch failures on it
           if (bmAddress != null) {
-            val hostToUnregisterOutputs = if (env.blockManager.externalShuffleServiceEnabled &&
-              unRegisterOutputOnHostOnFetchFailure) {
-              // We had a fetch failure with the external shuffle service, so we
-              // assume all shuffle data on the node is bad.
-              Some(bmAddress.host)
-            } else {
-              // Unregister shuffle data just for one executor (we don't have any
-              // reason to believe shuffle data has been lost for the entire host).
-              None
-            }
+            val hostToUnregisterOutputs =
+              if (shuffleDriverComponents.shouldUnregisterOutputOnHostOnFetchFailure()) {
+                // We had a fetch failure with the external shuffle service, so we
+                // assume all shuffle data on the node is bad.
+                Some(bmAddress.host)
+              } else {
+                // Unregister shuffle data just for one executor (we don't have any
+                // reason to believe shuffle data has been lost for the entire host).
+                None
+              }
             removeExecutorAndUnregisterOutputs(
               execId = bmAddress.executorId,
               fileLost = true,
@@ -1809,7 +1811,7 @@ private[spark] class DAGScheduler(
       hostToUnregisterOutputs: Option[String],
       maybeEpoch: Option[Long] = None): Unit = {
     val currentEpoch = maybeEpoch.getOrElse(mapOutputTracker.getEpoch)
-    if (!failedEpoch.contains(execId) || failedEpoch(execId) < currentEpoch) {
+    if (execId == null || !failedEpoch.contains(execId) || failedEpoch(execId) < currentEpoch) {
       failedEpoch(execId) = currentEpoch
       logInfo("Executor lost: %s (epoch %d)".format(execId, currentEpoch))
       blockManagerMaster.removeExecutor(execId)
@@ -1819,8 +1821,10 @@ private[spark] class DAGScheduler(
             logInfo("Shuffle files lost for host: %s (epoch %d)".format(host, currentEpoch))
             mapOutputTracker.removeOutputsOnHost(host)
           case None =>
-            logInfo("Shuffle files lost for executor: %s (epoch %d)".format(execId, currentEpoch))
-            mapOutputTracker.removeOutputsOnExecutor(execId)
+            if (execId != null) {
+              logInfo("Shuffle files lost for executor: %s (epoch %d)".format(execId, currentEpoch))
+              mapOutputTracker.removeOutputsOnExecutor(execId)
+            }
         }
         clearCacheLocs()
 
