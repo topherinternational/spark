@@ -132,7 +132,8 @@ private class ShuffleStatus(numPartitions: Int) {
    */
   def removeOutputsByFilter(f: (BlockManagerId) => Boolean): Unit = synchronized {
     for (mapId <- 0 until mapStatuses.length) {
-      if (mapStatuses(mapId) != null && f(mapStatuses(mapId).location.orNull)) {
+      if (mapStatuses(mapId) != null && mapStatuses(mapId).location.isDefined
+        && f(mapStatuses(mapId).location.get)) {
         _numAvailableOutputs -= 1
         mapStatuses(mapId) = null
         invalidateSerializedMapOutputStatusCache()
@@ -578,7 +579,7 @@ private[spark] class MapOutputTrackerMaster(
 
   /**
    * Return a list of locations that each have fraction of map output greater than the specified
-   * threshold.
+   * threshold. Ignores shuffle blocks without location or executor id.
    *
    * @param shuffleId id of the shuffle
    * @param reducerId id of the reduce task

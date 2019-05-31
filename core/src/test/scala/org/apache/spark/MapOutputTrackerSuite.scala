@@ -330,4 +330,109 @@ class MapOutputTrackerSuite extends SparkFunSuite {
     rpcEnv.shutdown()
   }
 
+  test("shuffle map statuses with null blockManagerIds") {
+    val rpcEnv = createRpcEnv("test")
+    val tracker = newTrackerMaster()
+    tracker.trackerEndpoint = rpcEnv.setupEndpoint(MapOutputTracker.ENDPOINT_NAME,
+      new MapOutputTrackerMasterEndpoint(rpcEnv, tracker, conf))
+    tracker.registerShuffle(10, 3)
+    assert(tracker.containsShuffle(10))
+    val size1000 = MapStatus.decompressSize(MapStatus.compressSize(1000L))
+    val size10000 = MapStatus.decompressSize(MapStatus.compressSize(10000L))
+    tracker.registerMapOutput(10, 0, MapStatus(Some(BlockManagerId("a", "hostA", 1000)),
+      Array(1000L, 10000L)))
+    tracker.registerMapOutput(10, 1, MapStatus(None, Array(10000L, 1000L)))
+    tracker.registerMapOutput(10, 2, MapStatus(None, Array(1000L, 10000L)))
+    var statuses = tracker.getMapSizesByExecutorId(10, 0)
+    assert(statuses.toSet ===
+      Seq(
+        (None,
+          ArrayBuffer((ShuffleBlockId(10, 1, 0), size10000),
+            (ShuffleBlockId(10, 2, 0), size1000))),
+        (Some(BlockManagerId("a", "hostA", 1000)),
+          ArrayBuffer((ShuffleBlockId(10, 0, 0), size1000))))
+        .toSet)
+    assert(0 == tracker.getNumCachedSerializedBroadcast)
+    tracker.removeOutputsOnHost("hostA")
+
+    tracker.registerMapOutput(10, 0, MapStatus(Some(BlockManagerId("b", "hostB", 1000)),
+      Array(1000L, 10000L)))
+    statuses = tracker.getMapSizesByExecutorId(10, 0)
+    assert(statuses.toSet ===
+      Seq(
+        (None,
+          ArrayBuffer((ShuffleBlockId(10, 1, 0), size10000),
+            (ShuffleBlockId(10, 2, 0), size1000))),
+        (Some(BlockManagerId("b", "hostB", 1000)),
+          ArrayBuffer((ShuffleBlockId(10, 0, 0), size1000))))
+        .toSet)
+    tracker.unregisterMapOutput(10, 1, null)
+
+    tracker.registerMapOutput(10, 1, MapStatus(Some(BlockManagerId("b", "hostB", 1000)),
+      Array(1000L, 10000L)))
+    statuses = tracker.getMapSizesByExecutorId(10, 0)
+    assert(statuses.toSet ===
+      Seq(
+        (Some(BlockManagerId("b", "hostB", 1000)),
+          ArrayBuffer((ShuffleBlockId(10, 0, 0), size1000), (ShuffleBlockId(10, 1, 0), size1000))),
+        (None,
+          ArrayBuffer((ShuffleBlockId(10, 2, 0), size1000))))
+        .toSet)
+
+    val outputs = tracker.getLocationsWithLargestOutputs(10, 0, 2, 0.01)
+    assert(outputs.get.toSeq === Seq(BlockManagerId("b", "hostB", 1000)))
+    tracker.stop()
+    rpcEnv.shutdown()
+  }
+
+  test("shuffle map statuses with null execIds") {
+    val rpcEnv = createRpcEnv("test")
+    val tracker = newTrackerMaster()
+    tracker.trackerEndpoint = rpcEnv.setupEndpoint(MapOutputTracker.ENDPOINT_NAME,
+      new MapOutputTrackerMasterEndpoint(rpcEnv, tracker, conf))
+    tracker.registerShuffle(10, 2)
+    assert(tracker.containsShuffle(10))
+    val size1000 = MapStatus.decompressSize(MapStatus.compressSize(1000L))
+    val size10000 = MapStatus.decompressSize(MapStatus.compressSize(10000L))
+    tracker.registerMapOutput(10, 0, MapStatus(Some(BlockManagerId(null, "hostA", 1000)),
+      Array(1000L, 10000L)))
+    tracker.registerMapOutput(10, 1, MapStatus(Some(BlockManagerId(null, "hostB", 1000)),
+      Array(10000L, 1000L)))
+    var statuses = tracker.getMapSizesByExecutorId(10, 0)
+    assert(statuses.toSet ===
+      Seq(
+        (Some(BlockManagerId(null, "hostB", 1000)),
+          ArrayBuffer((ShuffleBlockId(10, 1, 0), size10000))),
+        (Some(BlockManagerId(null, "hostA", 1000)),
+          ArrayBuffer((ShuffleBlockId(10, 0, 0), size1000))))
+        .toSet)
+    assert(0 == tracker.getNumCachedSerializedBroadcast)
+    tracker.removeOutputsOnExecutor("a")
+
+    statuses = tracker.getMapSizesByExecutorId(10, 0)
+    assert(statuses.toSet ===
+      Seq(
+        (Some(BlockManagerId(null, "hostB", 1000)),
+          ArrayBuffer((ShuffleBlockId(10, 1, 0), size10000))),
+        (Some(BlockManagerId(null, "hostA", 1000)),
+          ArrayBuffer((ShuffleBlockId(10, 0, 0), size1000))))
+        .toSet)
+    tracker.unregisterMapOutput(10, 1, BlockManagerId(null, "hostA", 1000))
+
+    tracker.registerMapOutput(10, 0, MapStatus(Some(BlockManagerId("b", "hostB", 1000)),
+      Array(1000L, 10000L)))
+    statuses = tracker.getMapSizesByExecutorId(10, 0)
+    assert(statuses.toSet ===
+      Seq(
+        (Some(BlockManagerId(null, "hostB", 1000)),
+          ArrayBuffer((ShuffleBlockId(10, 1, 0), size10000))),
+        (Some(BlockManagerId("b", "hostB", 1000)),
+          ArrayBuffer((ShuffleBlockId(10, 0, 0), size1000))))
+        .toSet)
+    val outputs = tracker.getLocationsWithLargestOutputs(10, 0, 2, 0.01)
+    assert(outputs.get.toSeq === Seq(BlockManagerId("b", "hostB", 1000)))
+    tracker.stop()
+    rpcEnv.shutdown()
+  }
+
 }

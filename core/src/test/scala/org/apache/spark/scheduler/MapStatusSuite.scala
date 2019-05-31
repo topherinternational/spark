@@ -189,4 +189,12 @@ class MapStatusSuite extends SparkFunSuite {
       assert(count === 3000)
     }
   }
+
+  test("Location can be empty") {
+    val sizes = (0L to 3000L).toArray
+    val status = MapStatus(None, sizes)
+    val status1 = compressAndDecompressMapStatus(status)
+    assert(status1.isInstanceOf[HighlyCompressedMapStatus])
+    assert(status1.location.isEmpty)
+  }
 }
