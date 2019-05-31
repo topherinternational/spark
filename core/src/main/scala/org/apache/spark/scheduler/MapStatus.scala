@@ -34,7 +34,7 @@ import org.apache.spark.util.Utils
  */
 private[spark] sealed trait MapStatus {
   /** Location where this task was run. */
-  def location: BlockManagerId
+  def location: Option[BlockManagerId]
 
   /**
    * Estimated size for the reduce block, in bytes.
@@ -102,30 +102,39 @@ private[spark] object MapStatus {
  * @param compressedSizes size of the blocks, indexed by reduce partition id.
  */
 private[spark] class CompressedMapStatus(
-    private[this] var loc: BlockManagerId,
+    private[this] var loc: Option[BlockManagerId],
     private[this] var compressedSizes: Array[Byte])
   extends MapStatus with Externalizable {
 
   protected def this() = this(null, null.asInstanceOf[Array[Byte]])  // For deserialization only
 
-  def this(loc: BlockManagerId, uncompressedSizes: Array[Long]) {
+  def this(loc: Option[BlockManagerId], uncompressedSizes: Array[Long]) {
     this(loc, uncompressedSizes.map(MapStatus.compressSize))
   }
 
-  override def location: BlockManagerId = loc
+  override def location: Option[BlockManagerId] = loc
 
   override def getSizeForBlock(reduceId: Int): Long = {
     MapStatus.decompressSize(compressedSizes(reduceId))
   }
 
   override def writeExternal(out: ObjectOutput): Unit = Utils.tryOrIOException {
-    loc.writeExternal(out)
+    if (loc.isDefined) {
+      out.writeBoolean(true)
+      loc.get.writeExternal(out)
+    } else {
+      out.writeBoolean(false)
+    }
     out.writeInt(compressedSizes.length)
     out.write(compressedSizes)
   }
 
   override def readExternal(in: ObjectInput): Unit = Utils.tryOrIOException {
-    loc = BlockManagerId(in)
+    if (in.readBoolean()) {
+      loc = Some(BlockManagerId(in))
+    } else {
+      loc = None
+    }
     val len = in.readInt()
     compressedSizes = new Array[Byte](len)
     in.readFully(compressedSizes)
@@ -144,7 +153,7 @@ private[spark] class CompressedMapStatus(
  * @param hugeBlockSizes sizes of huge blocks by their reduceId.
  */
 private[spark] class HighlyCompressedMapStatus private (
-    private[this] var loc: BlockManagerId,
+    private[this] var loc: Option[BlockManagerId],
     private[this] var numNonEmptyBlocks: Int,
     private[this] var emptyBlocks: RoaringBitmap,
     private[this] var avgSize: Long,
@@ -157,7 +166,7 @@ private[spark] class HighlyCompressedMapStatus private (
 
   protected def this() = this(null, -1, null, -1, null)  // For deserialization only
 
-  override def location: BlockManagerId = loc
+  override def location: Option[BlockManagerId] = loc
 
   override def getSizeForBlock(reduceId: Int): Long = {
     assert(hugeBlockSizes != null)
@@ -172,7 +181,12 @@ private[spark] class HighlyCompressedMapStatus private (
   }
 
   override def writeExternal(out: ObjectOutput): Unit = Utils.tryOrIOException {
-    loc.writeExternal(out)
+    if (loc.isDefined) {
+      out.writeBoolean(true)
+      loc.get.writeExternal(out)
+    } else {
+      out.writeBoolean(false)
+    }
     emptyBlocks.writeExternal(out)
     out.writeLong(avgSize)
     out.writeInt(hugeBlockSizes.size)
@@ -183,7 +197,11 @@ private[spark] class HighlyCompressedMapStatus private (
   }
 
   override def readExternal(in: ObjectInput): Unit = Utils.tryOrIOException {
-    loc = BlockManagerId(in)
+    if (in.readBoolean()) {
+      loc = Some(BlockManagerId(in))
+    } else {
+      loc = None
+    }
     emptyBlocks = new RoaringBitmap()
     emptyBlocks.readExternal(in)
     avgSize = in.readLong()
@@ -199,7 +217,8 @@ private[spark] class HighlyCompressedMapStatus private (
 }
 
 private[spark] object HighlyCompressedMapStatus {
-  def apply(loc: BlockManagerId, uncompressedSizes: Array[Long]): HighlyCompressedMapStatus = {
+  def apply(loc: Option[BlockManagerId], uncompressedSizes: Array[Long])
+    : HighlyCompressedMapStatus = {
     // We must keep track of which blocks are empty so that we don't report a zero-sized
     // block as being non-empty (or vice-versa) when using the average block size.
     var i = 0
