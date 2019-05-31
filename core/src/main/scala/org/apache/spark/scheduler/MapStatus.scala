@@ -56,11 +56,11 @@ private[spark] object MapStatus {
     .map(_.conf.get(config.SHUFFLE_MIN_NUM_PARTS_TO_HIGHLY_COMPRESS))
     .getOrElse(config.SHUFFLE_MIN_NUM_PARTS_TO_HIGHLY_COMPRESS.defaultValue.get)
 
-  def apply(loc: BlockManagerId, uncompressedSizes: Array[Long]): MapStatus = {
+  def apply(maybeLoc: Option[BlockManagerId], uncompressedSizes: Array[Long]): MapStatus = {
     if (uncompressedSizes.length > minPartitionsToUseHighlyCompressMapStatus) {
-      HighlyCompressedMapStatus(loc, uncompressedSizes)
+      HighlyCompressedMapStatus(maybeLoc, uncompressedSizes)
     } else {
-      new CompressedMapStatus(loc, uncompressedSizes)
+      new CompressedMapStatus(maybeLoc, uncompressedSizes)
     }
   }
 

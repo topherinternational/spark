@@ -102,7 +102,7 @@ private class ShuffleStatus(numPartitions: Int) {
    * different block manager.
    */
   def removeMapOutput(mapId: Int, bmAddress: BlockManagerId): Unit = synchronized {
-    if (mapStatuses(mapId) != null && mapStatuses(mapId).location == bmAddress) {
+    if (mapStatuses(mapId) != null && mapStatuses(mapId).location.orNull == bmAddress) {
       _numAvailableOutputs -= 1
       mapStatuses(mapId) = null
       invalidateSerializedMapOutputStatusCache()
@@ -132,7 +132,7 @@ private class ShuffleStatus(numPartitions: Int) {
    */
   def removeOutputsByFilter(f: (BlockManagerId) => Boolean): Unit = synchronized {
     for (mapId <- 0 until mapStatuses.length) {
-      if (mapStatuses(mapId) != null && f(mapStatuses(mapId).location)) {
+      if (mapStatuses(mapId) != null && f(mapStatuses(mapId).location.orNull)) {
         _numAvailableOutputs -= 1
         mapStatuses(mapId) = null
         invalidateSerializedMapOutputStatusCache()
