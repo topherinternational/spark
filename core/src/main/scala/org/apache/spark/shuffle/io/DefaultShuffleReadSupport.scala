@@ -92,7 +92,8 @@ private class ShuffleBlockFetcherIterable(
       context,
       blockManager.shuffleClient,
       blockManager,
-      mapOutputTracker.getMapSizesByExecutorId(shuffleId, minReduceId, maxReduceId + 1),
+      mapOutputTracker.getMapSizesByExecutorId(shuffleId, minReduceId, maxReduceId + 1)
+        .map(loc => (loc._1.get, loc._2)),
       serializerManager.wrapStream,
       maxBytesInFlight,
       maxReqsInFlight,
