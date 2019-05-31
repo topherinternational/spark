@@ -1435,13 +1435,18 @@ private[spark] class DAGScheduler(
             shuffleStage.pendingPartitions -= task.partitionId
             val status = event.result.asInstanceOf[MapStatus]
             val execId = status.location.executorId
-            logDebug("ShuffleMapTask finished on " + execId)
-            if (failedEpoch.contains(execId) && smt.epoch <= failedEpoch(execId)) {
-              logInfo(s"Ignoring possibly bogus $smt completion from executor $execId")
+            if (execId != null) {
+              logDebug("ShuffleMapTask finished on " + execId)
+              if (failedEpoch.contains(execId) && smt.epoch <= failedEpoch(execId)) {
+                logInfo(s"Ignoring possibly bogus $smt completion from executor $execId")
+              } else {
+                // The epoch of the task is acceptable (i.e., the task was launched after the most
+                // recent failure we're aware of for the executor), so mark the task's output as
+                // available.
+                mapOutputTracker.registerMapOutput(
+                  shuffleStage.shuffleDep.shuffleId, smt.partitionId, status)
+              }
             } else {
-              // The epoch of the task is acceptable (i.e., the task was launched after the most
-              // recent failure we're aware of for the executor), so mark the task's output as
-              // available.
               mapOutputTracker.registerMapOutput(
                 shuffleStage.shuffleDep.shuffleId, smt.partitionId, status)
             }
