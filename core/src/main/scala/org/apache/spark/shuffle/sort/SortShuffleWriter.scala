@@ -18,12 +18,10 @@
 package org.apache.spark.shuffle.sort
 
 import org.apache.spark._
-import org.apache.spark.api.java.Optional
 import org.apache.spark.api.shuffle.ShuffleWriteSupport
-import org.apache.spark.internal.{Logging, config}
-import org.apache.spark.scheduler.{MapStatus, MapStatus$}
+import org.apache.spark.internal.{config, Logging}
+import org.apache.spark.scheduler.MapStatus
 import org.apache.spark.shuffle.{BaseShuffleHandle, IndexShuffleBlockResolver, ShuffleWriter}
-import org.apache.spark.storage.BlockManagerId
 import org.apache.spark.util.collection.ExternalSorter
 
 private[spark] class SortShuffleWriter[K, V, C](
