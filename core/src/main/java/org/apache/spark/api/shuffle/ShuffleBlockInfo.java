@@ -32,7 +32,6 @@ public class ShuffleBlockInfo {
   private final int mapId;
   private final int reduceId;
   private final long length;
-  // TODO: should this be optional?
   private final Optional<BlockManagerId> shuffleLocation;
 
   public ShuffleBlockInfo(int shuffleId, int mapId, int reduceId, long length,

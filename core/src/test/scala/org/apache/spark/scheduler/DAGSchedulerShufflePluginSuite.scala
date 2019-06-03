@@ -120,6 +120,40 @@ class DAGSchedulerShufflePluginSuite extends DAGSchedulerSuite {
     assertDataStructuresEmpty()
   }
 
+  test("Test DFS case - empty BlockManagerId") {
+    val (reduceRdd, shuffleId) = setupTest()
+    submit(reduceRdd, Array(0, 1))
+
+    val mapStatus = makeEmptyMapStatus()
+    complete(taskSets(0), Seq((Success, mapStatus), (Success, mapStatus)))
+    assertMapShuffleLocations(shuffleId, Seq(mapStatus, mapStatus))
+
+    // perform reduce task
+    complete(taskSets(1), Seq((Success, 42), (Success, 43)))
+    assert(results === Map(0 -> 42, 1 -> 43))
+    assertDataStructuresEmpty()
+  }
+
+  test("Test DFS case - fetch failure") {
+    val (reduceRdd, shuffleId) = setupTest()
+    submit(reduceRdd, Array(0, 1))
+
+    // Perform map task
+    val mapStatus = makeEmptyMapStatus()
+    complete(taskSets(0), Seq((Success, mapStatus), (Success, mapStatus)))
+
+    complete(taskSets(1), Seq((Success, 42),
+      (FetchFailed(null, shuffleId, 1, 0, "ignored"), null)))
+    assertMapShuffleLocations(shuffleId, Seq(mapStatus, null))
+
+    scheduler.resubmitFailedStages()
+    complete(taskSets(2), Seq((Success, mapStatus)))
+
+    complete(taskSets(3), Seq((Success, 43)))
+    assert(results === Map(0 -> 42, 1 -> 43))
+    assertDataStructuresEmpty()
+  }
+
   def makeMapStatus(execId: String, host: String): MapStatus = {
     MapStatus(Some(BlockManagerId(execId, host, 1234)), Array.fill[Long](2)(2))
   }
