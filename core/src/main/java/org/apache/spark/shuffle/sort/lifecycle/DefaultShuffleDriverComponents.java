@@ -34,8 +34,10 @@ public class DefaultShuffleDriverComponents implements ShuffleDriverComponents {
   @Override
   public Map<String, String> initializeApplication() {
     blockManagerMaster = SparkEnv.get().blockManager().master();
-    this.shouldUnregisterOutputOnHostOnFetchFailure = SparkEnv.get().blockManager().externalShuffleServiceEnabled()
-        && (boolean) SparkEnv.get().conf().get(package$.MODULE$.UNREGISTER_OUTPUT_ON_HOST_ON_FETCH_FAILURE());
+    this.shouldUnregisterOutputOnHostOnFetchFailure =
+        SparkEnv.get().blockManager().externalShuffleServiceEnabled()
+            && (boolean) SparkEnv.get().conf()
+            .get(package$.MODULE$.UNREGISTER_OUTPUT_ON_HOST_ON_FETCH_FAILURE());
     return ImmutableMap.of();
   }
 
