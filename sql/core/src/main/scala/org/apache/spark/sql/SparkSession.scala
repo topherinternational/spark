@@ -20,7 +20,11 @@ package org.apache.spark.sql
 import java.io.Closeable
 import java.util.concurrent.atomic.{AtomicInteger, AtomicReference}
 
-import org.apache.spark.annotation._
+import scala.collection.JavaConverters._
+import scala.reflect.runtime.universe.TypeTag
+import scala.util.control.NonFatal
+import org.apache.spark.{SPARK_VERSION, SparkConf, SparkContext, TaskContext}
+import org.apache.spark.annotation.{DeveloperApi, Evolving, Experimental, Stable, Unstable}
 import org.apache.spark.api.java.JavaRDD
 import org.apache.spark.internal.Logging
 import org.apache.spark.rdd.RDD
@@ -33,18 +37,13 @@ import org.apache.spark.sql.catalyst.expressions.AttributeReference
 import org.apache.spark.sql.catalyst.plans.logical.{LocalRelation, Range}
 import org.apache.spark.sql.execution._
 import org.apache.spark.sql.execution.datasources.LogicalRelation
-import org.apache.spark.sql.internal.StaticSQLConf.{CATALOG_IMPLEMENTATION, SESSION_STATE_IMPLEMENTATION}
 import org.apache.spark.sql.internal._
+import org.apache.spark.sql.internal.StaticSQLConf.{CATALOG_IMPLEMENTATION, SESSION_STATE_IMPLEMENTATION}
 import org.apache.spark.sql.sources.BaseRelation
 import org.apache.spark.sql.streaming._
 import org.apache.spark.sql.types.{DataType, StructType}
 import org.apache.spark.sql.util.ExecutionListenerManager
 import org.apache.spark.util.{CallSite, Utils}
-import org.apache.spark.{SPARK_VERSION, SparkConf, SparkContext, TaskContext}
-
-import scala.collection.JavaConverters._
-import scala.reflect.runtime.universe.TypeTag
-import scala.util.control.NonFatal
 
 
 /**
@@ -83,7 +82,6 @@ class SparkSession private(
 
   // The call site where this SparkSession was constructed.
   private val creationSite: CallSite = Utils.getCallSite()
-
 
   /**
    * Constructor used in Pyspark. Contains explicit application of Spark Session Extensions
@@ -729,7 +727,6 @@ class SparkSession private(
       SparkSession.clearActiveSession()
     }
   }
-
 
   /**
    * Synonym for `stop()`.

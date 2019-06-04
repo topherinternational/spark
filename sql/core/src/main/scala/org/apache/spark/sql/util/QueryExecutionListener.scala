@@ -116,14 +116,6 @@ class ExecutionListenerManager private[sql](session: SparkSession, loadExtension
   }
 
   /**
-   * Shutdown the [[ExecutionListenerBus]].
-   */
-  @DeveloperApi
-  def shutdown(): Unit = {
-    session.sparkContext.listenerBus.removeListener(listenerBus)
-  }
-
-  /**
    * Get an identical copy of this listener manager.
    */
   private[sql] def clone(session: SparkSession): ExecutionListenerManager = {
