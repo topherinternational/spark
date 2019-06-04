@@ -18,14 +18,9 @@
 package org.apache.spark.sql
 
 import java.io.Closeable
-import java.util.concurrent.atomic.AtomicReference
+import java.util.concurrent.atomic.{AtomicInteger, AtomicReference}
 
-import scala.collection.JavaConverters._
-import scala.reflect.runtime.universe.TypeTag
-import scala.util.control.NonFatal
-
-import org.apache.spark.{SPARK_VERSION, SparkConf, SparkContext, TaskContext}
-import org.apache.spark.annotation.{DeveloperApi, Evolving, Experimental, Stable, Unstable}
+import org.apache.spark.annotation._
 import org.apache.spark.api.java.JavaRDD
 import org.apache.spark.internal.Logging
 import org.apache.spark.rdd.RDD
@@ -38,13 +33,18 @@ import org.apache.spark.sql.catalyst.expressions.AttributeReference
 import org.apache.spark.sql.catalyst.plans.logical.{LocalRelation, Range}
 import org.apache.spark.sql.execution._
 import org.apache.spark.sql.execution.datasources.LogicalRelation
-import org.apache.spark.sql.internal._
 import org.apache.spark.sql.internal.StaticSQLConf.{CATALOG_IMPLEMENTATION, SESSION_STATE_IMPLEMENTATION}
+import org.apache.spark.sql.internal._
 import org.apache.spark.sql.sources.BaseRelation
 import org.apache.spark.sql.streaming._
 import org.apache.spark.sql.types.{DataType, StructType}
 import org.apache.spark.sql.util.ExecutionListenerManager
 import org.apache.spark.util.{CallSite, Utils}
+import org.apache.spark.{SPARK_VERSION, SparkConf, SparkContext, TaskContext}
+
+import scala.collection.JavaConverters._
+import scala.reflect.runtime.universe.TypeTag
+import scala.util.control.NonFatal
 
 
 /**
@@ -83,6 +83,7 @@ class SparkSession private(
 
   // The call site where this SparkSession was constructed.
   private val creationSite: CallSite = Utils.getCallSite()
+
 
   /**
    * Constructor used in Pyspark. Contains explicit application of Spark Session Extensions
@@ -717,20 +718,18 @@ class SparkSession private(
   // scalastyle:on
 
   /**
-   * Stop the underlying `SparkContext`.
+   * Stop the underlying `SparkContext` if there are are no active sessions remaining.
    *
    * @since 2.0.0
    */
   def stop(): Unit = {
-    sparkContext.stop()
+    if (SparkSession.numActiveSessions.get() == 0) {
+      sparkContext.stop()
+    } else {
+      SparkSession.clearActiveSession()
+    }
   }
 
-  /**
-   * Added due to memory leak in QueryExecutionListener
-   */
-  def stopSession(): Unit = {
-    listenerManager.shutdown()
-  }
 
   /**
    * Synonym for `stop()`.
@@ -788,6 +787,8 @@ class SparkSession private(
 
 @Stable
 object SparkSession extends Logging {
+
+  private[spark] val numActiveSessions: AtomicInteger = new AtomicInteger(0)
 
   /**
    * Builder for [[SparkSession]].
@@ -972,10 +973,11 @@ object SparkSession extends Logging {
         sparkContext.addSparkListener(new SparkListener {
           override def onApplicationEnd(applicationEnd: SparkListenerApplicationEnd): Unit = {
             defaultSession.set(null)
+            // Should remove listener after this event fires
+            sparkContext.removeSparkListener(this)
           }
         })
       }
-
       return session
     }
   }
@@ -995,17 +997,30 @@ object SparkSession extends Logging {
    * @since 2.0.0
    */
   def setActiveSession(session: SparkSession): Unit = {
-    activeThreadSession.set(session)
+    if (getActiveSession.isEmpty
+      || (session != getActiveSession.get && getActiveSession.isDefined)) {
+      numActiveSessions.getAndIncrement
+      activeThreadSession.set(session)
+    } else if (session == null) {
+      this.clearActiveSession()
+    }
   }
 
   /**
-   * Clears the active SparkSession for current thread. Subsequent calls to getOrCreate will
-   * return the first created context instead of a thread-local override.
+   * Clears the active SparkSession for current thread assuming it is defined.
+   * Subsequent calls to getOrCreate will return the first created context
+   * instead of a thread-local override.
    *
    * @since 2.0.0
    */
   def clearActiveSession(): Unit = {
-    activeThreadSession.remove()
+    if (getActiveSession.isDefined) {
+      activeThreadSession.remove()
+      numActiveSessions.decrementAndGet()
+    } else {
+      logWarning("Calling clearActiveSession() on a SparkSession " +
+        "without an active session is a noop.")
+    }
   }
 
   /**
@@ -1018,12 +1033,18 @@ object SparkSession extends Logging {
   }
 
   /**
-   * Clears the default SparkSession that is returned by the builder.
+   * Clears the default SparkSession that is returned by the builder
+   * if it is not null.
    *
    * @since 2.0.0
    */
   def clearDefaultSession(): Unit = {
-    defaultSession.set(null)
+    if (getDefaultSession.isDefined) {
+      defaultSession.set(null)
+    } else {
+      logWarning("Calling clearDefaultSession() on a SparkSession " +
+        "without an default session is a noop.")
+    }
   }
 
   /**
