@@ -30,8 +30,7 @@ import org.apache.spark.io.CompressionCodec
 import org.apache.spark.network.buffer.{ManagedBuffer, NioManagedBuffer}
 import org.apache.spark.serializer.{JavaSerializer, SerializerManager}
 import org.apache.spark.shuffle.io.DefaultShuffleReadSupport
-import org.apache.spark.storage.{BlockManager, BlockManagerId, ShuffleBlockId}
-import org.apache.spark.storage.BlockId
+import org.apache.spark.storage.{BlockId, BlockManager, BlockManagerId, ShuffleBlockAttemptId, ShuffleBlockId}
 
 /**
  * Wrapper for a managed buffer that keeps track of how many times retain and release are called.
@@ -117,7 +116,7 @@ class BlockStoreShuffleReaderSuite extends SparkFunSuite with LocalSparkContext 
           // Test a scenario where all data is local, to avoid creating a bunch of additional mocks
           // for the code to read data over the network.
           val shuffleBlockIdsAndSizes = (0 until numMaps).map { mapId =>
-            val shuffleBlockId = ShuffleBlockId(shuffleId, mapId, reduceId)
+            val shuffleBlockId = ShuffleBlockAttemptId(shuffleId, mapId, reduceId, 0)
             (shuffleBlockId, byteOutputStream.size().toLong)
           }
           Seq((Some(localBlockManagerId), shuffleBlockIdsAndSizes)).toIterator
