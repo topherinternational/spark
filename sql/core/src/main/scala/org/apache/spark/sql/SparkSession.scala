@@ -18,12 +18,8 @@
 package org.apache.spark.sql
 
 import java.io.Closeable
-<<<<<<< HEAD
-import java.util.concurrent.atomic.AtomicReference
-=======
 import java.util.concurrent.TimeUnit._
 import java.util.concurrent.atomic.{AtomicInteger, AtomicReference}
->>>>>>> bcdd070029... add counter to monitor number of active SparkSessions
 
 import scala.collection.JavaConverters._
 import scala.reflect.runtime.universe.TypeTag
