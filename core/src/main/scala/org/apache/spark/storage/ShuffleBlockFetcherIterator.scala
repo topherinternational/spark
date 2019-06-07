@@ -74,7 +74,7 @@ final class ShuffleBlockFetcherIterator(
     maxReqSizeShuffleToMem: Long,
     detectCorrupt: Boolean,
     shuffleMetrics: ShuffleReadMetricsReporter)
-  extends Iterator[InputStream] with DownloadFileManager with Logging {
+  extends Iterator[(BlockId, InputStream)] with DownloadFileManager with Logging {
 
   import ShuffleBlockFetcherIterator._
 
@@ -397,7 +397,7 @@ final class ShuffleBlockFetcherIterator(
    *
    * Throws a FetchFailedException if the next block could not be fetched.
    */
-  override def next(): InputStream = {
+  override def next(): (BlockId, InputStream) = {
     if (!hasNext) {
       throw new NoSuchElementException()
     }
@@ -508,16 +508,11 @@ final class ShuffleBlockFetcherIterator(
     }
     currentResult = result.asInstanceOf[SuccessFetchResult]
     val blockId = currentResult.blockId.asInstanceOf[ShuffleBlockId]
-    new BufferReleasingInputStream(input, this)
+    (blockId, new BufferReleasingInputStream(input, this))
   }
 
-  // for testing only
-  def getCurrentBlock(): ShuffleBlockId = {
-    currentResult.blockId.asInstanceOf[ShuffleBlockId]
-  }
-
-  def toCompletionIterator: Iterator[InputStream] = {
-    CompletionIterator[InputStream, this.type](this,
+  def toCompletionIterator: Iterator[(BlockId, InputStream)] = {
+    CompletionIterator[(BlockId, InputStream), this.type](this,
       onCompleteCallback.onComplete(context))
   }
 

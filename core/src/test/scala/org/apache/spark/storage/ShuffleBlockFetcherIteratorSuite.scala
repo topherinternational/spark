@@ -124,8 +124,7 @@ class ShuffleBlockFetcherIteratorSuite extends SparkFunSuite with PrivateMethodT
 
     for (i <- 0 until 5) {
       assert(iterator.hasNext, s"iterator should have 5 elements but actually has $i elements")
-      val inputStream = iterator.next()
-      val blockId = iterator.getCurrentBlock()
+      val (blockId, inputStream) = iterator.next()
 
       // Make sure we release buffers when a wrapped input stream is closed.
       val mockBuf = localBlocks.getOrElse(blockId, remoteBlocks(blockId))
@@ -200,7 +199,7 @@ class ShuffleBlockFetcherIteratorSuite extends SparkFunSuite with PrivateMethodT
       taskContext.taskMetrics.createTempShuffleReadMetrics())
 
     verify(blocks(ShuffleBlockId(0, 0, 0)), times(0)).release()
-    iterator.next().close() // close() first block's input stream
+    iterator.next()._2.close() // close() first block's input stream
     verify(blocks(ShuffleBlockId(0, 0, 0)), times(1)).release()
 
     // Get the 2nd block but do not exhaust the iterator
@@ -402,8 +401,7 @@ class ShuffleBlockFetcherIteratorSuite extends SparkFunSuite with PrivateMethodT
     sem.acquire()
 
     // The first block should be returned without an exception
-    iterator.next()
-    val id1 = iterator.getCurrentBlock()
+    val (id1, _) = iterator.next()
     assert(id1 === ShuffleBlockId(0, 0, 0))
 
     when(transfer.fetchBlocks(any(), any(), any(), any(), any(), any()))
@@ -465,10 +463,8 @@ class ShuffleBlockFetcherIteratorSuite extends SparkFunSuite with PrivateMethodT
       true,
       taskContext.taskMetrics.createTempShuffleReadMetrics())
     // Blocks should be returned without exceptions.
-    iterator.next()
-    val blockId1 = iterator.getCurrentBlock()
-    iterator.next()
-    val blockId2 = iterator.getCurrentBlock()
+    val (blockId1, _) = iterator.next()
+    val (blockId2, _) = iterator.next()
     assert(Set(blockId1, blockId2) === Set(ShuffleBlockId(0, 0, 0), ShuffleBlockId(0, 1, 0)))
   }
 
@@ -527,14 +523,11 @@ class ShuffleBlockFetcherIteratorSuite extends SparkFunSuite with PrivateMethodT
     sem.acquire()
 
     // The first block should be returned without an exception
-    iterator.next()
-    val id1 = iterator.getCurrentBlock()
+    val (id1, _) = iterator.next()
     assert(id1 === ShuffleBlockId(0, 0, 0))
-    iterator.next()
-    val id2 = iterator.getCurrentBlock()
+    val (id2, _) = iterator.next()
     assert(id2 === ShuffleBlockId(0, 1, 0))
-    iterator.next()
-    val id3 = iterator.getCurrentBlock()
+    val (id3, _) = iterator.next()
     assert(id3 === ShuffleBlockId(0, 2, 0))
   }
 

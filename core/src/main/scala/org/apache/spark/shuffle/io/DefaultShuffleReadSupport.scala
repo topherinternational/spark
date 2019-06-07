@@ -105,7 +105,7 @@ private class ShuffleBlockFetcherIterable(
       maxBlocksInFlightPerAddress,
       maxReqSizeShuffleToMem,
       detectCorruption,
-      shuffleMetrics).toCompletionIterator
+      shuffleMetrics).toCompletionIterator.map(_._2)
   }
 
 }
