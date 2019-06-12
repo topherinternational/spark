@@ -57,10 +57,10 @@ case class ShuffleBlockId(shuffleId: Int, mapId: Int, reduceId: Int) extends Blo
 }
 
 @Experimental
-case class ShuffleBlockAttemptId(shuffleId: Int, mapId: Int, reduceId: Int, attemptNumber: Int)
+case class ShuffleBlockAttemptId(shuffleId: Int, mapId: Int, reduceId: Int, attemptId: Long)
   extends BlockId {
   override def name: String = "shuffle_" + shuffleId + "_" + mapId + "_" +
-    reduceId + "_" + attemptNumber
+    reduceId + "_" + attemptId
 }
 
 @DeveloperApi
