@@ -33,5 +33,5 @@ public interface ShuffleWriteSupport {
     int shuffleId,
     int mapId,
     int numPartitions,
-    int attemptNumber) throws IOException;
+    long attemptId) throws IOException;
 }
