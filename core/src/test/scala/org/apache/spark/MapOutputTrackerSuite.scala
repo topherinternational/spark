@@ -18,6 +18,7 @@
 package org.apache.spark
 
 import scala.collection.mutable.ArrayBuffer
+
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito._
 
