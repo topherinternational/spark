@@ -29,7 +29,6 @@ import org.mockito.stubbing.Answer
 import scala.util.Random
 
 import org.apache.spark.{Aggregator, MapOutputTracker, ShuffleDependency, SparkConf, SparkEnv, TaskContext}
-import org.apache.spark.api.shuffle.ShuffleLocation
 import org.apache.spark.benchmark.{Benchmark, BenchmarkBase}
 import org.apache.spark.executor.TaskMetrics
 import org.apache.spark.memory.{TaskMemoryManager, TestMemoryManager}
@@ -196,16 +195,15 @@ object BlockStoreShuffleReaderBenchmark extends BenchmarkBase {
       dataBlockId = remoteBlockManagerId
     }
 
-    when(mapOutputTracker.getMapSizesByShuffleLocation(0, 0, 1))
-      .thenAnswer(new Answer[Iterator[(Option[ShuffleLocation], Seq[(BlockId, Long)])]] {
+    when(mapOutputTracker.getMapSizesByExecutorId(0, 0, 1))
+      .thenAnswer(new Answer[Iterator[(BlockManagerId, Seq[(BlockId, Long)])]] {
         def answer(invocationOnMock: InvocationOnMock):
-        Iterator[(Option[ShuffleLocation], Seq[(BlockId, Long)])] = {
+        Iterator[(BlockManagerId, Seq[(BlockId, Long)])] = {
           val shuffleBlockIdsAndSizes = (0 until NUM_MAPS).map { mapId =>
             val shuffleBlockId = ShuffleBlockId(0, mapId, 0)
             (shuffleBlockId, dataFileLength)
           }
-          Seq((Option.apply(DefaultMapShuffleLocations.get(dataBlockId)), shuffleBlockIdsAndSizes))
-            .toIterator
+          Seq((dataBlockId, shuffleBlockIdsAndSizes)).toIterator
         }
       })
 

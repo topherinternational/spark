@@ -25,6 +25,7 @@ import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import javax.annotation.Nullable;
 
+import org.apache.spark.api.java.Optional;
 import scala.None$;
 import scala.Option;
 import scala.Product2;
@@ -39,8 +40,6 @@ import org.slf4j.LoggerFactory;
 import org.apache.spark.Partitioner;
 import org.apache.spark.ShuffleDependency;
 import org.apache.spark.SparkConf;
-import org.apache.spark.api.java.Optional;
-import org.apache.spark.api.shuffle.MapShuffleLocations;
 import org.apache.spark.api.shuffle.SupportsTransferTo;
 import org.apache.spark.api.shuffle.ShuffleMapOutputWriter;
 import org.apache.spark.api.shuffle.ShufflePartitionWriter;
@@ -134,11 +133,8 @@ final class BypassMergeSortShuffleWriter<K, V> extends ShuffleWriter<K, V> {
     try {
       if (!records.hasNext()) {
         partitionLengths = new long[numPartitions];
-        Optional<MapShuffleLocations> blockLocs = mapOutputWriter.commitAllPartitions();
-        mapStatus = MapStatus$.MODULE$.apply(
-            blockManager.shuffleServerId(),
-            blockLocs.orNull(),
-            partitionLengths);
+        Optional<BlockManagerId> location = mapOutputWriter.commitAllPartitions();
+        mapStatus = MapStatus$.MODULE$.apply(Option.apply(location.orNull()), partitionLengths);
         return;
       }
       final SerializerInstance serInstance = serializer.newInstance();
@@ -171,11 +167,8 @@ final class BypassMergeSortShuffleWriter<K, V> extends ShuffleWriter<K, V> {
       }
 
       partitionLengths = writePartitionedData(mapOutputWriter);
-      Optional<MapShuffleLocations> mapLocations = mapOutputWriter.commitAllPartitions();
-      mapStatus = MapStatus$.MODULE$.apply(
-          blockManager.shuffleServerId(),
-          mapLocations.orNull(),
-          partitionLengths);
+      Optional<BlockManagerId> location = mapOutputWriter.commitAllPartitions();
+      mapStatus = MapStatus$.MODULE$.apply(Option.apply(location.orNull()), partitionLengths);
     } catch (Exception e) {
       try {
         mapOutputWriter.abort(e);

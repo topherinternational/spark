@@ -163,6 +163,8 @@ private[spark] class DAGScheduler(
 
   private[scheduler] val activeJobs = new HashSet[ActiveJob]
 
+  private[scheduler] val shuffleDriverComponents = sc.shuffleDriverComponents
+
   /**
    * Contains the locations that each RDD's partitions are cached on.  This map's keys are RDD ids
    * and its values are arrays indexed by partition numbers. Each array value is the set of
@@ -1434,14 +1436,20 @@ private[spark] class DAGScheduler(
             val shuffleStage = stage.asInstanceOf[ShuffleMapStage]
             shuffleStage.pendingPartitions -= task.partitionId
             val status = event.result.asInstanceOf[MapStatus]
-            val execId = status.location.executorId
-            logDebug("ShuffleMapTask finished on " + execId)
-            if (failedEpoch.contains(execId) && smt.epoch <= failedEpoch(execId)) {
-              logInfo(s"Ignoring possibly bogus $smt completion from executor $execId")
+            logDebug(s"ShuffleMapTask finished on ${event.taskInfo.executorId} " +
+              s"with shuffle files located at ${status.location.getOrElse("N/A")}")
+            if (status.location.isDefined && status.location.get.executorId != null) {
+              val execId = status.location.get.executorId
+              if (failedEpoch.contains(execId) && smt.epoch <= failedEpoch(execId)) {
+                logInfo(s"Ignoring possibly bogus $smt completion from executor $execId")
+              } else {
+                // The epoch of the task is acceptable (i.e., the task was launched after the most
+                // recent failure we're aware of for the executor), so mark the task's output as
+                // available.
+                mapOutputTracker.registerMapOutput(
+                  shuffleStage.shuffleDep.shuffleId, smt.partitionId, status)
+              }
             } else {
-              // The epoch of the task is acceptable (i.e., the task was launched after the most
-              // recent failure we're aware of for the executor), so mark the task's output as
-              // available.
               mapOutputTracker.registerMapOutput(
                 shuffleStage.shuffleDep.shuffleId, smt.partitionId, status)
             }
@@ -1627,21 +1635,31 @@ private[spark] class DAGScheduler(
 
           // TODO: mark the executor as failed only if there were lots of fetch failures on it
           if (bmAddress != null) {
-            val hostToUnregisterOutputs = if (env.blockManager.externalShuffleServiceEnabled &&
-              unRegisterOutputOnHostOnFetchFailure) {
-              // We had a fetch failure with the external shuffle service, so we
-              // assume all shuffle data on the node is bad.
-              Some(bmAddress.host)
+            if (bmAddress.executorId == null) {
+              if (shuffleDriverComponents.shouldUnregisterOutputOnHostOnFetchFailure()) {
+                val currentEpoch = task.epoch
+                val host = bmAddress.host
+                logInfo("Shuffle files lost for host: %s (epoch %d)".format(host, currentEpoch))
+                mapOutputTracker.removeOutputsOnHost(host)
+                clearCacheLocs()
+              }
             } else {
-              // Unregister shuffle data just for one executor (we don't have any
-              // reason to believe shuffle data has been lost for the entire host).
-              None
+              val hostToUnregisterOutputs =
+                if (shuffleDriverComponents.shouldUnregisterOutputOnHostOnFetchFailure()) {
+                  // We had a fetch failure with the external shuffle service, so we
+                  // assume all shuffle data on the node is bad.
+                  Some(bmAddress.host)
+                } else {
+                  // Unregister shuffle data just for one executor (we don't have any
+                  // reason to believe shuffle data has been lost for the entire host).
+                  None
+                }
+              removeExecutorAndUnregisterOutputs(
+                execId = bmAddress.executorId,
+                fileLost = true,
+                hostToUnregisterOutputs = hostToUnregisterOutputs,
+                maybeEpoch = Some(task.epoch))
             }
-            removeExecutorAndUnregisterOutputs(
-              execId = bmAddress.executorId,
-              fileLost = true,
-              hostToUnregisterOutputs = hostToUnregisterOutputs,
-              maybeEpoch = Some(task.epoch))
           }
         }
 

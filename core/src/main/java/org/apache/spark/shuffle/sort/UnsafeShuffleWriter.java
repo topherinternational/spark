@@ -23,6 +23,8 @@ import java.io.*;
 import java.nio.channels.FileChannel;
 import java.util.Iterator;
 
+import org.apache.spark.api.java.Optional;
+import org.apache.spark.storage.BlockManagerId;
 import scala.Option;
 import scala.Product2;
 import scala.collection.JavaConverters;
@@ -37,8 +39,6 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.spark.*;
 import org.apache.spark.annotation.Private;
-import org.apache.spark.api.java.Optional;
-import org.apache.spark.api.shuffle.MapShuffleLocations;
 import org.apache.spark.api.shuffle.TransferrableWritableByteChannel;
 import org.apache.spark.api.shuffle.ShuffleMapOutputWriter;
 import org.apache.spark.api.shuffle.ShufflePartitionWriter;
@@ -219,7 +219,7 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
     final ShuffleMapOutputWriter mapWriter = shuffleWriteSupport
       .createMapOutputWriter(shuffleId, mapId, partitioner.numPartitions());
     final long[] partitionLengths;
-    Optional<MapShuffleLocations> mapLocations;
+    Optional<BlockManagerId> location;
     try {
       try {
         partitionLengths = mergeSpills(spills, mapWriter);
@@ -230,7 +230,7 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
           }
         }
       }
-      mapLocations = mapWriter.commitAllPartitions();
+      location = mapWriter.commitAllPartitions();
     } catch (Exception e) {
       try {
         mapWriter.abort(e);
@@ -239,10 +239,7 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
       }
       throw e;
     }
-    mapStatus = MapStatus$.MODULE$.apply(
-        blockManager.shuffleServerId(),
-        mapLocations.orNull(),
-        partitionLengths);
+    mapStatus = MapStatus$.MODULE$.apply(Option.apply(location.orNull()), partitionLengths);
   }
 
   @VisibleForTesting

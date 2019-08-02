@@ -37,8 +37,7 @@ import org.apache.spark.executor.ShuffleWriteMetrics
 import org.apache.spark.network.util.LimitedInputStream
 import org.apache.spark.shuffle.IndexShuffleBlockResolver
 import org.apache.spark.storage.BlockManagerId
-import org.apache.spark.util.ByteBufferInputStream
-import org.apache.spark.util.Utils
+import org.apache.spark.util.{ByteBufferInputStream, Utils}
 
 class DefaultShuffleMapOutputWriterSuite extends SparkFunSuite with BeforeAndAfterEach {
 

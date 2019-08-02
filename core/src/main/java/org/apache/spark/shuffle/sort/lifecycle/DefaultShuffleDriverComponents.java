@@ -20,6 +20,7 @@ package org.apache.spark.shuffle.sort.lifecycle;
 import com.google.common.collect.ImmutableMap;
 import org.apache.spark.SparkEnv;
 import org.apache.spark.api.shuffle.ShuffleDriverComponents;
+import org.apache.spark.internal.config.package$;
 import org.apache.spark.storage.BlockManagerMaster;
 
 import java.io.IOException;
@@ -28,10 +29,15 @@ import java.util.Map;
 public class DefaultShuffleDriverComponents implements ShuffleDriverComponents {
 
   private BlockManagerMaster blockManagerMaster;
+  private boolean shouldUnregisterOutputOnHostOnFetchFailure;
 
   @Override
   public Map<String, String> initializeApplication() {
     blockManagerMaster = SparkEnv.get().blockManager().master();
+    this.shouldUnregisterOutputOnHostOnFetchFailure =
+        SparkEnv.get().blockManager().externalShuffleServiceEnabled()
+            && (boolean) SparkEnv.get().conf()
+            .get(package$.MODULE$.UNREGISTER_OUTPUT_ON_HOST_ON_FETCH_FAILURE());
     return ImmutableMap.of();
   }
 
@@ -44,6 +50,11 @@ public class DefaultShuffleDriverComponents implements ShuffleDriverComponents {
   public void removeShuffleData(int shuffleId, boolean blocking) throws IOException {
     checkInitialized();
     blockManagerMaster.removeShuffle(shuffleId, blocking);
+  }
+
+  @Override
+  public boolean shouldUnregisterOutputOnHostOnFetchFailure() {
+    return shouldUnregisterOutputOnHostOnFetchFailure;
   }
 
   private void checkInitialized() {

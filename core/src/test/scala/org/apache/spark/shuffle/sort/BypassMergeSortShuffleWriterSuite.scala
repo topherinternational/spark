@@ -25,7 +25,7 @@ import scala.collection.mutable.ArrayBuffer
 
 import org.mockito.{Mock, MockitoAnnotations}
 import org.mockito.Answers.RETURNS_SMART_NULLS
-import org.mockito.ArgumentMatchers.{any, anyInt}
+import org.mockito.ArgumentMatchers.{any, anyInt, anyString}
 import org.mockito.Mockito._
 import org.mockito.invocation.InvocationOnMock
 import org.mockito.stubbing.Answer
@@ -140,8 +140,8 @@ class BypassMergeSortShuffleWriterSuite extends SparkFunSuite with BeforeAndAfte
       metricsSystem = null,
       taskMetrics = taskMetrics))
 
-    writeSupport = new DefaultShuffleWriteSupport(
-      conf, blockResolver, BlockManagerId("0", "localhost", 7090))
+    writeSupport =
+      new DefaultShuffleWriteSupport(conf, blockResolver, blockManager.shuffleServerId)
   }
 
   override def afterEach(): Unit = {

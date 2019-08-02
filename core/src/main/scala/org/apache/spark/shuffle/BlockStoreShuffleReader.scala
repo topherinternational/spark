@@ -28,7 +28,7 @@ import org.apache.spark.internal.{config, Logging}
 import org.apache.spark.io.CompressionCodec
 import org.apache.spark.serializer.SerializerManager
 import org.apache.spark.shuffle.io.DefaultShuffleReadSupport
-import org.apache.spark.storage.{ShuffleBlockFetcherIterator, ShuffleBlockId}
+import org.apache.spark.storage.ShuffleBlockId
 import org.apache.spark.util.CompletionIterator
 import org.apache.spark.util.collection.ExternalSorter
 
@@ -60,7 +60,7 @@ private[spark] class BlockStoreShuffleReader[K, C](
       shuffleReadSupport.getPartitionReaders(new Iterable[ShuffleBlockInfo] {
         override def iterator: Iterator[ShuffleBlockInfo] = {
           mapOutputTracker
-            .getMapSizesByShuffleLocation(handle.shuffleId, startPartition, endPartition)
+            .getMapSizesByExecutorId(handle.shuffleId, startPartition, endPartition)
             .flatMap { shuffleLocationInfo =>
               shuffleLocationInfo._2.map { blockInfo =>
                 val block = blockInfo._1.asInstanceOf[ShuffleBlockId]
