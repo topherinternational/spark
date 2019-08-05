@@ -32,14 +32,21 @@ public class ShuffleBlockInfo {
   private final int mapId;
   private final int reduceId;
   private final long length;
+  private final long mapTaskAttemptId;
   private final Optional<BlockManagerId> shuffleLocation;
 
-  public ShuffleBlockInfo(int shuffleId, int mapId, int reduceId, long length,
-    Optional<BlockManagerId> shuffleLocation) {
+  public ShuffleBlockInfo(
+      int shuffleId,
+      int mapId,
+      int reduceId,
+      long length,
+      long mapTaskAttemptId,
+      Optional<BlockManagerId> shuffleLocation) {
     this.shuffleId = shuffleId;
     this.mapId = mapId;
     this.reduceId = reduceId;
     this.length = length;
+    this.mapTaskAttemptId = mapTaskAttemptId;
     this.shuffleLocation = shuffleLocation;
   }
 
@@ -57,6 +64,10 @@ public class ShuffleBlockInfo {
 
   public long getLength() {
     return length;
+  }
+
+  public long getMapTaskAttemptId() {
+    return mapTaskAttemptId;
   }
 
   public Optional<BlockManagerId> getShuffleLocation() {

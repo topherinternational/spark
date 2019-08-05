@@ -29,7 +29,7 @@ import org.apache.spark.internal.config.Network.{RPC_ASK_TIMEOUT, RPC_MESSAGE_MA
 import org.apache.spark.rpc.{RpcAddress, RpcCallContext, RpcEnv}
 import org.apache.spark.scheduler.{CompressedMapStatus, MapStatus}
 import org.apache.spark.shuffle.FetchFailedException
-import org.apache.spark.storage.{BlockManagerId, ShuffleBlockId}
+import org.apache.spark.storage.{BlockManagerId, ShuffleBlockAttemptId, ShuffleBlockId}
 
 class MapOutputTrackerSuite extends SparkFunSuite {
   private val conf = new SparkConf
@@ -64,13 +64,15 @@ class MapOutputTrackerSuite extends SparkFunSuite {
     val size1000 = MapStatus.decompressSize(MapStatus.compressSize(1000L))
     val size10000 = MapStatus.decompressSize(MapStatus.compressSize(10000L))
     tracker.registerMapOutput(10, 0, MapStatus(Some(BlockManagerId("a", "hostA", 1000)),
-        Array(1000L, 10000L)))
+        Array(1000L, 10000L), 0))
     tracker.registerMapOutput(10, 1, MapStatus(Some(BlockManagerId("b", "hostB", 1000)),
-        Array(10000L, 1000L)))
+        Array(10000L, 1000L), 0))
     val statuses = tracker.getMapSizesByExecutorId(10, 0)
     assert(statuses.map(status => (status._1.get, status._2)).toSet ===
-      Seq((BlockManagerId("a", "hostA", 1000), ArrayBuffer((ShuffleBlockId(10, 0, 0), size1000))),
-          (BlockManagerId("b", "hostB", 1000), ArrayBuffer((ShuffleBlockId(10, 1, 0), size10000))))
+      Seq((BlockManagerId("b", "hostB", 1000),
+            ArrayBuffer((ShuffleBlockAttemptId(10, 1, 0, 0), size10000))),
+          (BlockManagerId("a", "hostA", 1000),
+            ArrayBuffer((ShuffleBlockAttemptId(10, 0, 0, 0), size1000))))
         .toSet)
     assert(0 == tracker.getNumCachedSerializedBroadcast)
     tracker.stop()
@@ -86,9 +88,9 @@ class MapOutputTrackerSuite extends SparkFunSuite {
     val compressedSize1000 = MapStatus.compressSize(1000L)
     val compressedSize10000 = MapStatus.compressSize(10000L)
     tracker.registerMapOutput(10, 0, MapStatus(Some(BlockManagerId("a", "hostA", 1000)),
-      Array(compressedSize1000, compressedSize10000)))
+      Array(compressedSize1000, compressedSize10000), 0))
     tracker.registerMapOutput(10, 1, MapStatus(Some(BlockManagerId("b", "hostB", 1000)),
-      Array(compressedSize10000, compressedSize1000)))
+      Array(compressedSize10000, compressedSize1000), 0))
     assert(tracker.containsShuffle(10))
     assert(tracker.getMapSizesByExecutorId(10, 0).nonEmpty)
     assert(0 == tracker.getNumCachedSerializedBroadcast)
@@ -109,9 +111,9 @@ class MapOutputTrackerSuite extends SparkFunSuite {
     val compressedSize1000 = MapStatus.compressSize(1000L)
     val compressedSize10000 = MapStatus.compressSize(10000L)
     tracker.registerMapOutput(10, 0, MapStatus(Some(BlockManagerId("a", "hostA", 1000)),
-        Array(compressedSize1000, compressedSize1000, compressedSize1000)))
+        Array(compressedSize1000, compressedSize1000, compressedSize1000), 0))
     tracker.registerMapOutput(10, 1, MapStatus(Some(BlockManagerId("b", "hostB", 1000)),
-        Array(compressedSize10000, compressedSize1000, compressedSize1000)))
+        Array(compressedSize10000, compressedSize1000, compressedSize1000), 0))
 
     assert(0 == tracker.getNumCachedSerializedBroadcast)
     // As if we had two simultaneous fetch failures
@@ -147,11 +149,12 @@ class MapOutputTrackerSuite extends SparkFunSuite {
 
     val size1000 = MapStatus.decompressSize(MapStatus.compressSize(1000L))
     masterTracker.registerMapOutput(10, 0, MapStatus(
-      Some(BlockManagerId("a", "hostA", 1000)), Array(1000L)))
+      Some(BlockManagerId("a", "hostA", 1000)), Array(1000L), 0))
     slaveTracker.updateEpoch(masterTracker.getEpoch)
     assert(slaveTracker.getMapSizesByExecutorId(10, 0)
       .map(status => (status._1.get, status._2)).toSeq ===
-      Seq((BlockManagerId("a", "hostA", 1000), ArrayBuffer((ShuffleBlockId(10, 0, 0), size1000)))))
+      Seq((BlockManagerId("a", "hostA", 1000),
+        ArrayBuffer((ShuffleBlockAttemptId(10, 0, 0, 0), size1000)))))
     assert(0 == masterTracker.getNumCachedSerializedBroadcast)
 
     val masterTrackerEpochBeforeLossOfMapOutput = masterTracker.getEpoch
@@ -185,7 +188,7 @@ class MapOutputTrackerSuite extends SparkFunSuite {
     // Message size should be ~123B, and no exception should be thrown
     masterTracker.registerShuffle(10, 1)
     masterTracker.registerMapOutput(10, 0, MapStatus(
-      Some(BlockManagerId("88", "mph", 1000)), Array.fill[Long](10)(0)))
+      Some(BlockManagerId("88", "mph", 1000)), Array.fill[Long](10)(0), 0))
     val senderAddress = RpcAddress("localhost", 12345)
     val rpcCallContext = mock(classOf[RpcCallContext])
     when(rpcCallContext.senderAddress).thenReturn(senderAddress)
@@ -219,11 +222,11 @@ class MapOutputTrackerSuite extends SparkFunSuite {
     // on hostB with output size 3
     tracker.registerShuffle(10, 3)
     tracker.registerMapOutput(10, 0, MapStatus(Some(BlockManagerId("a", "hostA", 1000)),
-        Array(2L)))
+        Array(2L), 0))
     tracker.registerMapOutput(10, 1, MapStatus(Some(BlockManagerId("a", "hostA", 1000)),
-        Array(2L)))
+        Array(2L), 0))
     tracker.registerMapOutput(10, 2, MapStatus(Some(BlockManagerId("b", "hostB", 1000)),
-        Array(3L)))
+        Array(3L), 0))
 
     // When the threshold is 50%, only host A should be returned as a preferred location
     // as it has 4 out of 7 bytes of output.
@@ -263,7 +266,7 @@ class MapOutputTrackerSuite extends SparkFunSuite {
       masterTracker.registerShuffle(20, 100)
       (0 until 100).foreach { i =>
         masterTracker.registerMapOutput(20, i, new CompressedMapStatus(
-          Some(BlockManagerId("999", "mps", 1000)), Array.fill[Long](4000000)(0)))
+          Some(BlockManagerId("999", "mps", 1000)), Array.fill[Long](4000000)(0), 0))
       }
       val senderAddress = RpcAddress("localhost", 12345)
       val rpcCallContext = mock(classOf[RpcCallContext])
@@ -312,16 +315,18 @@ class MapOutputTrackerSuite extends SparkFunSuite {
     val size1000 = MapStatus.decompressSize(MapStatus.compressSize(1000L))
     val size10000 = MapStatus.decompressSize(MapStatus.compressSize(10000L))
     tracker.registerMapOutput(10, 0, MapStatus(Some(BlockManagerId("a", "hostA", 1000)),
-      Array(size0, size1000, size0, size10000)))
+      Array(size0, size1000, size0, size10000), 0))
     tracker.registerMapOutput(10, 1, MapStatus(Some(BlockManagerId("b", "hostB", 1000)),
-      Array(size10000, size0, size1000, size0)))
+      Array(size10000, size0, size1000, size0), 0))
     assert(tracker.containsShuffle(10))
     assert(tracker.getMapSizesByExecutorId(10, 0, 4).toSeq ===
         Seq(
           (Some(BlockManagerId("b", "hostB", 1000)),
-            Seq((ShuffleBlockId(10, 1, 0), size10000), (ShuffleBlockId(10, 1, 2), size1000))),
+            Seq((ShuffleBlockAttemptId(10, 1, 0, 0), size10000),
+                (ShuffleBlockAttemptId(10, 1, 2, 0), size1000))),
           (Some(BlockManagerId("a", "hostA", 1000)),
-              Seq((ShuffleBlockId(10, 0, 1), size1000), (ShuffleBlockId(10, 0, 3), size10000)))
+              Seq((ShuffleBlockAttemptId(10, 0, 1, 0), size1000),
+                  (ShuffleBlockAttemptId(10, 0, 3, 0), size10000)))
         )
     )
 
@@ -340,43 +345,44 @@ class MapOutputTrackerSuite extends SparkFunSuite {
     val size1000 = MapStatus.decompressSize(MapStatus.compressSize(1000L))
     val size10000 = MapStatus.decompressSize(MapStatus.compressSize(10000L))
     tracker.registerMapOutput(10, 0, MapStatus(Some(BlockManagerId("a", "hostA", 1000)),
-      Array(1000L, 10000L)))
-    tracker.registerMapOutput(10, 1, MapStatus(None, Array(10000L, 1000L)))
-    tracker.registerMapOutput(10, 2, MapStatus(None, Array(1000L, 10000L)))
+      Array(1000L, 10000L), 0))
+    tracker.registerMapOutput(10, 1, MapStatus(None, Array(10000L, 1000L), 0))
+    tracker.registerMapOutput(10, 2, MapStatus(None, Array(1000L, 10000L), 0))
     var statuses = tracker.getMapSizesByExecutorId(10, 0)
     assert(statuses.toSet ===
       Seq(
         (None,
-          ArrayBuffer((ShuffleBlockId(10, 1, 0), size10000),
-            (ShuffleBlockId(10, 2, 0), size1000))),
+          ArrayBuffer((ShuffleBlockAttemptId(10, 1, 0, 0), size10000),
+            (ShuffleBlockAttemptId(10, 2, 0, 0), size1000))),
         (Some(BlockManagerId("a", "hostA", 1000)),
-          ArrayBuffer((ShuffleBlockId(10, 0, 0), size1000))))
+          ArrayBuffer((ShuffleBlockAttemptId(10, 0, 0, 0), size1000))))
         .toSet)
     assert(0 == tracker.getNumCachedSerializedBroadcast)
     tracker.removeOutputsOnHost("hostA")
 
     tracker.registerMapOutput(10, 0, MapStatus(Some(BlockManagerId("b", "hostB", 1000)),
-      Array(1000L, 10000L)))
+      Array(1000L, 10000L), 0))
     statuses = tracker.getMapSizesByExecutorId(10, 0)
     assert(statuses.toSet ===
       Seq(
         (None,
-          ArrayBuffer((ShuffleBlockId(10, 1, 0), size10000),
-            (ShuffleBlockId(10, 2, 0), size1000))),
+          ArrayBuffer((ShuffleBlockAttemptId(10, 1, 0, 0), size10000),
+            (ShuffleBlockAttemptId(10, 2, 0, 0), size1000))),
         (Some(BlockManagerId("b", "hostB", 1000)),
-          ArrayBuffer((ShuffleBlockId(10, 0, 0), size1000))))
+          ArrayBuffer((ShuffleBlockAttemptId(10, 0, 0, 0), size1000))))
         .toSet)
     tracker.unregisterMapOutput(10, 1, null)
 
     tracker.registerMapOutput(10, 1, MapStatus(Some(BlockManagerId("b", "hostB", 1000)),
-      Array(1000L, 10000L)))
+      Array(1000L, 10000L), 0))
     statuses = tracker.getMapSizesByExecutorId(10, 0)
     assert(statuses.toSet ===
       Seq(
         (Some(BlockManagerId("b", "hostB", 1000)),
-          ArrayBuffer((ShuffleBlockId(10, 0, 0), size1000), (ShuffleBlockId(10, 1, 0), size1000))),
+          ArrayBuffer((ShuffleBlockAttemptId(10, 0, 0, 0), size1000),
+                      (ShuffleBlockAttemptId(10, 1, 0, 0), size1000))),
         (None,
-          ArrayBuffer((ShuffleBlockId(10, 2, 0), size1000))))
+          ArrayBuffer((ShuffleBlockAttemptId(10, 2, 0, 0), size1000))))
         .toSet)
 
     val outputs = tracker.getLocationsWithLargestOutputs(10, 0, 2, 0.01)
@@ -395,16 +401,16 @@ class MapOutputTrackerSuite extends SparkFunSuite {
     val size1000 = MapStatus.decompressSize(MapStatus.compressSize(1000L))
     val size10000 = MapStatus.decompressSize(MapStatus.compressSize(10000L))
     tracker.registerMapOutput(10, 0, MapStatus(Some(BlockManagerId(null, "hostA", 1000)),
-      Array(1000L, 10000L)))
+      Array(1000L, 10000L), 0))
     tracker.registerMapOutput(10, 1, MapStatus(Some(BlockManagerId(null, "hostB", 1000)),
-      Array(10000L, 1000L)))
+      Array(10000L, 1000L), 0))
     var statuses = tracker.getMapSizesByExecutorId(10, 0)
     assert(statuses.toSet ===
       Seq(
         (Some(BlockManagerId(null, "hostB", 1000)),
-          ArrayBuffer((ShuffleBlockId(10, 1, 0), size10000))),
+          ArrayBuffer((ShuffleBlockAttemptId(10, 1, 0, 0), size10000))),
         (Some(BlockManagerId(null, "hostA", 1000)),
-          ArrayBuffer((ShuffleBlockId(10, 0, 0), size1000))))
+          ArrayBuffer((ShuffleBlockAttemptId(10, 0, 0, 0), size1000))))
         .toSet)
     assert(0 == tracker.getNumCachedSerializedBroadcast)
     tracker.removeOutputsOnExecutor("a")
@@ -413,21 +419,21 @@ class MapOutputTrackerSuite extends SparkFunSuite {
     assert(statuses.toSet ===
       Seq(
         (Some(BlockManagerId(null, "hostB", 1000)),
-          ArrayBuffer((ShuffleBlockId(10, 1, 0), size10000))),
+          ArrayBuffer((ShuffleBlockAttemptId(10, 1, 0, 0), size10000))),
         (Some(BlockManagerId(null, "hostA", 1000)),
-          ArrayBuffer((ShuffleBlockId(10, 0, 0), size1000))))
+          ArrayBuffer((ShuffleBlockAttemptId(10, 0, 0, 0), size1000))))
         .toSet)
     tracker.unregisterMapOutput(10, 1, BlockManagerId(null, "hostA", 1000))
 
     tracker.registerMapOutput(10, 0, MapStatus(Some(BlockManagerId("b", "hostB", 1000)),
-      Array(1000L, 10000L)))
+      Array(1000L, 10000L), 0))
     statuses = tracker.getMapSizesByExecutorId(10, 0)
     assert(statuses.toSet ===
       Seq(
         (Some(BlockManagerId(null, "hostB", 1000)),
-          ArrayBuffer((ShuffleBlockId(10, 1, 0), size10000))),
+          ArrayBuffer((ShuffleBlockAttemptId(10, 1, 0, 0), size10000))),
         (Some(BlockManagerId("b", "hostB", 1000)),
-          ArrayBuffer((ShuffleBlockId(10, 0, 0), size1000))))
+          ArrayBuffer((ShuffleBlockAttemptId(10, 0, 0, 0), size1000))))
         .toSet)
     val outputs = tracker.getLocationsWithLargestOutputs(10, 0, 2, 0.01)
     assert(outputs.get.toSeq === Seq(BlockManagerId("b", "hostB", 1000)))

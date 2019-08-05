@@ -158,6 +158,7 @@ private[spark] class SortShuffleManager(conf: SparkConf) extends ShuffleManager 
           env.blockManager,
           bypassMergeSortHandle,
           mapId,
+          context.taskAttemptId(),
           env.conf,
           metrics,
           shuffleExecutorComponents.writes())

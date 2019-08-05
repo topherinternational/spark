@@ -217,7 +217,10 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
     final SpillInfo[] spills = sorter.closeAndGetSpills();
     sorter = null;
     final ShuffleMapOutputWriter mapWriter = shuffleWriteSupport
-      .createMapOutputWriter(shuffleId, mapId, partitioner.numPartitions());
+      .createMapOutputWriter(shuffleId,
+          mapId,
+          taskContext.taskAttemptId(),
+          partitioner.numPartitions());
     final long[] partitionLengths;
     Optional<BlockManagerId> location;
     try {
@@ -239,7 +242,8 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
       }
       throw e;
     }
-    mapStatus = MapStatus$.MODULE$.apply(Option.apply(location.orNull()), partitionLengths);
+    mapStatus = MapStatus$.MODULE$.apply(
+        Option.apply(location.orNull()), partitionLengths, taskContext.attemptNumber());
   }
 
   @VisibleForTesting

@@ -43,6 +43,7 @@ public class DefaultShuffleWriteSupport implements ShuffleWriteSupport {
   public ShuffleMapOutputWriter createMapOutputWriter(
       int shuffleId,
       int mapId,
+      long mapTaskAttemptId,
       int numPartitions) {
     return new DefaultShuffleMapOutputWriter(
       shuffleId, mapId, numPartitions, shuffleServerId,

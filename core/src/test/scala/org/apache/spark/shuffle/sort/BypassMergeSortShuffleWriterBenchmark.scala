@@ -55,6 +55,7 @@ object BypassMergeSortShuffleWriterBenchmark extends ShuffleWriterBenchmarkBase 
       blockManager,
       shuffleHandle,
       0,
+      taskContext.taskAttemptId(),
       conf,
       taskContext.taskMetrics().shuffleWriteMetrics,
       shuffleWriteSupport
