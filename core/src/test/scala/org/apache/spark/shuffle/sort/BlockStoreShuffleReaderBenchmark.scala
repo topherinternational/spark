@@ -18,6 +18,8 @@ package org.apache.spark.shuffle.sort
 
 import java.io.{File, FileOutputStream}
 
+import scala.util.Random
+
 import com.google.common.io.CountingOutputStream
 import org.apache.commons.io.FileUtils
 import org.mockito.{Mock, MockitoAnnotations}
@@ -26,7 +28,6 @@ import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.when
 import org.mockito.invocation.InvocationOnMock
 import org.mockito.stubbing.Answer
-import scala.util.Random
 
 import org.apache.spark.{Aggregator, MapOutputTracker, ShuffleDependency, SparkConf, SparkEnv, TaskContext}
 import org.apache.spark.benchmark.{Benchmark, BenchmarkBase}
@@ -40,7 +41,7 @@ import org.apache.spark.rpc.{RpcEndpoint, RpcEndpointRef, RpcEnv}
 import org.apache.spark.serializer.{KryoSerializer, SerializerManager}
 import org.apache.spark.shuffle.{BaseShuffleHandle, BlockStoreShuffleReader, FetchFailedException}
 import org.apache.spark.shuffle.io.DefaultShuffleReadSupport
-import org.apache.spark.storage.{BlockId, BlockManager, BlockManagerId, BlockManagerMaster, ShuffleBlockId}
+import org.apache.spark.storage.{BlockId, BlockManager, BlockManagerId, BlockManagerMaster, ShuffleBlockAttemptId, ShuffleBlockId}
 import org.apache.spark.util.{AccumulatorV2, TaskCompletionListener, TaskFailureListener, Utils}
 
 /**
@@ -196,14 +197,14 @@ object BlockStoreShuffleReaderBenchmark extends BenchmarkBase {
     }
 
     when(mapOutputTracker.getMapSizesByExecutorId(0, 0, 1))
-      .thenAnswer(new Answer[Iterator[(BlockManagerId, Seq[(BlockId, Long)])]] {
+      .thenAnswer(new Answer[Iterator[(Option[BlockManagerId], Seq[(BlockId, Long)])]] {
         def answer(invocationOnMock: InvocationOnMock):
-        Iterator[(BlockManagerId, Seq[(BlockId, Long)])] = {
+        Iterator[(Option[BlockManagerId], Seq[(BlockId, Long)])] = {
           val shuffleBlockIdsAndSizes = (0 until NUM_MAPS).map { mapId =>
-            val shuffleBlockId = ShuffleBlockId(0, mapId, 0)
+            val shuffleBlockId = ShuffleBlockAttemptId(0, mapId, 0, 0)
             (shuffleBlockId, dataFileLength)
           }
-          Seq((dataBlockId, shuffleBlockIdsAndSizes)).toIterator
+          Seq((Some(dataBlockId), shuffleBlockIdsAndSizes)).toIterator
         }
       })
 
