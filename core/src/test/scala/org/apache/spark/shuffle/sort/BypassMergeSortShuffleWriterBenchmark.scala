@@ -51,7 +51,7 @@ object BypassMergeSortShuffleWriterBenchmark extends ShuffleWriterBenchmarkBase 
     conf.set("spark.shuffle.file.buffer", "32k")
     val shuffleWriteSupport =
       new DefaultShuffleWriteSupport(
-        conf, blockResolver, BlockManagerId("0", "localhost", 0, None))
+        conf, blockResolver, BlockManagerId("0", "localhost", 7077, None))
 
     val shuffleWriter = new BypassMergeSortShuffleWriter[String, String](
       blockManager,
