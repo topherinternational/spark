@@ -37,6 +37,6 @@ public interface ShuffleReadSupport {
       throws IOException;
 
   default boolean shouldWrapStream() {
-    return true;
+    return false;
   }
 }
