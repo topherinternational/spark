@@ -23,9 +23,6 @@ import java.io.*;
 import java.nio.channels.FileChannel;
 import java.util.Iterator;
 
-import org.apache.spark.api.java.Optional;
-import org.apache.spark.shuffle.api.ShuffleExecutorComponents;
-import org.apache.spark.storage.BlockManagerId;
 import scala.Option;
 import scala.Product2;
 import scala.collection.JavaConverters;
@@ -40,10 +37,12 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.spark.*;
 import org.apache.spark.annotation.Private;
-import org.apache.spark.shuffle.api.TransferrableWritableByteChannel;
+import org.apache.spark.shuffle.api.MapOutputWriterCommitMessage;
+import org.apache.spark.shuffle.api.ShuffleExecutorComponents;
 import org.apache.spark.shuffle.api.ShuffleMapOutputWriter;
 import org.apache.spark.shuffle.api.ShufflePartitionWriter;
 import org.apache.spark.shuffle.api.SupportsTransferTo;
+import org.apache.spark.shuffle.api.TransferrableWritableByteChannel;
 import org.apache.spark.internal.config.package$;
 import org.apache.spark.io.CompressionCodec;
 import org.apache.spark.io.CompressionCodec$;
@@ -222,11 +221,10 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
           mapId,
           taskContext.taskAttemptId(),
           partitioner.numPartitions());
-    final long[] partitionLengths;
-    Optional<BlockManagerId> location;
+    MapOutputWriterCommitMessage commitMessage;
     try {
       try {
-        partitionLengths = mergeSpills(spills, mapWriter);
+        mergeSpills(spills, mapWriter);
       } finally {
         for (SpillInfo spill : spills) {
           if (spill.file.exists() && !spill.file.delete()) {
@@ -234,7 +232,7 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
           }
         }
       }
-      location = mapWriter.commitAllPartitions();
+      commitMessage = mapWriter.commitAllPartitions();
     } catch (Exception e) {
       try {
         mapWriter.abort(e);
@@ -244,7 +242,9 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
       throw e;
     }
     mapStatus = MapStatus$.MODULE$.apply(
-        location.orNull(), partitionLengths, taskContext.attemptNumber());
+        commitMessage.getLocation().orElse(null),
+        commitMessage.getPartitionLengths(),
+        taskContext.attemptNumber());
   }
 
   @VisibleForTesting
@@ -276,7 +276,7 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
    *
    * @return the partition lengths in the merged file.
    */
-  private long[] mergeSpills(SpillInfo[] spills,
+  private void mergeSpills(SpillInfo[] spills,
       ShuffleMapOutputWriter mapWriter) throws IOException {
     final boolean compressionEnabled = (boolean) sparkConf.get(package$.MODULE$.SHUFFLE_COMPRESS());
     final CompressionCodec compressionCodec = CompressionCodec$.MODULE$.createCodec(sparkConf);
@@ -285,12 +285,8 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
     final boolean fastMergeIsSupported = !compressionEnabled ||
       CompressionCodec$.MODULE$.supportsConcatenationOfSerializedStreams(compressionCodec);
     final boolean encryptionEnabled = blockManager.serializerManager().encryptionEnabled();
-    final int numPartitions = partitioner.numPartitions();
-    long[] partitionLengths = new long[numPartitions];
     try {
-      if (spills.length == 0) {
-        return partitionLengths;
-      } else {
+      if (spills.length > 0) {
         // There are multiple spills to merge, so none of these spill files' lengths were counted
         // towards our shuffle write count or shuffle write time. If we use the slow merge path,
         // then the final output file's size won't necessarily be equal to the sum of the spill
@@ -307,14 +303,14 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
           // that doesn't need to interpret the spilled bytes.
           if (transferToEnabled && !encryptionEnabled) {
             logger.debug("Using transferTo-based fast merge");
-            partitionLengths = mergeSpillsWithTransferTo(spills, mapWriter);
+            mergeSpillsWithTransferTo(spills, mapWriter);
           } else {
             logger.debug("Using fileStream-based fast merge");
-            partitionLengths = mergeSpillsWithFileStream(spills, mapWriter, null);
+            mergeSpillsWithFileStream(spills, mapWriter, null);
           }
         } else {
           logger.debug("Using slow merge");
-          partitionLengths = mergeSpillsWithFileStream(spills, mapWriter, compressionCodec);
+          mergeSpillsWithFileStream(spills, mapWriter, compressionCodec);
         }
         // When closing an UnsafeShuffleExternalSorter that has already spilled once but also has
         // in-memory records, we write out the in-memory records to a file but do not count that
@@ -322,7 +318,6 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
         // to be counted as shuffle write, but this will lead to double-counting of the final
         // SpillInfo's bytes.
         writeMetrics.decBytesWritten(spills[spills.length - 1].file.length());
-        return partitionLengths;
       }
     } catch (IOException e) {
       throw e;
@@ -345,12 +340,11 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
    * @param compressionCodec the IO compression codec, or null if shuffle compression is disabled.
    * @return the partition lengths in the merged file.
    */
-  private long[] mergeSpillsWithFileStream(
+  private void mergeSpillsWithFileStream(
       SpillInfo[] spills,
       ShuffleMapOutputWriter mapWriter,
       @Nullable CompressionCodec compressionCodec) throws IOException {
     final int numPartitions = partitioner.numPartitions();
-    final long[] partitionLengths = new long[numPartitions];
     final InputStream[] spillInputStreams = new InputStream[spills.length];
 
     boolean threwException = true;
@@ -395,7 +389,6 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
           Closeables.close(partitionOutput, copyThrewExecption);
         }
         long numBytesWritten = writer.getNumBytesWritten();
-        partitionLengths[partition] = numBytesWritten;
         writeMetrics.incBytesWritten(numBytesWritten);
       }
       threwException = false;
@@ -406,7 +399,6 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
         Closeables.close(stream, threwException);
       }
     }
-    return partitionLengths;
   }
 
   /**
@@ -418,11 +410,10 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
    * @param mapWriter the map output writer to use for output.
    * @return the partition lengths in the merged file.
    */
-  private long[] mergeSpillsWithTransferTo(
+  private void mergeSpillsWithTransferTo(
       SpillInfo[] spills,
       ShuffleMapOutputWriter mapWriter) throws IOException {
     final int numPartitions = partitioner.numPartitions();
-    final long[] partitionLengths = new long[numPartitions];
     final FileChannel[] spillInputChannels = new FileChannel[spills.length];
     final long[] spillInputChannelPositions = new long[spills.length];
 
@@ -455,7 +446,6 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
           Closeables.close(partitionChannel, copyThrewExecption);
         }
         long numBytes = writer.getNumBytesWritten();
-        partitionLengths[partition] = numBytes;
         writeMetrics.incBytesWritten(numBytes);
       }
       threwException = false;
@@ -467,7 +457,6 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
         Closeables.close(spillInputChannels[i], threwException);
       }
     }
-    return partitionLengths;
   }
 
   @Override

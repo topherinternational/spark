@@ -21,13 +21,10 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.util.Optional;
 import javax.annotation.Nullable;
 
-import org.apache.spark.api.java.Optional;
-import org.apache.spark.shuffle.api.ShuffleExecutorComponents;
 import scala.None$;
 import scala.Option;
 import scala.Product2;
@@ -42,6 +39,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.spark.Partitioner;
 import org.apache.spark.ShuffleDependency;
 import org.apache.spark.SparkConf;
+import org.apache.spark.shuffle.api.MapOutputWriterCommitMessage;
 import org.apache.spark.shuffle.api.ShuffleExecutorComponents;
 import org.apache.spark.shuffle.api.ShuffleMapOutputWriter;
 import org.apache.spark.shuffle.api.ShufflePartitionWriter;
@@ -97,7 +95,7 @@ final class BypassMergeSortShuffleWriter<K, V> extends ShuffleWriter<K, V> {
   private DiskBlockObjectWriter[] partitionWriters;
   private FileSegment[] partitionWriterSegments;
   @Nullable private MapStatus mapStatus;
-  private long[] partitionLengths;
+  private MapOutputWriterCommitMessage commitMessage;
 
   /**
    * Are we in the process of stopping? Because map tasks can call stop() with success = true
@@ -122,7 +120,6 @@ final class BypassMergeSortShuffleWriter<K, V> extends ShuffleWriter<K, V> {
     this.mapId = mapId;
     this.mapTaskAttemptId = mapTaskAttemptId;
     this.shuffleId = dep.shuffleId();
-    this.mapTaskAttemptId = mapTaskAttemptId;
     this.partitioner = dep.partitioner();
     this.numPartitions = partitioner.numPartitions();
     this.writeMetrics = writeMetrics;
@@ -137,11 +134,11 @@ final class BypassMergeSortShuffleWriter<K, V> extends ShuffleWriter<K, V> {
         .createMapOutputWriter(shuffleId, mapId, mapTaskAttemptId, numPartitions);
     try {
       if (!records.hasNext()) {
-        partitionLengths = new long[numPartitions];
-        mapOutputWriter.commitAllPartitions();
+        commitMessage = mapOutputWriter.commitAllPartitions();
         mapStatus = MapStatus$.MODULE$.apply(
-            blockManager.shuffleServerId(),
-            partitionLengths);
+            commitMessage.getLocation().orElse(null),
+            commitMessage.getPartitionLengths(),
+            mapTaskAttemptId);
         return;
       }
       final SerializerInstance serInstance = serializer.newInstance();
@@ -173,9 +170,11 @@ final class BypassMergeSortShuffleWriter<K, V> extends ShuffleWriter<K, V> {
         }
       }
 
-      partitionLengths = writePartitionedData(mapOutputWriter);
-      mapOutputWriter.commitAllPartitions();
-      mapStatus = MapStatus$.MODULE$.apply(blockManager.shuffleServerId(), partitionLengths);
+      commitMessage = writePartitionedData(mapOutputWriter);
+      mapStatus = MapStatus$.MODULE$.apply(
+          commitMessage.getLocation().orElse(null),
+          commitMessage.getPartitionLengths(),
+          mapTaskAttemptId);
     } catch (Exception e) {
       try {
         mapOutputWriter.abort(e);
@@ -189,7 +188,7 @@ final class BypassMergeSortShuffleWriter<K, V> extends ShuffleWriter<K, V> {
 
   @VisibleForTesting
   long[] getPartitionLengths() {
-    return partitionLengths;
+    return commitMessage.getPartitionLengths();
   }
 
   /**
@@ -197,42 +196,39 @@ final class BypassMergeSortShuffleWriter<K, V> extends ShuffleWriter<K, V> {
    *
    * @return array of lengths, in bytes, of each partition of the file (used by map output tracker).
    */
-  private long[] writePartitionedData(ShuffleMapOutputWriter mapOutputWriter) throws IOException {
+  private MapOutputWriterCommitMessage writePartitionedData(
+      ShuffleMapOutputWriter mapOutputWriter) throws IOException {
     // Track location of the partition starts in the output file
-    final long[] lengths = new long[numPartitions];
-    if (partitionWriters == null) {
-      // We were passed an empty iterator
-      return lengths;
-    }
-    final long writeStartTime = System.nanoTime();
-    try {
-      for (int i = 0; i < numPartitions; i++) {
-        final File file = partitionWriterSegments[i].file();
-        ShufflePartitionWriter writer = mapOutputWriter.getPartitionWriter(i);
-        if (file.exists()) {
-          if (transferToEnabled) {
-            // Using WritableByteChannelWrapper to make resource closing consistent between
-            // this implementation and UnsafeShuffleWriter.
-            Optional<WritableByteChannelWrapper> maybeOutputChannel = writer.openChannelWrapper();
-            if (maybeOutputChannel.isPresent()) {
-              writePartitionedDataWithChannel(file, maybeOutputChannel.get());
+    if (partitionWriters != null) {
+      final long writeStartTime = System.nanoTime();
+      try {
+        for (int i = 0; i < numPartitions; i++) {
+          final File file = partitionWriterSegments[i].file();
+          ShufflePartitionWriter writer = mapOutputWriter.getPartitionWriter(i);
+          if (file.exists()) {
+            if (transferToEnabled) {
+              // Using WritableByteChannelWrapper to make resource closing consistent between
+              // this implementation and UnsafeShuffleWriter.
+              Optional<WritableByteChannelWrapper> maybeOutputChannel = writer.openChannelWrapper();
+              if (maybeOutputChannel.isPresent()) {
+                writePartitionedDataWithChannel(file, maybeOutputChannel.get());
+              } else {
+                writePartitionedDataWithStream(file, writer);
+              }
             } else {
               writePartitionedDataWithStream(file, writer);
             }
-          } else {
-            writePartitionedDataWithStream(file, writer);
-          }
-          if (!file.delete()) {
-            logger.error("Unable to delete file for partition {}", i);
+            if (!file.delete()) {
+              logger.error("Unable to delete file for partition {}", i);
+            }
           }
         }
-        lengths[i] = writer.getNumBytesWritten();
+      } finally {
+        writeMetrics.incWriteTime(System.nanoTime() - writeStartTime);
       }
-    } finally {
-      writeMetrics.incWriteTime(System.nanoTime() - writeStartTime);
+      partitionWriters = null;
     }
-    partitionWriters = null;
-    return lengths;
+    return mapOutputWriter.commitAllPartitions();
   }
 
   private void writePartitionedDataWithChannel(
