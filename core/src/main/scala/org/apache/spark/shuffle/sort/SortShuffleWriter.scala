@@ -67,9 +67,9 @@ private[spark] class SortShuffleWriter[K, V, C](
     val mapOutputWriter = shuffleExecutorComponents.createMapOutputWriter(
       dep.shuffleId, mapId, context.taskAttemptId(), dep.partitioner.numPartitions)
     sorter.writePartitionedMapOutput(dep.shuffleId, mapId, mapOutputWriter)
-    val commitMessage = mapOutputWriter.commitAllPartitions
+    val commitMessage = mapOutputWriter.commitAllPartitions()
     mapStatus = MapStatus(
-      commitMessage.getLocation().orElse(null),
+      commitMessage.getLocation.orElse(null),
       commitMessage.getPartitionLengths,
       context.taskAttemptId())
   }

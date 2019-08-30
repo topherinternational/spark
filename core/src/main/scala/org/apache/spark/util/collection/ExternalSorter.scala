@@ -24,14 +24,18 @@ import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
 import com.google.common.io.ByteStreams
-import org.apache.spark._
+import com.google.common.io.{ByteStreams, Closeables}
 
-import org.apache.spark.api.shuffle.ShufflePartitionWriter
+import org.apache.spark._
 import org.apache.spark.executor.ShuffleWriteMetrics
 import org.apache.spark.internal.{config, Logging}
 import org.apache.spark.serializer._
 import org.apache.spark.shuffle.api.{ShuffleMapOutputWriter, ShufflePartitionWriter}
 import org.apache.spark.storage.{BlockId, DiskBlockObjectWriter, ShuffleBlockId}
+import org.apache.spark.shuffle.ShufflePartitionPairsWriter
+import org.apache.spark.shuffle.api.{ShuffleMapOutputWriter, ShufflePartitionWriter}
+import org.apache.spark.storage.{BlockId, DiskBlockObjectWriter, ShuffleBlockId}
+import org.apache.spark.util.{Utils => TryUtils}
 
 /**
  * Sorts and potentially merges a number of key-value pairs of type (K, V) to produce key-combiner
@@ -676,9 +680,9 @@ private[spark] class ExternalSorter[K, V, C](
   }
 
   /**
-   * TODO remove this, as this is only used by UnsafeRowSerializerSuite in the SQL project.
-   * We should figure out an alternative way to test that so that we can remove this otherwise
-   * unused code path.
+   * TODO(SPARK-28764): remove this, as this is only used by UnsafeRowSerializerSuite in the SQL
+   * project. We should figure out an alternative way to test that so that we can remove this
+   * otherwise unused code path.
    */
   def writePartitionedFile(
       blockId: BlockId,
@@ -729,7 +733,10 @@ private[spark] class ExternalSorter[K, V, C](
    * @return array of lengths, in bytes, of each partition of the file (used by map output tracker)
    */
   def writePartitionedMapOutput(
-      shuffleId: Int, mapId: Int, mapOutputWriter: ShuffleMapOutputWriter): Unit = {
+      shuffleId: Int,
+      mapId: Int,
+      mapOutputWriter: ShuffleMapOutputWriter): Unit = {
+    var nextPartitionId = 0
     if (spills.isEmpty) {
       // Case where we only have in-memory data
       val collection = if (aggregator.isDefined) map else buffer
@@ -738,7 +745,7 @@ private[spark] class ExternalSorter[K, V, C](
         val partitionId = it.nextPartition()
         var partitionWriter: ShufflePartitionWriter = null
         var partitionPairsWriter: ShufflePartitionPairsWriter = null
-        try {
+        TryUtils.tryWithSafeFinally {
           partitionWriter = mapOutputWriter.getPartitionWriter(partitionId)
           val blockId = ShuffleBlockId(shuffleId, mapId, partitionId)
           partitionPairsWriter = new ShufflePartitionPairsWriter(
@@ -750,25 +757,20 @@ private[spark] class ExternalSorter[K, V, C](
           while (it.hasNext && it.nextPartition() == partitionId) {
             it.writeNext(partitionPairsWriter)
           }
-        } finally {
+        } {
           if (partitionPairsWriter != null) {
             partitionPairsWriter.close()
           }
         }
+        nextPartitionId = partitionId + 1
       }
     } else {
       // We must perform merge-sort; get an iterator by partition and write everything directly.
       for ((id, elements) <- this.partitionedIterator) {
-        // The contract for the plugin is that we will ask for a writer for every partition
-        // even if it's empty. However, the external sorter will return non-contiguous
-        // partition ids. So this loop "backfills" the empty partitions that form the gaps.
-
-        // The algorithm as a whole is correct because the partition ids are returned by the
-        // iterator in ascending order.
         val blockId = ShuffleBlockId(shuffleId, mapId, id)
         var partitionWriter: ShufflePartitionWriter = null
         var partitionPairsWriter: ShufflePartitionPairsWriter = null
-        try {
+        TryUtils.tryWithSafeFinally {
           partitionWriter = mapOutputWriter.getPartitionWriter(id)
           partitionPairsWriter = new ShufflePartitionPairsWriter(
             partitionWriter,
@@ -781,11 +783,12 @@ private[spark] class ExternalSorter[K, V, C](
               partitionPairsWriter.write(elem._1, elem._2)
             }
           }
-        } finally {
-          if (partitionPairsWriter!= null) {
+        } {
+          if (partitionPairsWriter != null) {
             partitionPairsWriter.close()
           }
         }
+        nextPartitionId = id + 1
       }
     }
 
