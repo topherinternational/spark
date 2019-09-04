@@ -425,8 +425,94 @@ case class DataSourceStrategy(conf: SQLConf) extends Strategy with Logging with 
   }
 }
 
+// TODO(rramsharan): cherry pick https://github.com/apache/spark/pull/23770 and
+//  maybe https://github.com/apache/spark/pull/24598 (but maybe not necessary).
 object DataSourceStrategy {
   /**
+<<<<<<< HEAD
+=======
+   * The attribute name of predicate could be different than the one in schema in case of
+   * case insensitive, we should change them to match the one in schema, so we do not need to
+   * worry about case sensitivity anymore.
+   */
+  protected[sql] def normalizeFilters(
+      filters: Seq[Expression],
+      attributes: Seq[AttributeReference]): Seq[Expression] = {
+    filters.map { e =>
+      e transform {
+        case a: AttributeReference =>
+          a.withName(attributes.find(_.semanticEquals(a)).getOrElse(a).name)
+      }
+    }
+  }
+
+  private def translateLeafNodeFilter(predicate: Expression): Option[Filter] = predicate match {
+    case expressions.EqualTo(a: Attribute, Literal(v, t)) =>
+      Some(sources.EqualTo(a.name, convertToScala(v, t)))
+    case expressions.EqualTo(Literal(v, t), a: Attribute) =>
+      Some(sources.EqualTo(a.name, convertToScala(v, t)))
+
+    case expressions.EqualNullSafe(a: Attribute, Literal(v, t)) =>
+      Some(sources.EqualNullSafe(a.name, convertToScala(v, t)))
+    case expressions.EqualNullSafe(Literal(v, t), a: Attribute) =>
+      Some(sources.EqualNullSafe(a.name, convertToScala(v, t)))
+
+    case expressions.GreaterThan(a: Attribute, Literal(v, t)) =>
+      Some(sources.GreaterThan(a.name, convertToScala(v, t)))
+    case expressions.GreaterThan(Literal(v, t), a: Attribute) =>
+      Some(sources.LessThan(a.name, convertToScala(v, t)))
+
+    case expressions.LessThan(a: Attribute, Literal(v, t)) =>
+      Some(sources.LessThan(a.name, convertToScala(v, t)))
+    case expressions.LessThan(Literal(v, t), a: Attribute) =>
+      Some(sources.GreaterThan(a.name, convertToScala(v, t)))
+
+    case expressions.GreaterThanOrEqual(a: Attribute, Literal(v, t)) =>
+      Some(sources.GreaterThanOrEqual(a.name, convertToScala(v, t)))
+    case expressions.GreaterThanOrEqual(Literal(v, t), a: Attribute) =>
+      Some(sources.LessThanOrEqual(a.name, convertToScala(v, t)))
+
+    case expressions.LessThanOrEqual(a: Attribute, Literal(v, t)) =>
+      Some(sources.LessThanOrEqual(a.name, convertToScala(v, t)))
+    case expressions.LessThanOrEqual(Literal(v, t), a: Attribute) =>
+      Some(sources.GreaterThanOrEqual(a.name, convertToScala(v, t)))
+
+    case expressions.InSet(a: Attribute, set) =>
+      val toScala = CatalystTypeConverters.createToScalaConverter(a.dataType)
+      Some(sources.In(a.name, set.toArray.map(toScala)))
+
+    // Because we only convert In to InSet in Optimizer when there are more than certain
+    // items. So it is possible we still get an In expression here that needs to be pushed
+    // down.
+    case expressions.In(a: Attribute, list) if list.forall(_.isInstanceOf[Literal]) =>
+      val hSet = list.map(_.eval(EmptyRow))
+      val toScala = CatalystTypeConverters.createToScalaConverter(a.dataType)
+      Some(sources.In(a.name, hSet.toArray.map(toScala)))
+
+    case expressions.IsNull(a: Attribute) =>
+      Some(sources.IsNull(a.name))
+    case expressions.IsNotNull(a: Attribute) =>
+      Some(sources.IsNotNull(a.name))
+    case expressions.StartsWith(a: Attribute, Literal(v: UTF8String, StringType)) =>
+      Some(sources.StringStartsWith(a.name, v.toString))
+
+    case expressions.EndsWith(a: Attribute, Literal(v: UTF8String, StringType)) =>
+      Some(sources.StringEndsWith(a.name, v.toString))
+
+    case expressions.Contains(a: Attribute, Literal(v: UTF8String, StringType)) =>
+      Some(sources.StringContains(a.name, v.toString))
+
+    case expressions.Literal(true, BooleanType) =>
+      Some(sources.AlwaysTrue)
+
+    case expressions.Literal(false, BooleanType) =>
+      Some(sources.AlwaysFalse)
+
+    case _ => None
+  }
+
+  /**
+>>>>>>> a7a3935c97... [SPARK-11150][SQL] Dynamic Partition Pruning
    * Tries to translate a Catalyst [[Expression]] into data source [[Filter]].
    *
    * @return a `Some[Filter]` if the input [[Expression]] is convertible, otherwise a `None`.

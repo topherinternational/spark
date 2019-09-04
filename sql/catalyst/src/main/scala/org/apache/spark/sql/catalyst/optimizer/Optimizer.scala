@@ -18,10 +18,10 @@
 package org.apache.spark.sql.catalyst.optimizer
 
 import scala.collection.mutable
-
 import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.catalyst.analysis._
 import org.apache.spark.sql.catalyst.catalog.{InMemoryCatalog, SessionCatalog}
+import org.apache.spark.sql.catalyst.expressions.WindowFunctionType.SQL
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.expressions.aggregate._
 import org.apache.spark.sql.catalyst.plans._
@@ -79,6 +79,7 @@ abstract class Optimizer(sessionCatalog: SessionCatalog)
 
   override protected val blacklistedOnceBatches: Set[String] =
     Set("Pullup Correlated Expressions",
+      "PartitionPruning",
       "Extract Python UDFs"
     )
 
