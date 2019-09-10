@@ -18,21 +18,36 @@
 package org.apache.spark.shuffle.api;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.Map;
 
-import org.apache.spark.annotation.Experimental;
+import org.apache.spark.annotation.Private;
 
 /**
- * :: Experimental ::
- * An interface for building shuffle support for Executors
+ * :: Private ::
+ * An interface for building shuffle support for Executors.
  *
  * @since 3.0.0
  */
-@Experimental
+@Private
 public interface ShuffleExecutorComponents {
+
+  /**
+   * Called once per executor to bootstrap this module with state that is specific to
+   * that executor, specifically the application ID and executor ID.
+   */
   void initializeExecutor(String appId, String execId, Map<String, String> extraConfigs);
 
+  /**
+   * Called once per map task to create a writer that will be responsible for persisting all the
+   * partitioned bytes written by that map task.
+   * @param shuffleId Unique identifier for the shuffle the map task is a part of
+   * @param mapId Within the shuffle, the identifier of the map task
+   * @param mapTaskAttemptId Identifier of the task attempt. Multiple attempts of the same map task
+   *                         with the same (shuffleId, mapId) pair can be distinguished by the
+   *                         different values of mapTaskAttemptId.
+   * @param numPartitions The number of partitions that will be written by the map task. Some of
+   *                      these partitions may be empty.
+   */
   ShuffleMapOutputWriter createMapOutputWriter(
       int shuffleId,
       int mapId,

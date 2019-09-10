@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
+import java.util.Optional;
 import javax.annotation.Nullable;
 
 import org.apache.spark.api.java.Optional;
@@ -41,10 +42,10 @@ import org.slf4j.LoggerFactory;
 import org.apache.spark.Partitioner;
 import org.apache.spark.ShuffleDependency;
 import org.apache.spark.SparkConf;
-import org.apache.spark.shuffle.api.SupportsTransferTo;
+import org.apache.spark.shuffle.api.ShuffleExecutorComponents;
 import org.apache.spark.shuffle.api.ShuffleMapOutputWriter;
 import org.apache.spark.shuffle.api.ShufflePartitionWriter;
-import org.apache.spark.shuffle.api.TransferrableWritableByteChannel;
+import org.apache.spark.shuffle.api.WritableByteChannelWrapper;
 import org.apache.spark.internal.config.package$;
 import org.apache.spark.scheduler.MapStatus;
 import org.apache.spark.scheduler.MapStatus$;
@@ -119,6 +120,7 @@ final class BypassMergeSortShuffleWriter<K, V> extends ShuffleWriter<K, V> {
     this.blockManager = blockManager;
     final ShuffleDependency<K, V, V> dep = handle.dependency();
     this.mapId = mapId;
+    this.mapTaskAttemptId = mapTaskAttemptId;
     this.shuffleId = dep.shuffleId();
     this.mapTaskAttemptId = mapTaskAttemptId;
     this.partitioner = dep.partitioner();
@@ -136,11 +138,10 @@ final class BypassMergeSortShuffleWriter<K, V> extends ShuffleWriter<K, V> {
     try {
       if (!records.hasNext()) {
         partitionLengths = new long[numPartitions];
-        Optional<BlockManagerId> location = mapOutputWriter.commitAllPartitions();
+        mapOutputWriter.commitAllPartitions();
         mapStatus = MapStatus$.MODULE$.apply(
-            location.orNull(),
-            partitionLengths,
-            mapTaskAttemptId);
+            blockManager.shuffleServerId(),
+            partitionLengths);
         return;
       }
       final SerializerInstance serInstance = serializer.newInstance();
@@ -173,13 +174,14 @@ final class BypassMergeSortShuffleWriter<K, V> extends ShuffleWriter<K, V> {
       }
 
       partitionLengths = writePartitionedData(mapOutputWriter);
-      Optional<BlockManagerId> location = mapOutputWriter.commitAllPartitions();
-      mapStatus = MapStatus$.MODULE$.apply(location.orNull(), partitionLengths, mapTaskAttemptId);
+      mapOutputWriter.commitAllPartitions();
+      mapStatus = MapStatus$.MODULE$.apply(blockManager.shuffleServerId(), partitionLengths);
     } catch (Exception e) {
       try {
         mapOutputWriter.abort(e);
       } catch (Exception e2) {
         logger.error("Failed to abort the writer after failing to write map output.", e2);
+        e.addSuppressed(e2);
       }
       throw e;
     }
@@ -208,36 +210,17 @@ final class BypassMergeSortShuffleWriter<K, V> extends ShuffleWriter<K, V> {
         final File file = partitionWriterSegments[i].file();
         ShufflePartitionWriter writer = mapOutputWriter.getPartitionWriter(i);
         if (file.exists()) {
-          boolean copyThrewException = true;
           if (transferToEnabled) {
-            FileInputStream in = new FileInputStream(file);
-            TransferrableWritableByteChannel outputChannel = null;
-            try (FileChannel inputChannel = in.getChannel()) {
-              if (writer instanceof SupportsTransferTo) {
-                outputChannel = ((SupportsTransferTo) writer).openTransferrableChannel();
-              } else {
-                // Use default transferrable writable channel anyways in order to have parity with
-                // UnsafeShuffleWriter.
-                outputChannel = new DefaultTransferrableWritableByteChannel(
-                    Channels.newChannel(writer.openStream()));
-              }
-              outputChannel.transferFrom(inputChannel, 0L, inputChannel.size());
-              copyThrewException = false;
-            } finally {
-              Closeables.close(in, copyThrewException);
-              Closeables.close(outputChannel, copyThrewException);
+            // Using WritableByteChannelWrapper to make resource closing consistent between
+            // this implementation and UnsafeShuffleWriter.
+            Optional<WritableByteChannelWrapper> maybeOutputChannel = writer.openChannelWrapper();
+            if (maybeOutputChannel.isPresent()) {
+              writePartitionedDataWithChannel(file, maybeOutputChannel.get());
+            } else {
+              writePartitionedDataWithStream(file, writer);
             }
           } else {
-            FileInputStream in = new FileInputStream(file);
-            OutputStream outputStream = null;
-            try {
-              outputStream = writer.openStream();
-              Utils.copyStream(in, outputStream, false, false);
-              copyThrewException = false;
-            } finally {
-              Closeables.close(in, copyThrewException);
-              Closeables.close(outputStream, copyThrewException);
-            }
+            writePartitionedDataWithStream(file, writer);
           }
           if (!file.delete()) {
             logger.error("Unable to delete file for partition {}", i);
@@ -250,6 +233,42 @@ final class BypassMergeSortShuffleWriter<K, V> extends ShuffleWriter<K, V> {
     }
     partitionWriters = null;
     return lengths;
+  }
+
+  private void writePartitionedDataWithChannel(
+      File file,
+      WritableByteChannelWrapper outputChannel) throws IOException {
+    boolean copyThrewException = true;
+    try {
+      FileInputStream in = new FileInputStream(file);
+      try (FileChannel inputChannel = in.getChannel()) {
+        Utils.copyFileStreamNIO(
+            inputChannel, outputChannel.channel(), 0L, inputChannel.size());
+        copyThrewException = false;
+      } finally {
+        Closeables.close(in, copyThrewException);
+      }
+    } finally {
+      Closeables.close(outputChannel, copyThrewException);
+    }
+  }
+
+  private void writePartitionedDataWithStream(File file, ShufflePartitionWriter writer)
+      throws IOException {
+    boolean copyThrewException = true;
+    FileInputStream in = new FileInputStream(file);
+    OutputStream outputStream;
+    try {
+      outputStream = writer.openStream();
+      try {
+        Utils.copyStream(in, outputStream, false, false);
+        copyThrewException = false;
+      } finally {
+        Closeables.close(outputStream, copyThrewException);
+      }
+    } finally {
+      Closeables.close(in, copyThrewException);
+    }
   }
 
   @Override

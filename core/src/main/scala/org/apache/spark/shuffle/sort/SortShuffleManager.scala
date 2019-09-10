@@ -22,8 +22,6 @@ import java.util.concurrent.ConcurrentHashMap
 import scala.collection.JavaConverters._
 
 import org.apache.spark._
-
-import org.apache.spark.api.shuffle.ShuffleExecutorComponents
 import org.apache.spark.internal.{config, Logging}
 import org.apache.spark.shuffle._
 import org.apache.spark.shuffle.api.{ShuffleDataIO, ShuffleExecutorComponents}
@@ -148,6 +146,7 @@ private[spark] class SortShuffleManager(conf: SparkConf) extends ShuffleManager 
       case unsafeShuffleHandle: SerializedShuffleHandle[K @unchecked, V @unchecked] =>
         new UnsafeShuffleWriter(
           env.blockManager,
+          shuffleBlockResolver,
           context.taskMemoryManager(),
           unsafeShuffleHandle,
           mapId,
