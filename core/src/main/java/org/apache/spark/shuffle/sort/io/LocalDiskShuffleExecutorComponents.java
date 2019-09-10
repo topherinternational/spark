@@ -18,6 +18,7 @@
 package org.apache.spark.shuffle.sort.io;
 
 import java.util.Map;
+import java.util.Optional;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -26,6 +27,7 @@ import org.apache.spark.SparkEnv;
 import org.apache.spark.shuffle.api.ShuffleExecutorComponents;
 import org.apache.spark.shuffle.api.ShuffleMapOutputWriter;
 import org.apache.spark.shuffle.IndexShuffleBlockResolver;
+import org.apache.spark.shuffle.api.SingleSpillShuffleMapOutputWriter;
 import org.apache.spark.storage.BlockManager;
 
 public class LocalDiskShuffleExecutorComponents implements ShuffleExecutorComponents {
@@ -69,5 +71,17 @@ public class LocalDiskShuffleExecutorComponents implements ShuffleExecutorCompon
     }
     return new LocalDiskShuffleMapOutputWriter(
         shuffleId, mapId, numPartitions, blockResolver, sparkConf);
+  }
+
+  @Override
+  public Optional<SingleSpillShuffleMapOutputWriter> createSingleFileMapOutputWriter(
+      int shuffleId,
+      int mapId,
+      long mapTaskAttemptId) {
+    if (blockResolver == null) {
+      throw new IllegalStateException(
+          "Executor components must be initialized before getting writers.");
+    }
+    return Optional.of(new LocalDiskSingleSpillMapOutputWriter(shuffleId, mapId, blockResolver));
   }
 }

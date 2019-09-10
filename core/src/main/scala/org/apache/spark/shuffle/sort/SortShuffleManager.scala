@@ -146,7 +146,6 @@ private[spark] class SortShuffleManager(conf: SparkConf) extends ShuffleManager 
       case unsafeShuffleHandle: SerializedShuffleHandle[K @unchecked, V @unchecked] =>
         new UnsafeShuffleWriter(
           env.blockManager,
-          shuffleBlockResolver,
           context.taskMemoryManager(),
           unsafeShuffleHandle,
           mapId,
