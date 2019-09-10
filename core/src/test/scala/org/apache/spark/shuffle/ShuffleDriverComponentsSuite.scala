@@ -17,15 +17,16 @@
 
 package org.apache.spark.shuffle
 
-import java.util
+import java.io.InputStream
+import java.lang.{Iterable => JIterable}
+import java.util.{Map => JMap}
 
 import com.google.common.collect.ImmutableMap
 
-import org.apache.spark.{LocalSparkContext, SparkConf, SparkContext, SparkEnv, SparkFunSuite}
-import org.apache.spark.api.shuffle.{ShuffleDataIO, ShuffleDriverComponents, ShuffleExecutorComponents, ShuffleReadSupport, ShuffleWriteSupport}
+import org.apache.spark.{LocalSparkContext, SparkConf, SparkContext, SparkFunSuite}
 import org.apache.spark.internal.config.SHUFFLE_IO_PLUGIN_CLASS
-import org.apache.spark.shuffle.io.DefaultShuffleReadSupport
-import org.apache.spark.shuffle.sort.io.DefaultShuffleWriteSupport
+import org.apache.spark.shuffle.api.{ShuffleBlockInfo, ShuffleDataIO, ShuffleDriverComponents, ShuffleExecutorComponents, ShuffleMapOutputWriter}
+import org.apache.spark.shuffle.sort.io.DefaultShuffleExecutorComponents
 
 class ShuffleDriverComponentsSuite extends SparkFunSuite with LocalSparkContext {
   test(s"test serialization of shuffle initialization conf to executors") {
@@ -43,7 +44,7 @@ class ShuffleDriverComponentsSuite extends SparkFunSuite with LocalSparkContext 
 }
 
 class TestShuffleDriverComponents extends ShuffleDriverComponents {
-  override def initializeApplication(): util.Map[String, String] =
+  override def initializeApplication(): JMap[String, String] =
     ImmutableMap.of("test-key", "test-value")
 }
 
@@ -55,21 +56,29 @@ class TestShuffleDataIO(sparkConf: SparkConf) extends ShuffleDataIO {
 }
 
 class TestShuffleExecutorComponents(sparkConf: SparkConf) extends ShuffleExecutorComponents {
-  override def initializeExecutor(appId: String, execId: String,
-                                  extraConfigs: util.Map[String, String]): Unit = {
+
+  private var delegate = new DefaultShuffleExecutorComponents(sparkConf)
+
+  override def initializeExecutor(
+      appId: String, execId: String, extraConfigs: JMap[String, String]): Unit = {
     assert(extraConfigs.get("test-key") == "test-value")
+    delegate.initializeExecutor(appId, execId, extraConfigs)
   }
 
-  override def writes(): ShuffleWriteSupport = {
-    val blockManager = SparkEnv.get.blockManager
-    val blockResolver = new IndexShuffleBlockResolver(sparkConf, blockManager)
-    new DefaultShuffleWriteSupport(sparkConf, blockResolver, blockManager.shuffleServerId)
+  override def createMapOutputWriter(
+      shuffleId: Int,
+      mapId: Int,
+      mapTaskAttemptId: Long,
+      numPartitions: Int): ShuffleMapOutputWriter = {
+    delegate.createMapOutputWriter(shuffleId, mapId, mapTaskAttemptId, numPartitions)
   }
 
-  override def reads(): ShuffleReadSupport = {
-    val blockManager = SparkEnv.get.blockManager
-    val mapOutputTracker = SparkEnv.get.mapOutputTracker
-    val serializerManager = SparkEnv.get.serializerManager
-    new DefaultShuffleReadSupport(blockManager, mapOutputTracker, serializerManager, sparkConf)
+  override def getPartitionReaders(
+      blockMetadata: JIterable[ShuffleBlockInfo]): JIterable[InputStream] = {
+    delegate.getPartitionReaders(blockMetadata)
+  }
+
+  override def shouldWrapPartitionReaderStream(): Boolean = {
+    delegate.shouldWrapPartitionReaderStream()
   }
 }

@@ -15,23 +15,38 @@
  * limitations under the License.
  */
 
-package org.apache.spark.api.shuffle;
+package org.apache.spark.shuffle.api;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.util.Map;
 
 import org.apache.spark.annotation.Experimental;
 
 /**
  * :: Experimental ::
- * An interface for deploying a shuffle map output writer
+ * An interface for building shuffle support for Executors
  *
  * @since 3.0.0
  */
 @Experimental
-public interface ShuffleWriteSupport {
+public interface ShuffleExecutorComponents {
+  void initializeExecutor(String appId, String execId, Map<String, String> extraConfigs);
+
   ShuffleMapOutputWriter createMapOutputWriter(
-    int shuffleId,
-    int mapId,
-    long mapTaskAttemptId,
-    int numPartitions) throws IOException;
+      int shuffleId,
+      int mapId,
+      long mapTaskAttemptId,
+      int numPartitions) throws IOException;
+
+  /**
+   * Returns an underlying {@link Iterable<InputStream>} that will iterate
+   * through shuffle data, given an iterable for the shuffle blocks to fetch.
+   */
+  Iterable<InputStream> getPartitionReaders(Iterable<ShuffleBlockInfo> blockMetadata)
+      throws IOException;
+
+  default boolean shouldWrapPartitionReaderStream() {
+    return true;
+  }
 }

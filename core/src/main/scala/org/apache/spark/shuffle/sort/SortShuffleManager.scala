@@ -22,9 +22,11 @@ import java.util.concurrent.ConcurrentHashMap
 import scala.collection.JavaConverters._
 
 import org.apache.spark._
-import org.apache.spark.api.shuffle.{ShuffleDataIO, ShuffleExecutorComponents}
+
+import org.apache.spark.api.shuffle.ShuffleExecutorComponents
 import org.apache.spark.internal.{config, Logging}
 import org.apache.spark.shuffle._
+import org.apache.spark.shuffle.api.{ShuffleDataIO, ShuffleExecutorComponents}
 import org.apache.spark.util.Utils
 
 /**
@@ -152,7 +154,7 @@ private[spark] class SortShuffleManager(conf: SparkConf) extends ShuffleManager 
           context,
           env.conf,
           metrics,
-          shuffleExecutorComponents.writes())
+          shuffleExecutorComponents)
       case bypassMergeSortHandle: BypassMergeSortShuffleHandle[K @unchecked, V @unchecked] =>
         new BypassMergeSortShuffleWriter(
           env.blockManager,
@@ -161,10 +163,10 @@ private[spark] class SortShuffleManager(conf: SparkConf) extends ShuffleManager 
           context.taskAttemptId(),
           env.conf,
           metrics,
-          shuffleExecutorComponents.writes())
+          shuffleExecutorComponents)
       case other: BaseShuffleHandle[K @unchecked, V @unchecked, _] =>
         new SortShuffleWriter(
-          shuffleBlockResolver, other, mapId, context, shuffleExecutorComponents.writes())
+          shuffleBlockResolver, other, mapId, context, shuffleExecutorComponents)
     }
   }
 

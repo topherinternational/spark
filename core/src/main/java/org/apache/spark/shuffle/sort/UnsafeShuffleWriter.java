@@ -24,6 +24,7 @@ import java.nio.channels.FileChannel;
 import java.util.Iterator;
 
 import org.apache.spark.api.java.Optional;
+import org.apache.spark.shuffle.api.ShuffleExecutorComponents;
 import org.apache.spark.storage.BlockManagerId;
 import scala.Option;
 import scala.Product2;
@@ -39,11 +40,10 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.spark.*;
 import org.apache.spark.annotation.Private;
-import org.apache.spark.api.shuffle.TransferrableWritableByteChannel;
-import org.apache.spark.api.shuffle.ShuffleMapOutputWriter;
-import org.apache.spark.api.shuffle.ShufflePartitionWriter;
-import org.apache.spark.api.shuffle.ShuffleWriteSupport;
-import org.apache.spark.api.shuffle.SupportsTransferTo;
+import org.apache.spark.shuffle.api.TransferrableWritableByteChannel;
+import org.apache.spark.shuffle.api.ShuffleMapOutputWriter;
+import org.apache.spark.shuffle.api.ShufflePartitionWriter;
+import org.apache.spark.shuffle.api.SupportsTransferTo;
 import org.apache.spark.internal.config.package$;
 import org.apache.spark.io.CompressionCodec;
 import org.apache.spark.io.CompressionCodec$;
@@ -74,7 +74,7 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
   private final SerializerInstance serializer;
   private final Partitioner partitioner;
   private final ShuffleWriteMetricsReporter writeMetrics;
-  private final ShuffleWriteSupport shuffleWriteSupport;
+  private final ShuffleExecutorComponents shuffleExecutorComponents;
   private final int shuffleId;
   private final int mapId;
   private final TaskContext taskContext;
@@ -111,7 +111,7 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
       TaskContext taskContext,
       SparkConf sparkConf,
       ShuffleWriteMetricsReporter writeMetrics,
-      ShuffleWriteSupport shuffleWriteSupport) throws IOException {
+      ShuffleExecutorComponents shuffleExecutorComponents) {
     final int numPartitions = handle.dependency().partitioner().numPartitions();
     if (numPartitions > SortShuffleManager.MAX_SHUFFLE_OUTPUT_PARTITIONS_FOR_SERIALIZED_MODE()) {
       throw new IllegalArgumentException(
@@ -127,7 +127,7 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
     this.serializer = dep.serializer().newInstance();
     this.partitioner = dep.partitioner();
     this.writeMetrics = writeMetrics;
-    this.shuffleWriteSupport = shuffleWriteSupport;
+    this.shuffleExecutorComponents = shuffleExecutorComponents;
     this.taskContext = taskContext;
     this.sparkConf = sparkConf;
     this.transferToEnabled = sparkConf.getBoolean("spark.file.transferTo", true);
@@ -216,8 +216,9 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
     serOutputStream = null;
     final SpillInfo[] spills = sorter.closeAndGetSpills();
     sorter = null;
-    final ShuffleMapOutputWriter mapWriter = shuffleWriteSupport
-      .createMapOutputWriter(shuffleId,
+    final ShuffleMapOutputWriter mapWriter = shuffleExecutorComponents
+      .createMapOutputWriter(
+          shuffleId,
           mapId,
           taskContext.taskAttemptId(),
           partitioner.numPartitions());

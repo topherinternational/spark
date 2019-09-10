@@ -22,17 +22,17 @@ import java.io.InputStream
 import scala.collection.JavaConverters._
 
 import org.apache.spark.{MapOutputTracker, SparkConf, TaskContext}
-import org.apache.spark.api.shuffle.{ShuffleBlockInfo, ShuffleReadSupport}
 import org.apache.spark.internal.config
 import org.apache.spark.serializer.SerializerManager
 import org.apache.spark.shuffle.ShuffleReadMetricsReporter
-import org.apache.spark.storage.{BlockId, BlockManager, ShuffleBlockAttemptId, ShuffleBlockFetcherIterator, ShuffleBlockId}
+import org.apache.spark.shuffle.api.ShuffleBlockInfo
+import org.apache.spark.storage.{BlockManager, ShuffleBlockAttemptId, ShuffleBlockFetcherIterator, ShuffleBlockId}
 
 class DefaultShuffleReadSupport(
     blockManager: BlockManager,
     mapOutputTracker: MapOutputTracker,
     serializerManager: SerializerManager,
-    conf: SparkConf) extends ShuffleReadSupport {
+    conf: SparkConf) {
 
   private val maxBytesInFlight = conf.get(config.REDUCER_MAX_SIZE_IN_FLIGHT) * 1024 * 1024
   private val maxReqsInFlight = conf.get(config.REDUCER_MAX_REQS_IN_FLIGHT)
@@ -41,7 +41,7 @@ class DefaultShuffleReadSupport(
   private val maxReqSizeShuffleToMem = conf.get(config.MAX_REMOTE_BLOCK_SIZE_FETCH_TO_MEM)
   private val detectCorrupt = conf.get(config.SHUFFLE_DETECT_CORRUPT)
 
-  override def getPartitionReaders(blockMetadata: java.lang.Iterable[ShuffleBlockInfo]):
+  def getPartitionReaders(blockMetadata: java.lang.Iterable[ShuffleBlockInfo]):
       java.lang.Iterable[InputStream] = {
 
     val iterableToReturn = if (blockMetadata.asScala.isEmpty) {
@@ -70,8 +70,6 @@ class DefaultShuffleReadSupport(
     }
     iterableToReturn.asJava
   }
-
-  override def shouldWrapStream(): Boolean = false
 }
 
 private class ShuffleBlockFetcherIterable(

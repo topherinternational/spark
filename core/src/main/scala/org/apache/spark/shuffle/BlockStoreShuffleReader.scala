@@ -17,17 +17,14 @@
 
 package org.apache.spark.shuffle
 
-import java.io.InputStream
-
 import scala.collection.JavaConverters._
 
 import org.apache.spark._
 import org.apache.spark.api.java.Optional
-import org.apache.spark.api.shuffle.{ShuffleBlockInfo, ShuffleReadSupport}
 import org.apache.spark.internal.{config, Logging}
 import org.apache.spark.io.CompressionCodec
 import org.apache.spark.serializer.SerializerManager
-import org.apache.spark.shuffle.io.DefaultShuffleReadSupport
+import org.apache.spark.shuffle.api.{ShuffleBlockInfo, ShuffleExecutorComponents}
 import org.apache.spark.storage.ShuffleBlockAttemptId
 import org.apache.spark.util.CompletionIterator
 import org.apache.spark.util.collection.ExternalSorter
@@ -42,7 +39,7 @@ private[spark] class BlockStoreShuffleReader[K, C](
     endPartition: Int,
     context: TaskContext,
     readMetrics: ShuffleReadMetricsReporter,
-    shuffleReadSupport: ShuffleReadSupport,
+    shuffleExecutorComponents: ShuffleExecutorComponents,
     serializerManager: SerializerManager = SparkEnv.get.serializerManager,
     mapOutputTracker: MapOutputTracker = SparkEnv.get.mapOutputTracker,
     sparkConf: SparkConf = SparkEnv.get.conf)
@@ -57,7 +54,7 @@ private[spark] class BlockStoreShuffleReader[K, C](
   /** Read the combined key-values for this reduce task */
   override def read(): Iterator[Product2[K, C]] = {
     val streamsIterator =
-      shuffleReadSupport.getPartitionReaders(new Iterable[ShuffleBlockInfo] {
+      shuffleExecutorComponents.getPartitionReaders(new Iterable[ShuffleBlockInfo] {
         override def iterator: Iterator[ShuffleBlockInfo] = {
           mapOutputTracker
             .getMapSizesByExecutorId(handle.shuffleId, startPartition, endPartition)
@@ -76,18 +73,18 @@ private[spark] class BlockStoreShuffleReader[K, C](
         }
       }.asJava).iterator()
 
-    val retryingWrappedStreams = streamsIterator.asScala.map(readSupportStream => {
-      if (shuffleReadSupport.shouldWrapStream()) {
+    val retryingWrappedStreams = streamsIterator.asScala.map(rawReaderStream => {
+      if (shuffleExecutorComponents.shouldWrapPartitionReaderStream()) {
         if (compressShuffle) {
           compressionCodec.compressedInputStream(
-            serializerManager.wrapForEncryption(readSupportStream))
+            serializerManager.wrapForEncryption(rawReaderStream))
         } else {
-          serializerManager.wrapForEncryption(readSupportStream)
+          serializerManager.wrapForEncryption(rawReaderStream)
         }
       } else {
         // The default implementation checks for corrupt streams, so it will already have
         // decompressed/decrypted the bytes
-        readSupportStream
+        rawReaderStream
       }
     })
 

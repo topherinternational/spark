@@ -43,7 +43,7 @@ import org.apache.hadoop.mapreduce.lib.input.{FileInputFormat => NewFileInputFor
 import org.apache.spark.annotation.DeveloperApi
 import org.apache.spark.api.conda.CondaEnvironment
 import org.apache.spark.api.conda.CondaEnvironment.CondaSetupInstructions
-import org.apache.spark.api.shuffle.{ShuffleDataIO, ShuffleDriverComponents}
+import org.apache.spark.api.shuffle.ShuffleDriverComponents
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.deploy.{CondaRunner, LocalSparkCluster, SparkHadoopUtil}
 import org.apache.spark.input.{FixedLengthBinaryInputFormat, PortableDataStream, StreamInputFormat, WholeTextFileInputFormat}
@@ -58,6 +58,7 @@ import org.apache.spark.rpc.RpcEndpointRef
 import org.apache.spark.scheduler._
 import org.apache.spark.scheduler.cluster.StandaloneSchedulerBackend
 import org.apache.spark.scheduler.local.LocalSchedulerBackend
+import org.apache.spark.shuffle.api.{ShuffleDataIO, ShuffleDriverComponents}
 import org.apache.spark.status.{AppStatusSource, AppStatusStore}
 import org.apache.spark.status.api.v1.ThreadStackTrace
 import org.apache.spark.storage._

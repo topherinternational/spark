@@ -19,9 +19,9 @@ package org.apache.spark.util.collection
 
 import java.io.{Closeable, FilterOutputStream, OutputStream}
 
-import org.apache.spark.api.shuffle.ShufflePartitionWriter
 import org.apache.spark.serializer.{SerializationStream, SerializerInstance, SerializerManager}
 import org.apache.spark.shuffle.ShuffleWriteMetricsReporter
+import org.apache.spark.shuffle.api.ShufflePartitionWriter
 import org.apache.spark.storage.BlockId
 
 /**

@@ -17,12 +17,16 @@
 
 package org.apache.spark.shuffle.sort.io;
 
+import com.google.common.annotations.VisibleForTesting;
+import java.io.IOException;
+import java.io.InputStream;
 import org.apache.spark.MapOutputTracker;
 import org.apache.spark.SparkConf;
 import org.apache.spark.SparkEnv;
-import org.apache.spark.api.shuffle.ShuffleExecutorComponents;
-import org.apache.spark.api.shuffle.ShuffleReadSupport;
-import org.apache.spark.api.shuffle.ShuffleWriteSupport;
+import org.apache.spark.TaskContext;
+import org.apache.spark.shuffle.api.ShuffleBlockInfo;
+import org.apache.spark.shuffle.api.ShuffleExecutorComponents;
+import org.apache.spark.shuffle.api.ShuffleMapOutputWriter;
 import org.apache.spark.serializer.SerializerManager;
 import org.apache.spark.shuffle.IndexShuffleBlockResolver;
 import org.apache.spark.shuffle.io.DefaultShuffleReadSupport;
@@ -33,36 +37,59 @@ import java.util.Map;
 public class DefaultShuffleExecutorComponents implements ShuffleExecutorComponents {
 
   private final SparkConf sparkConf;
+  // Submodule for the read side for shuffles - implemented in Scala for ease of
+  // compatibility with previously written code.
+  private DefaultShuffleReadSupport shuffleReadSupport;
   private BlockManager blockManager;
   private IndexShuffleBlockResolver blockResolver;
-  private MapOutputTracker mapOutputTracker;
-  private SerializerManager serializerManager;
 
   public DefaultShuffleExecutorComponents(SparkConf sparkConf) {
     this.sparkConf = sparkConf;
   }
 
+  @VisibleForTesting
+  public DefaultShuffleExecutorComponents(
+      SparkConf sparkConf,
+      BlockManager blockManager,
+      MapOutputTracker mapOutputTracker,
+      SerializerManager serializerManager,
+      IndexShuffleBlockResolver blockResolver) {
+    this.sparkConf = sparkConf;
+    this.blockManager = blockManager;
+    this.blockResolver = blockResolver;
+    this.shuffleReadSupport = new DefaultShuffleReadSupport(
+        blockManager, mapOutputTracker, serializerManager, sparkConf);
+  }
+
   @Override
   public void initializeExecutor(String appId, String execId, Map<String, String> extraConfigs) {
     blockManager = SparkEnv.get().blockManager();
-    mapOutputTracker = SparkEnv.get().mapOutputTracker();
-    serializerManager = SparkEnv.get().serializerManager();
+    MapOutputTracker mapOutputTracker = SparkEnv.get().mapOutputTracker();
+    SerializerManager serializerManager = SparkEnv.get().serializerManager();
     blockResolver = new IndexShuffleBlockResolver(sparkConf, blockManager);
+    shuffleReadSupport = new DefaultShuffleReadSupport(
+        blockManager, mapOutputTracker, serializerManager, sparkConf);
   }
 
   @Override
-  public ShuffleWriteSupport writes() {
+  public ShuffleMapOutputWriter createMapOutputWriter(int shuffleId, int mapId, long mapTaskAttemptId, int numPartitions) throws IOException {
     checkInitialized();
-    return new DefaultShuffleWriteSupport(sparkConf, blockResolver, blockManager.shuffleServerId());
+    return new DefaultShuffleMapOutputWriter(
+        shuffleId,
+        mapId,
+        numPartitions,
+        blockManager.shuffleServerId(),
+        TaskContext.get().taskMetrics().shuffleWriteMetrics(), blockResolver, sparkConf);
   }
 
   @Override
-  public ShuffleReadSupport reads() {
-    checkInitialized();
-    return new DefaultShuffleReadSupport(blockManager,
-        mapOutputTracker,
-        serializerManager,
-        sparkConf);
+  public Iterable<InputStream> getPartitionReaders(Iterable<ShuffleBlockInfo> blockMetadata) throws IOException {
+    return shuffleReadSupport.getPartitionReaders(blockMetadata);
+  }
+
+  @Override
+  public boolean shouldWrapPartitionReaderStream() {
+    return false;
   }
 
   private void checkInitialized() {

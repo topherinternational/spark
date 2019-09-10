@@ -26,6 +26,7 @@ import java.nio.channels.FileChannel;
 import javax.annotation.Nullable;
 
 import org.apache.spark.api.java.Optional;
+import org.apache.spark.shuffle.api.ShuffleExecutorComponents;
 import scala.None$;
 import scala.Option;
 import scala.Product2;
@@ -40,11 +41,10 @@ import org.slf4j.LoggerFactory;
 import org.apache.spark.Partitioner;
 import org.apache.spark.ShuffleDependency;
 import org.apache.spark.SparkConf;
-import org.apache.spark.api.shuffle.SupportsTransferTo;
-import org.apache.spark.api.shuffle.ShuffleMapOutputWriter;
-import org.apache.spark.api.shuffle.ShufflePartitionWriter;
-import org.apache.spark.api.shuffle.ShuffleWriteSupport;
-import org.apache.spark.api.shuffle.TransferrableWritableByteChannel;
+import org.apache.spark.shuffle.api.SupportsTransferTo;
+import org.apache.spark.shuffle.api.ShuffleMapOutputWriter;
+import org.apache.spark.shuffle.api.ShufflePartitionWriter;
+import org.apache.spark.shuffle.api.TransferrableWritableByteChannel;
 import org.apache.spark.internal.config.package$;
 import org.apache.spark.scheduler.MapStatus;
 import org.apache.spark.scheduler.MapStatus$;
@@ -90,7 +90,7 @@ final class BypassMergeSortShuffleWriter<K, V> extends ShuffleWriter<K, V> {
   private final int mapId;
   private final long mapTaskAttemptId;
   private final Serializer serializer;
-  private final ShuffleWriteSupport shuffleWriteSupport;
+  private final ShuffleExecutorComponents shuffleExecutorComponents;
 
   /** Array of file writers, one for each partition */
   private DiskBlockObjectWriter[] partitionWriters;
@@ -112,7 +112,7 @@ final class BypassMergeSortShuffleWriter<K, V> extends ShuffleWriter<K, V> {
       long mapTaskAttemptId,
       SparkConf conf,
       ShuffleWriteMetricsReporter writeMetrics,
-      ShuffleWriteSupport shuffleWriteSupport) {
+      ShuffleExecutorComponents shuffleExecutorComponents) {
     // Use getSizeAsKb (not bytes) to maintain backwards compatibility if no units are provided
     this.fileBufferSize = (int) (long) conf.get(package$.MODULE$.SHUFFLE_FILE_BUFFER_SIZE()) * 1024;
     this.transferToEnabled = conf.getBoolean("spark.file.transferTo", true);
@@ -125,13 +125,13 @@ final class BypassMergeSortShuffleWriter<K, V> extends ShuffleWriter<K, V> {
     this.numPartitions = partitioner.numPartitions();
     this.writeMetrics = writeMetrics;
     this.serializer = dep.serializer();
-    this.shuffleWriteSupport = shuffleWriteSupport;
+    this.shuffleExecutorComponents = shuffleExecutorComponents;
   }
 
   @Override
   public void write(Iterator<Product2<K, V>> records) throws IOException {
     assert (partitionWriters == null);
-    ShuffleMapOutputWriter mapOutputWriter = shuffleWriteSupport
+    ShuffleMapOutputWriter mapOutputWriter = shuffleExecutorComponents
         .createMapOutputWriter(shuffleId, mapId, mapTaskAttemptId, numPartitions);
     try {
       if (!records.hasNext()) {

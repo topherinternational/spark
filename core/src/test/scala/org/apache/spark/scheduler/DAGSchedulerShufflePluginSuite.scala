@@ -17,11 +17,12 @@
 package org.apache.spark.scheduler
 
 import java.util
-
 import org.apache.spark.{FetchFailed, HashPartitioner, ShuffleDependency, SparkConf, Success}
-import org.apache.spark.api.shuffle.{ShuffleDataIO, ShuffleDriverComponents, ShuffleExecutorComponents}
+
+import org.apache.spark.api.shuffle.{ShuffleDriverComponents, ShuffleExecutorComponents}
 import org.apache.spark.internal.config
 import org.apache.spark.rdd.RDD
+import org.apache.spark.shuffle.api.{ShuffleDataIO, ShuffleDriverComponents, ShuffleExecutorComponents}
 import org.apache.spark.shuffle.sort.io.DefaultShuffleDataIO
 import org.apache.spark.storage.BlockManagerId
 

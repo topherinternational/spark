@@ -15,28 +15,20 @@
  * limitations under the License.
  */
 
-package org.apache.spark.api.shuffle;
+package org.apache.spark.shuffle.api;
 
 import org.apache.spark.annotation.Experimental;
 
-import java.io.IOException;
-import java.io.InputStream;
-
 /**
  * :: Experimental ::
- * An interface for reading shuffle records.
+ * An interface for launching Shuffle related components
+ *
  * @since 3.0.0
  */
 @Experimental
-public interface ShuffleReadSupport {
-  /**
-   * Returns an underlying {@link Iterable<InputStream>} that will iterate
-   * through shuffle data, given an iterable for the shuffle blocks to fetch.
-   */
-  Iterable<InputStream> getPartitionReaders(Iterable<ShuffleBlockInfo> blockMetadata)
-      throws IOException;
+public interface ShuffleDataIO {
+  String SHUFFLE_SPARK_CONF_PREFIX = "spark.shuffle.plugin.";
 
-  default boolean shouldWrapStream() {
-    return true;
-  }
+  ShuffleDriverComponents driver();
+  ShuffleExecutorComponents executor();
 }

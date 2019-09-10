@@ -18,9 +18,9 @@
 package org.apache.spark.shuffle.sort.io;
 
 import org.apache.spark.SparkConf;
-import org.apache.spark.api.shuffle.ShuffleDriverComponents;
-import org.apache.spark.api.shuffle.ShuffleExecutorComponents;
-import org.apache.spark.api.shuffle.ShuffleDataIO;
+import org.apache.spark.shuffle.api.ShuffleDriverComponents;
+import org.apache.spark.shuffle.api.ShuffleExecutorComponents;
+import org.apache.spark.shuffle.api.ShuffleDataIO;
 import org.apache.spark.shuffle.sort.lifecycle.DefaultShuffleDriverComponents;
 
 public class DefaultShuffleDataIO implements ShuffleDataIO {

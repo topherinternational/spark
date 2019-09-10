@@ -30,12 +30,12 @@ import org.mockito.MockitoAnnotations
 import org.mockito.invocation.InvocationOnMock
 import org.mockito.stubbing.Answer
 import org.scalatest.BeforeAndAfterEach
-
 import org.apache.spark.{SparkConf, SparkFunSuite}
-import org.apache.spark.api.shuffle.SupportsTransferTo
+
 import org.apache.spark.executor.ShuffleWriteMetrics
 import org.apache.spark.network.util.LimitedInputStream
 import org.apache.spark.shuffle.IndexShuffleBlockResolver
+import org.apache.spark.shuffle.api.SupportsTransferTo
 import org.apache.spark.storage.BlockManagerId
 import org.apache.spark.util.{ByteBufferInputStream, Utils}
 

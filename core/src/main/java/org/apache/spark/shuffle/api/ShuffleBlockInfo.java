@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.apache.spark.api.shuffle;
+package org.apache.spark.shuffle.api;
 
 import org.apache.spark.api.java.Optional;
 import org.apache.spark.storage.BlockManagerId;

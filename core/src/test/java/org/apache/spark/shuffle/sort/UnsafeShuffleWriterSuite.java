@@ -22,7 +22,6 @@ import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.util.*;
 
-import org.mockito.stubbing.Answer;
 import scala.Option;
 import scala.Product2;
 import scala.Tuple2;
@@ -36,8 +35,10 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.mockito.stubbing.Answer;
 
 import org.apache.spark.HashPartitioner;
+import org.apache.spark.MapOutputTracker;
 import org.apache.spark.ShuffleDependency;
 import org.apache.spark.SparkConf;
 import org.apache.spark.TaskContext;
@@ -56,7 +57,7 @@ import org.apache.spark.scheduler.MapStatus;
 import org.apache.spark.security.CryptoStreamUtils;
 import org.apache.spark.serializer.*;
 import org.apache.spark.shuffle.IndexShuffleBlockResolver;
-import org.apache.spark.shuffle.sort.io.DefaultShuffleWriteSupport;
+import org.apache.spark.shuffle.sort.io.DefaultShuffleExecutorComponents;
 import org.apache.spark.storage.*;
 import org.apache.spark.util.Utils;
 
@@ -87,6 +88,8 @@ public class UnsafeShuffleWriterSuite {
   @Mock(answer = RETURNS_SMART_NULLS) DiskBlockManager diskBlockManager;
   @Mock(answer = RETURNS_SMART_NULLS) TaskContext taskContext;
   @Mock(answer = RETURNS_SMART_NULLS) ShuffleDependency<Object, Object, Object> shuffleDep;
+  @Mock(answer = RETURNS_SMART_NULLS) MapOutputTracker mapOutputTracker;
+  @Mock(answer = RETURNS_SMART_NULLS) SerializerManager serializerManager;
 
   @After
   public void tearDown() {
@@ -181,14 +184,18 @@ public class UnsafeShuffleWriterSuite {
     conf.set("spark.file.transferTo", String.valueOf(transferToEnabled));
     return new UnsafeShuffleWriter<>(
       blockManager,
-        taskMemoryManager,
+      taskMemoryManager,
       new SerializedShuffleHandle<>(0, 1, shuffleDep),
       0, // map id
       taskContext,
       conf,
       taskContext.taskMetrics().shuffleWriteMetrics(),
-      new DefaultShuffleWriteSupport(conf, shuffleBlockResolver, blockManager.shuffleServerId())
-    );
+      new DefaultShuffleExecutorComponents(
+        conf,
+        blockManager,
+        mapOutputTracker,
+        serializerManager,
+        shuffleBlockResolver));
   }
 
   private void assertSpillFilesWereCleanedUp() {
@@ -548,7 +555,12 @@ public class UnsafeShuffleWriterSuite {
         taskContext,
         conf,
         taskContext.taskMetrics().shuffleWriteMetrics(),
-        new DefaultShuffleWriteSupport(conf, shuffleBlockResolver, blockManager.shuffleServerId()));
+        new DefaultShuffleExecutorComponents(
+          conf,
+          blockManager,
+          mapOutputTracker,
+          serializerManager,
+          shuffleBlockResolver));
 
     // Peak memory should be monotonically increasing. More specifically, every time
     // we allocate a new page it should increase by exactly the size of the page.
