@@ -26,7 +26,7 @@ import org.apache.spark.shuffle.api.ShuffleDriverComponents;
 import org.apache.spark.internal.config.package$;
 import org.apache.spark.storage.BlockManagerMaster;
 
-public class DefaultShuffleDriverComponents implements ShuffleDriverComponents {
+public class LocalDiskShuffleDriverComponents implements ShuffleDriverComponents {
 
   private BlockManagerMaster blockManagerMaster;
   private boolean shouldUnregisterOutputOnHostOnFetchFailure;

@@ -2,10 +2,10 @@ package org.apache.spark.shuffle.api;
 
 import java.util.Optional;
 
-import org.apache.spark.annotation.Experimental;
+import org.apache.spark.annotation.Private;
 import org.apache.spark.storage.BlockManagerId;
 
-@Experimental
+@Private
 public final class MapOutputWriterCommitMessage {
 
   private final long[] partitionLengths;

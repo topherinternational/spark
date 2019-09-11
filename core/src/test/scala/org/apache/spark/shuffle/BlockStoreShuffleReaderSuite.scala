@@ -20,7 +20,9 @@ package org.apache.spark.shuffle
 import java.io.{ByteArrayOutputStream, InputStream}
 import java.nio.ByteBuffer
 
-import org.mockito.Mockito.{mock, when}
+import org.mockito.Answers.RETURNS_SMART_NULLS
+import org.mockito.Mock
+import org.mockito.Mockito._
 import org.mockito.invocation.InvocationOnMock
 import org.mockito.stubbing.Answer
 
@@ -29,7 +31,7 @@ import org.apache.spark.internal.config
 import org.apache.spark.io.CompressionCodec
 import org.apache.spark.network.buffer.{ManagedBuffer, NioManagedBuffer}
 import org.apache.spark.serializer.{JavaSerializer, SerializerManager}
-import org.apache.spark.shuffle.io.LocalDiskShuffleReadSupport
+import org.apache.spark.shuffle.sort.io.LocalDiskShuffleExecutorComponents
 import org.apache.spark.storage.{BlockId, BlockManager, BlockManagerId, ShuffleBlockAttemptId, ShuffleBlockId}
 
 /**
@@ -58,6 +60,8 @@ class RecordingManagedBuffer(underlyingBuffer: NioManagedBuffer) extends Managed
 }
 
 class BlockStoreShuffleReaderSuite extends SparkFunSuite with LocalSparkContext {
+
+  @Mock(answer = RETURNS_SMART_NULLS) private var blockResolver: IndexShuffleBlockResolver = _
 
   /**
    * This test makes sure that, when data is read from a HashShuffleReader, the underlying
@@ -142,15 +146,21 @@ class BlockStoreShuffleReaderSuite extends SparkFunSuite with LocalSparkContext 
     TaskContext.setTaskContext(taskContext)
     val metrics = taskContext.taskMetrics.createTempShuffleReadMetrics()
 
-    val shuffleReadSupport =
-      new LocalDiskShuffleReadSupport(blockManager, mapOutputTracker, serializerManager, testConf)
+    val shuffleExecutorComponents =
+      new LocalDiskShuffleExecutorComponents(
+        testConf,
+        blockManager,
+        mapOutputTracker,
+        serializerManager,
+        blockResolver,
+        localBlockManagerId)
     val shuffleReader = new BlockStoreShuffleReader(
       shuffleHandle,
       reduceId,
       reduceId + 1,
       taskContext,
       metrics,
-      shuffleReadSupport,
+      shuffleExecutorComponents,
       serializerManager,
       mapOutputTracker)
 

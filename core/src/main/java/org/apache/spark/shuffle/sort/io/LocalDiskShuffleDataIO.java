@@ -21,7 +21,7 @@ import org.apache.spark.SparkConf;
 import org.apache.spark.shuffle.api.ShuffleDriverComponents;
 import org.apache.spark.shuffle.api.ShuffleExecutorComponents;
 import org.apache.spark.shuffle.api.ShuffleDataIO;
-import org.apache.spark.shuffle.sort.lifecycle.DefaultShuffleDriverComponents;
+import org.apache.spark.shuffle.sort.lifecycle.LocalDiskShuffleDriverComponents;
 
 /**
  * Implementation of the {@link ShuffleDataIO} plugin system that replicates the local shuffle
@@ -37,7 +37,7 @@ public class LocalDiskShuffleDataIO implements ShuffleDataIO {
 
   @Override
   public ShuffleDriverComponents driver() {
-    return new DefaultShuffleDriverComponents();
+    return new LocalDiskShuffleDriverComponents();
   }
 
   @Override

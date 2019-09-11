@@ -27,10 +27,13 @@ import org.mockito.ArgumentMatchers.{any, anyInt}
 import org.mockito.Mock
 import org.mockito.Mockito.when
 import org.mockito.MockitoAnnotations
+import org.mockito.invocation.InvocationOnMock
+import org.mockito.stubbing.Answer
 import org.scalatest.BeforeAndAfterEach
 
 import org.apache.spark.{SparkConf, SparkFunSuite}
 import org.apache.spark.shuffle.IndexShuffleBlockResolver
+import org.apache.spark.storage.BlockManagerId
 import org.apache.spark.util.Utils
 
 class LocalDiskShuffleMapOutputWriterSuite extends SparkFunSuite with BeforeAndAfterEach {
@@ -39,6 +42,7 @@ class LocalDiskShuffleMapOutputWriterSuite extends SparkFunSuite with BeforeAndA
   private var blockResolver: IndexShuffleBlockResolver = _
 
   private val NUM_PARTITIONS = 4
+  private val BLOCK_MANAGER_ID = BlockManagerId("localhost", 7077)
   private val data: Array[Array[Byte]] = (0 until NUM_PARTITIONS).map { p =>
     if (p == 3) {
       Array.emptyByteArray
@@ -76,7 +80,7 @@ class LocalDiskShuffleMapOutputWriterSuite extends SparkFunSuite with BeforeAndA
     when(blockResolver.getDataFile(anyInt, anyInt)).thenReturn(mergedOutputFile)
     when(blockResolver.writeIndexFileAndCommit(
       anyInt, anyInt, any(classOf[Array[Long]]), any(classOf[File])))
-      .thenAnswer { invocationOnMock =>
+      .thenAnswer { (invocationOnMock: InvocationOnMock) =>
         partitionSizesInMergedFile = invocationOnMock.getArguments()(2).asInstanceOf[Array[Long]]
         val tmp: File = invocationOnMock.getArguments()(3).asInstanceOf[File]
         if (tmp != null) {
@@ -90,6 +94,7 @@ class LocalDiskShuffleMapOutputWriterSuite extends SparkFunSuite with BeforeAndA
       0,
       NUM_PARTITIONS,
       blockResolver,
+      BLOCK_MANAGER_ID,
       conf)
   }
 
@@ -141,5 +146,14 @@ class LocalDiskShuffleMapOutputWriterSuite extends SparkFunSuite with BeforeAndA
     assert(committedLengths === partitionLengths)
     assert(mergedOutputFile.length() === partitionLengths.sum)
     assert(data === readRecordsFromFile())
+  }
+
+  /**
+   * This won't be necessary with Scala 2.12
+   */
+  private implicit def functionToAnswer[T](func: InvocationOnMock => T): Answer[T] = {
+    new Answer[T] {
+      override def answer(invocationOnMock: InvocationOnMock): T = func(invocationOnMock)
+    }
   }
 }

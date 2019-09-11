@@ -30,7 +30,6 @@ import scala.collection.mutable.ArrayBuffer
 import scala.util.Random
 
 import org.apache.spark.{HashPartitioner, MapOutputTracker, ShuffleDependency, SparkConf, TaskContext}
-
 import org.apache.spark.benchmark.{Benchmark, BenchmarkBase}
 import org.apache.spark.executor.TaskMetrics
 import org.apache.spark.memory.{MemoryManager, TaskMemoryManager, TestMemoryManager}

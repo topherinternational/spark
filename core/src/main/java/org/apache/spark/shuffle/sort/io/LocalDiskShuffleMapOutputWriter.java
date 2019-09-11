@@ -26,17 +26,17 @@ import java.nio.channels.FileChannel;
 import java.nio.channels.WritableByteChannel;
 import java.util.Optional;
 
-import org.apache.spark.shuffle.api.MapOutputWriterCommitMessage;
-import org.apache.spark.storage.BlockManagerId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.spark.SparkConf;
+import org.apache.spark.shuffle.IndexShuffleBlockResolver;
+import org.apache.spark.shuffle.api.MapOutputWriterCommitMessage;
 import org.apache.spark.shuffle.api.ShuffleMapOutputWriter;
 import org.apache.spark.shuffle.api.ShufflePartitionWriter;
 import org.apache.spark.shuffle.api.WritableByteChannelWrapper;
+import org.apache.spark.storage.BlockManagerId;
 import org.apache.spark.internal.config.package$;
-import org.apache.spark.shuffle.IndexShuffleBlockResolver;
 import org.apache.spark.util.Utils;
 
 /**

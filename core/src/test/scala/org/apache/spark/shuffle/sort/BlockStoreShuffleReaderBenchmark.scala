@@ -39,8 +39,9 @@ import org.apache.spark.network.buffer.{FileSegmentManagedBuffer, ManagedBuffer}
 import org.apache.spark.network.netty.{NettyBlockTransferService, SparkTransportConf}
 import org.apache.spark.rpc.{RpcEndpoint, RpcEndpointRef, RpcEnv}
 import org.apache.spark.serializer.{KryoSerializer, SerializerManager}
-import org.apache.spark.shuffle.{BaseShuffleHandle, BlockStoreShuffleReader, FetchFailedException}
+import org.apache.spark.shuffle.{BaseShuffleHandle, BlockStoreShuffleReader, FetchFailedException, IndexShuffleBlockResolver}
 import org.apache.spark.shuffle.io.LocalDiskShuffleReadSupport
+import org.apache.spark.shuffle.sort.io.LocalDiskShuffleExecutorComponents
 import org.apache.spark.storage.{BlockId, BlockManager, BlockManagerId, BlockManagerMaster, ShuffleBlockAttemptId, ShuffleBlockId}
 import org.apache.spark.util.{AccumulatorV2, TaskCompletionListener, TaskFailureListener, Utils}
 
@@ -67,6 +68,7 @@ object BlockStoreShuffleReaderBenchmark extends BenchmarkBase {
   // this is only used when initiating the BlockManager, for comms between master and executor
   @Mock(answer = RETURNS_SMART_NULLS) private var rpcEnv: RpcEnv = _
   @Mock(answer = RETURNS_SMART_NULLS) protected var rpcEndpointRef: RpcEndpointRef = _
+  @Mock(answer = RETURNS_SMART_NULLS) private var blockResolver: IndexShuffleBlockResolver = _
 
   private var tempDir: File = _
 
@@ -212,11 +214,13 @@ object BlockStoreShuffleReaderBenchmark extends BenchmarkBase {
     when(dependency.aggregator).thenReturn(aggregator)
     when(dependency.keyOrdering).thenReturn(sorter)
 
-    val readSupport = new LocalDiskShuffleReadSupport(
+    val shuffleExecutorComponents = new LocalDiskShuffleExecutorComponents(
+      defaultConf,
       blockManager,
       mapOutputTracker,
       serializerManager,
-      defaultConf)
+      blockResolver,
+      blockManager.shuffleServerId)
 
     new BlockStoreShuffleReader[String, String](
       shuffleHandle,
@@ -224,7 +228,7 @@ object BlockStoreShuffleReaderBenchmark extends BenchmarkBase {
       1,
       taskContext,
       taskContext.taskMetrics().createTempShuffleReadMetrics(),
-      readSupport,
+      shuffleExecutorComponents,
       serializerManager,
       mapOutputTracker
     )

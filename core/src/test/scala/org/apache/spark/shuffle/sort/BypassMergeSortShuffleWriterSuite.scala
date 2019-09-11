@@ -18,10 +18,11 @@
 package org.apache.spark.shuffle.sort
 
 import java.io.File
-import java.util.{Properties, UUID}
+import java.util.UUID
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
+import scala.language.existentials
 
 import org.mockito.{Mock, MockitoAnnotations}
 import org.mockito.Answers.RETURNS_SMART_NULLS
@@ -30,7 +31,6 @@ import org.mockito.Mockito._
 import org.mockito.invocation.InvocationOnMock
 import org.mockito.stubbing.Answer
 import org.scalatest.BeforeAndAfterEach
-import scala.util.Random
 
 import org.apache.spark._
 import org.apache.spark.executor.{ShuffleWriteMetrics, TaskMetrics}
@@ -84,7 +84,7 @@ class BypassMergeSortShuffleWriterSuite extends SparkFunSuite with BeforeAndAfte
 
     when(blockResolver.writeIndexFileAndCommit(
       anyInt, anyInt, any(classOf[Array[Long]]), any(classOf[File])))
-      .thenAnswer { invocationOnMock =>
+      .thenAnswer { (invocationOnMock: InvocationOnMock) =>
         val tmp = invocationOnMock.getArguments()(3).asInstanceOf[File]
         if (tmp != null) {
           outputFile.delete
@@ -99,7 +99,7 @@ class BypassMergeSortShuffleWriterSuite extends SparkFunSuite with BeforeAndAfte
       any[SerializerInstance],
       anyInt(),
       any[ShuffleWriteMetrics]))
-      .thenAnswer { invocation =>
+      .thenAnswer { (invocation: InvocationOnMock) =>
         val args = invocation.getArguments
         val manager = new SerializerManager(new JavaSerializer(conf), conf)
         new DiskBlockObjectWriter(
@@ -113,7 +113,7 @@ class BypassMergeSortShuffleWriterSuite extends SparkFunSuite with BeforeAndAfte
       }
 
     when(diskBlockManager.createTempShuffleBlock())
-      .thenAnswer { _ =>
+      .thenAnswer { (invocationOnMock: InvocationOnMock) =>
         val blockId = new TempShuffleBlockId(UUID.randomUUID)
         val file = new File(tempDir, blockId.name)
         blockIdToFileMap.put(blockId, file)
@@ -121,7 +121,7 @@ class BypassMergeSortShuffleWriterSuite extends SparkFunSuite with BeforeAndAfte
         (blockId, file)
       }
 
-    when(diskBlockManager.getFile(any[BlockId])).thenAnswer { invocation =>
+    when(diskBlockManager.getFile(any[BlockId])).thenAnswer { (invocation: InvocationOnMock) =>
       blockIdToFileMap(invocation.getArguments.head.asInstanceOf[BlockId])
     }
 
@@ -250,5 +250,14 @@ class BypassMergeSortShuffleWriterSuite extends SparkFunSuite with BeforeAndAfte
     assert(temporaryFilesCreated.nonEmpty)
     writer.stop( /* success = */ false)
     assert(temporaryFilesCreated.count(_.exists()) === 0)
+  }
+
+  /**
+   * This won't be necessary with Scala 2.12
+   */
+  private implicit def functionToAnswer[T](func: InvocationOnMock => T): Answer[T] = {
+    new Answer[T] {
+      override def answer(invocationOnMock: InvocationOnMock): T = func(invocationOnMock)
+    }
   }
 }

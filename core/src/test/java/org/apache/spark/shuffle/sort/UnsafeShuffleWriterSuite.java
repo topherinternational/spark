@@ -189,6 +189,8 @@ public class UnsafeShuffleWriterSuite {
       new LocalDiskShuffleExecutorComponents(
         conf,
         blockManager,
+        mapOutputTracker,
+        serializerManager,
         shuffleBlockResolver,
         BlockManagerId.apply("localhost", 7077)));
   }
@@ -552,6 +554,8 @@ public class UnsafeShuffleWriterSuite {
         new LocalDiskShuffleExecutorComponents(
             conf,
             blockManager,
+            mapOutputTracker,
+            serializerManager,
             shuffleBlockResolver,
             BlockManagerId.apply("localhost", 7077)));
 

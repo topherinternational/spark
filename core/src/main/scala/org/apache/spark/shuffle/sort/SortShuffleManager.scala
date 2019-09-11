@@ -130,7 +130,7 @@ private[spark] class SortShuffleManager(conf: SparkConf) extends ShuffleManager 
       endPartition,
       context,
       metrics,
-      shuffleExecutorComponents.reads())
+      shuffleExecutorComponents)
   }
 
   /** Get a writer for a given partition. Called on executors by map tasks. */

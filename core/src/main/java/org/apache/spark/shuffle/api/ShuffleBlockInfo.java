@@ -17,10 +17,10 @@
 
 package org.apache.spark.shuffle.api;
 
+import java.util.Objects;
+
 import org.apache.spark.api.java.Optional;
 import org.apache.spark.storage.BlockManagerId;
-
-import java.util.Objects;
 
 /**
  * :: Experimental ::
