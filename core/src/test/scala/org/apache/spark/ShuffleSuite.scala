@@ -413,8 +413,8 @@ abstract class ShuffleSuite extends SparkFunSuite with Matchers with LocalSparkC
     TaskContext.setTaskContext(taskContext)
     val metrics = taskContext.taskMetrics.createTempShuffleReadMetrics()
     val reader = manager.getReader[Int, Int](shuffleHandle, 0, 1, taskContext, metrics)
-    TaskContext.unset()
     val readData = reader.read().toIndexedSeq
+    TaskContext.unset()
     assert(readData === data1.toIndexedSeq || readData === data2.toIndexedSeq)
 
     manager.unregisterShuffle(0)
