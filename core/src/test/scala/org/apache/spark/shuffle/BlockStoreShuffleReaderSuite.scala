@@ -20,8 +20,8 @@ package org.apache.spark.shuffle
 import java.io.{ByteArrayOutputStream, InputStream}
 import java.nio.ByteBuffer
 
+import org.mockito.{Mock, MockitoAnnotations}
 import org.mockito.Answers.RETURNS_SMART_NULLS
-import org.mockito.Mock
 import org.mockito.Mockito._
 import org.mockito.invocation.InvocationOnMock
 import org.mockito.stubbing.Answer
@@ -68,6 +68,7 @@ class BlockStoreShuffleReaderSuite extends SparkFunSuite with LocalSparkContext 
    * ManagedBuffers that contain the data are eventually released.
    */
   test("read() releases resources on completion") {
+    MockitoAnnotations.initMocks(this)
     val testConf = new SparkConf(false)
     // Create a SparkContext as a convenient way of setting SparkEnv (needed because some of the
     // shuffle code calls SparkEnv.get()).
