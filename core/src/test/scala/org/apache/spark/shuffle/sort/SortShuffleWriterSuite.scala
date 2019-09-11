@@ -21,14 +21,14 @@ import org.mockito.{Mock, MockitoAnnotations}
 import org.mockito.Answers.RETURNS_SMART_NULLS
 import org.mockito.Mockito._
 import org.scalatest.Matchers
+import org.apache.spark.{MapOutputTracker, Partitioner, SharedSparkContext, ShuffleDependency, SparkFunSuite}
 
-import org.apache.spark.{Partitioner, SharedSparkContext, ShuffleDependency, SparkFunSuite}
 import org.apache.spark.memory.MemoryTestingUtils
 import org.apache.spark.serializer.JavaSerializer
 import org.apache.spark.shuffle.{BaseShuffleHandle, IndexShuffleBlockResolver}
 import org.apache.spark.shuffle.api.ShuffleExecutorComponents
 import org.apache.spark.shuffle.sort.io.LocalDiskShuffleExecutorComponents
-import org.apache.spark.storage.BlockManager
+import org.apache.spark.storage.{BlockManager, BlockManagerId}
 import org.apache.spark.util.Utils
 
 
@@ -36,6 +36,10 @@ class SortShuffleWriterSuite extends SparkFunSuite with SharedSparkContext with 
 
   @Mock(answer = RETURNS_SMART_NULLS)
   private var blockManager: BlockManager = _
+  @Mock(answer = RETURNS_SMART_NULLS)
+  private var mapOutputTracker: MapOutputTracker = _
+  @Mock(answer = RETURNS_SMART_NULLS)
+  private var serializerManager: SerializerManager = _
 
   private val shuffleId = 0
   private val numMaps = 5
@@ -60,7 +64,12 @@ class SortShuffleWriterSuite extends SparkFunSuite with SharedSparkContext with 
       new BaseShuffleHandle(shuffleId, numMaps = numMaps, dependency)
     }
     shuffleExecutorComponents = new LocalDiskShuffleExecutorComponents(
-      conf, blockManager, shuffleBlockResolver)
+      conf,
+      blockManager,
+      mapOutputTracker,
+      serializerManager,
+      shuffleBlockResolver,
+      BlockManagerId("localhost", 7077))
   }
 
   override def afterAll(): Unit = {

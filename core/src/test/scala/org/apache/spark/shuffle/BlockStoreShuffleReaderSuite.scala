@@ -29,7 +29,7 @@ import org.apache.spark.internal.config
 import org.apache.spark.io.CompressionCodec
 import org.apache.spark.network.buffer.{ManagedBuffer, NioManagedBuffer}
 import org.apache.spark.serializer.{JavaSerializer, SerializerManager}
-import org.apache.spark.shuffle.io.DefaultShuffleReadSupport
+import org.apache.spark.shuffle.io.LocalDiskShuffleReadSupport
 import org.apache.spark.storage.{BlockId, BlockManager, BlockManagerId, ShuffleBlockAttemptId, ShuffleBlockId}
 
 /**
@@ -143,7 +143,7 @@ class BlockStoreShuffleReaderSuite extends SparkFunSuite with LocalSparkContext 
     val metrics = taskContext.taskMetrics.createTempShuffleReadMetrics()
 
     val shuffleReadSupport =
-      new DefaultShuffleReadSupport(blockManager, mapOutputTracker, serializerManager, testConf)
+      new LocalDiskShuffleReadSupport(blockManager, mapOutputTracker, serializerManager, testConf)
     val shuffleReader = new BlockStoreShuffleReader(
       shuffleHandle,
       reduceId,

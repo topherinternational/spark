@@ -18,7 +18,7 @@ package org.apache.spark.shuffle.sort
 
 import org.apache.spark.{SparkConf, TaskContext}
 import org.apache.spark.benchmark.Benchmark
-import org.apache.spark.shuffle.sort.io.DefaultShuffleExecutorComponents
+import org.apache.spark.shuffle.sort.io.LocalDiskShuffleExecutorComponents
 
 /**
  * Benchmark to measure performance for aggregate primitives.
@@ -43,12 +43,13 @@ object UnsafeShuffleWriterBenchmark extends ShuffleWriterBenchmarkBase {
   def getWriter(transferTo: Boolean): UnsafeShuffleWriter[String, String] = {
     val conf = new SparkConf(loadDefaults = false)
     conf.set("spark.file.transferTo", String.valueOf(transferTo))
-    val shuffleExecutorComponents = new DefaultShuffleExecutorComponents(
+    val shuffleExecutorComponents = new LocalDiskShuffleExecutorComponents(
       conf,
       blockManager,
       mapOutputTracker,
       serializerManager,
-      blockResolver)
+      blockResolver,
+      blockManager.shuffleServerId)
 
     TaskContext.setTaskContext(taskContext)
     new UnsafeShuffleWriter[String, String](

@@ -11,7 +11,8 @@ public final class MapOutputWriterCommitMessage {
   private final long[] partitionLengths;
   private final Optional<BlockManagerId> location;
 
-  private MapOutputWriterCommitMessage(long[] partitionLengths, Optional<BlockManagerId> location) {
+  private MapOutputWriterCommitMessage(
+      long[] partitionLengths, Optional<BlockManagerId> location) {
     this.partitionLengths = partitionLengths;
     this.location = location;
   }
@@ -21,8 +22,8 @@ public final class MapOutputWriterCommitMessage {
   }
 
   public static MapOutputWriterCommitMessage of(
-      long[] partitionLengths, java.util.Optional<BlockManagerId> location) {
-    return new MapOutputWriterCommitMessage(partitionLengths, location);
+      long[] partitionLengths, BlockManagerId location) {
+    return new MapOutputWriterCommitMessage(partitionLengths, Optional.of(location));
   }
 
   public long[] getPartitionLengths() {

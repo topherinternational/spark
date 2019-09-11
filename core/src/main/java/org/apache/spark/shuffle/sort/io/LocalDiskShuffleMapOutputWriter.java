@@ -26,6 +26,8 @@ import java.nio.channels.FileChannel;
 import java.nio.channels.WritableByteChannel;
 import java.util.Optional;
 
+import org.apache.spark.shuffle.api.MapOutputWriterCommitMessage;
+import org.apache.spark.storage.BlockManagerId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,6 +54,7 @@ public class LocalDiskShuffleMapOutputWriter implements ShuffleMapOutputWriter {
   private final IndexShuffleBlockResolver blockResolver;
   private final long[] partitionLengths;
   private final int bufferSize;
+  private final BlockManagerId shuffleServerId;
   private int lastPartitionId = -1;
   private long currChannelPosition;
   private long bytesWrittenToMergedFile = 0L;
@@ -67,6 +70,7 @@ public class LocalDiskShuffleMapOutputWriter implements ShuffleMapOutputWriter {
       int mapId,
       int numPartitions,
       IndexShuffleBlockResolver blockResolver,
+      BlockManagerId shuffleServerId,
       SparkConf sparkConf) {
     this.shuffleId = shuffleId;
     this.mapId = mapId;
@@ -74,6 +78,7 @@ public class LocalDiskShuffleMapOutputWriter implements ShuffleMapOutputWriter {
     this.bufferSize =
       (int) (long) sparkConf.get(
         package$.MODULE$.SHUFFLE_UNSAFE_FILE_OUTPUT_BUFFER_SIZE()) * 1024;
+    this.shuffleServerId = shuffleServerId;
     this.partitionLengths = new long[numPartitions];
     this.outputFile = blockResolver.getDataFile(shuffleId, mapId);
     this.outputTempFile = null;
@@ -97,7 +102,7 @@ public class LocalDiskShuffleMapOutputWriter implements ShuffleMapOutputWriter {
   }
 
   @Override
-  public long[] commitAllPartitions() throws IOException {
+  public MapOutputWriterCommitMessage commitAllPartitions() throws IOException {
     // Check the position after transferTo loop to see if it is in the right position and raise a
     // exception if it is incorrect. The position will not be increased to the expected length
     // after calling transferTo in kernel version 2.6.32. This issue is described at
@@ -113,7 +118,7 @@ public class LocalDiskShuffleMapOutputWriter implements ShuffleMapOutputWriter {
     cleanUp();
     File resolvedTmp = outputTempFile != null && outputTempFile.isFile() ? outputTempFile : null;
     blockResolver.writeIndexFileAndCommit(shuffleId, mapId, partitionLengths, resolvedTmp);
-    return partitionLengths;
+    return MapOutputWriterCommitMessage.of(partitionLengths, shuffleServerId);
   }
 
   @Override

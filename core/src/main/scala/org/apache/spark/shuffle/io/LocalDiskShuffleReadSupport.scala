@@ -28,7 +28,7 @@ import org.apache.spark.shuffle.ShuffleReadMetricsReporter
 import org.apache.spark.shuffle.api.ShuffleBlockInfo
 import org.apache.spark.storage.{BlockManager, ShuffleBlockAttemptId, ShuffleBlockFetcherIterator, ShuffleBlockId}
 
-class DefaultShuffleReadSupport(
+class LocalDiskShuffleReadSupport(
     blockManager: BlockManager,
     mapOutputTracker: MapOutputTracker,
     serializerManager: SerializerManager,

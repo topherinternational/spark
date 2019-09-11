@@ -26,7 +26,7 @@ import com.google.common.collect.ImmutableMap
 import org.apache.spark.{LocalSparkContext, SparkConf, SparkContext, SparkFunSuite}
 import org.apache.spark.internal.config.SHUFFLE_IO_PLUGIN_CLASS
 import org.apache.spark.shuffle.api.{ShuffleBlockInfo, ShuffleDataIO, ShuffleDriverComponents, ShuffleExecutorComponents, ShuffleMapOutputWriter}
-import org.apache.spark.shuffle.sort.io.DefaultShuffleExecutorComponents
+import org.apache.spark.shuffle.sort.io.LocalDiskShuffleExecutorComponents
 
 class ShuffleDriverComponentsSuite extends SparkFunSuite with LocalSparkContext {
   test(s"test serialization of shuffle initialization conf to executors") {
@@ -57,7 +57,7 @@ class TestShuffleDataIO(sparkConf: SparkConf) extends ShuffleDataIO {
 
 class TestShuffleExecutorComponents(sparkConf: SparkConf) extends ShuffleExecutorComponents {
 
-  private var delegate = new DefaultShuffleExecutorComponents(sparkConf)
+  private var delegate = new LocalDiskShuffleExecutorComponents(sparkConf)
 
   override def initializeExecutor(
       appId: String, execId: String, extraConfigs: JMap[String, String]): Unit = {

@@ -17,22 +17,30 @@
 
 package org.apache.spark.shuffle.sort.io;
 
+import java.io.InputStream;
 import java.util.Map;
 import java.util.Optional;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.apache.spark.MapOutputTracker;
 import org.apache.spark.SparkConf;
 import org.apache.spark.SparkEnv;
+import org.apache.spark.serializer.SerializerManager;
+import org.apache.spark.shuffle.api.ShuffleBlockInfo;
 import org.apache.spark.shuffle.api.ShuffleExecutorComponents;
 import org.apache.spark.shuffle.api.ShuffleMapOutputWriter;
 import org.apache.spark.shuffle.IndexShuffleBlockResolver;
 import org.apache.spark.shuffle.api.SingleSpillShuffleMapOutputWriter;
+import org.apache.spark.shuffle.io.LocalDiskShuffleReadSupport;
 import org.apache.spark.storage.BlockManager;
+import org.apache.spark.storage.BlockManagerId;
 
 public class LocalDiskShuffleExecutorComponents implements ShuffleExecutorComponents {
 
   private final SparkConf sparkConf;
+  private LocalDiskShuffleReadSupport shuffleReadSupport;
+  private BlockManagerId shuffleServerId;
   private BlockManager blockManager;
   private IndexShuffleBlockResolver blockResolver;
 
@@ -44,10 +52,16 @@ public class LocalDiskShuffleExecutorComponents implements ShuffleExecutorCompon
   public LocalDiskShuffleExecutorComponents(
       SparkConf sparkConf,
       BlockManager blockManager,
-      IndexShuffleBlockResolver blockResolver) {
+      MapOutputTracker mapOutputTracker,
+      SerializerManager serializerManager,
+      IndexShuffleBlockResolver blockResolver,
+      BlockManagerId shuffleServerId) {
     this.sparkConf = sparkConf;
     this.blockManager = blockManager;
     this.blockResolver = blockResolver;
+    this.shuffleServerId = shuffleServerId;
+    this.shuffleReadSupport = new LocalDiskShuffleReadSupport(
+      blockManager, mapOutputTracker, serializerManager, sparkConf);
   }
 
   @Override
@@ -56,7 +70,12 @@ public class LocalDiskShuffleExecutorComponents implements ShuffleExecutorCompon
     if (blockManager == null) {
       throw new IllegalStateException("No blockManager available from the SparkEnv.");
     }
+    shuffleServerId = blockManager.shuffleServerId();
     blockResolver = new IndexShuffleBlockResolver(sparkConf, blockManager);
+    MapOutputTracker mapOutputTracker = SparkEnv.get().mapOutputTracker();
+    SerializerManager serializerManager = SparkEnv.get().serializerManager();
+    shuffleReadSupport = new LocalDiskShuffleReadSupport(
+      blockManager, mapOutputTracker, serializerManager, sparkConf);
   }
 
   @Override
@@ -70,7 +89,12 @@ public class LocalDiskShuffleExecutorComponents implements ShuffleExecutorCompon
           "Executor components must be initialized before getting writers.");
     }
     return new LocalDiskShuffleMapOutputWriter(
-        shuffleId, mapId, numPartitions, blockResolver, sparkConf);
+      shuffleId,
+      mapId,
+      numPartitions,
+      blockResolver,
+      shuffleServerId,
+      sparkConf);
   }
 
   @Override
@@ -82,6 +106,21 @@ public class LocalDiskShuffleExecutorComponents implements ShuffleExecutorCompon
       throw new IllegalStateException(
           "Executor components must be initialized before getting writers.");
     }
-    return Optional.of(new LocalDiskSingleSpillMapOutputWriter(shuffleId, mapId, blockResolver));
+    return Optional.of(new LocalDiskSingleSpillMapOutputWriter(
+        shuffleId, mapId, blockResolver, shuffleServerId));
+  }
+
+  @Override
+  public Iterable<InputStream> getPartitionReaders(Iterable<ShuffleBlockInfo> blockMetadata) {
+    if (blockResolver == null) {
+      throw new IllegalStateException(
+          "Executor components must be initialized before getting readers.");
+    }
+    return shuffleReadSupport.getPartitionReaders(blockMetadata);
+  }
+
+  @Override
+  public boolean shouldWrapPartitionReaderStream() {
+    return false;
   }
 }

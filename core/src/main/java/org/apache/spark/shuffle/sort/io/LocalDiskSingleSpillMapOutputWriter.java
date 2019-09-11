@@ -22,7 +22,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 
 import org.apache.spark.shuffle.IndexShuffleBlockResolver;
+import org.apache.spark.shuffle.api.MapOutputWriterCommitMessage;
 import org.apache.spark.shuffle.api.SingleSpillShuffleMapOutputWriter;
+import org.apache.spark.storage.BlockManagerId;
 import org.apache.spark.util.Utils;
 
 public class LocalDiskSingleSpillMapOutputWriter
@@ -31,18 +33,21 @@ public class LocalDiskSingleSpillMapOutputWriter
   private final int shuffleId;
   private final int mapId;
   private final IndexShuffleBlockResolver blockResolver;
+  private final BlockManagerId shuffleServerId;
 
   public LocalDiskSingleSpillMapOutputWriter(
       int shuffleId,
       int mapId,
-      IndexShuffleBlockResolver blockResolver) {
+      IndexShuffleBlockResolver blockResolver,
+      BlockManagerId shuffleServerId) {
     this.shuffleId = shuffleId;
     this.mapId = mapId;
     this.blockResolver = blockResolver;
+    this.shuffleServerId = shuffleServerId;
   }
 
   @Override
-  public void transferMapSpillFile(
+  public MapOutputWriterCommitMessage transferMapSpillFile(
       File mapSpillFile,
       long[] partitionLengths) throws IOException {
     // The map spill file already has the proper format, and it contains all of the partition data.
@@ -51,5 +56,6 @@ public class LocalDiskSingleSpillMapOutputWriter
     File tempFile = Utils.tempFileWith(outputFile);
     Files.move(mapSpillFile.toPath(), tempFile.toPath());
     blockResolver.writeIndexFileAndCommit(shuffleId, mapId, partitionLengths, tempFile);
+    return MapOutputWriterCommitMessage.of(partitionLengths, shuffleServerId);
   }
 }
