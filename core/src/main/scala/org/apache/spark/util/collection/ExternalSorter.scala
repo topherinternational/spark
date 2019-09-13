@@ -30,6 +30,7 @@ import org.apache.spark.executor.ShuffleWriteMetrics
 import org.apache.spark.internal.{config, Logging}
 import org.apache.spark.serializer._
 import org.apache.spark.shuffle.api.{ShuffleMapOutputWriter, ShufflePartitionWriter}
+import org.apache.spark.shuffle.ShufflePartitionPairsWriter
 import org.apache.spark.storage.{BlockId, DiskBlockObjectWriter, ShuffleBlockId}
 import org.apache.spark.util.{Utils => TryUtils}
 
@@ -732,7 +733,6 @@ private[spark] class ExternalSorter[K, V, C](
       shuffleId: Int,
       mapId: Int,
       mapOutputWriter: ShuffleMapOutputWriter): Unit = {
-    var nextPartitionId = 0
     if (spills.isEmpty) {
       // Case where we only have in-memory data
       val collection = if (aggregator.isDefined) map else buffer
@@ -758,7 +758,6 @@ private[spark] class ExternalSorter[K, V, C](
             partitionPairsWriter.close()
           }
         }
-        nextPartitionId = partitionId + 1
       }
     } else {
       // We must perform merge-sort; get an iterator by partition and write everything directly.
@@ -784,7 +783,6 @@ private[spark] class ExternalSorter[K, V, C](
             partitionPairsWriter.close()
           }
         }
-        nextPartitionId = id + 1
       }
     }
 
