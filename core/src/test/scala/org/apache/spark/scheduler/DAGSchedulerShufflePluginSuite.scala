@@ -19,18 +19,18 @@ package org.apache.spark.scheduler
 import java.util
 
 import org.apache.spark.{FetchFailed, HashPartitioner, ShuffleDependency, SparkConf, Success}
-import org.apache.spark.api.shuffle.{ShuffleDataIO, ShuffleDriverComponents, ShuffleExecutorComponents}
 import org.apache.spark.internal.config
 import org.apache.spark.rdd.RDD
-import org.apache.spark.shuffle.sort.io.DefaultShuffleDataIO
+import org.apache.spark.shuffle.api.{ShuffleDataIO, ShuffleDriverComponents, ShuffleExecutorComponents}
+import org.apache.spark.shuffle.sort.io.LocalDiskShuffleDataIO
 import org.apache.spark.storage.BlockManagerId
 
 class PluginShuffleDataIO(sparkConf: SparkConf) extends ShuffleDataIO {
-  val defaultShuffleDataIO = new DefaultShuffleDataIO(sparkConf)
+  val localDiskShuffleDataIO = new LocalDiskShuffleDataIO(sparkConf)
   override def driver(): ShuffleDriverComponents =
-    new PluginShuffleDriverComponents(defaultShuffleDataIO.driver())
+    new PluginShuffleDriverComponents(localDiskShuffleDataIO.driver())
 
-  override def executor(): ShuffleExecutorComponents = defaultShuffleDataIO.executor()
+  override def executor(): ShuffleExecutorComponents = localDiskShuffleDataIO.executor()
 }
 
 class PluginShuffleDriverComponents(delegate: ShuffleDriverComponents)

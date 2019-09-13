@@ -18,26 +18,31 @@
 package org.apache.spark.shuffle.sort.io;
 
 import org.apache.spark.SparkConf;
-import org.apache.spark.api.shuffle.ShuffleDriverComponents;
-import org.apache.spark.api.shuffle.ShuffleExecutorComponents;
-import org.apache.spark.api.shuffle.ShuffleDataIO;
-import org.apache.spark.shuffle.sort.lifecycle.DefaultShuffleDriverComponents;
+import org.apache.spark.shuffle.api.ShuffleDriverComponents;
+import org.apache.spark.shuffle.api.ShuffleExecutorComponents;
+import org.apache.spark.shuffle.api.ShuffleDataIO;
+import org.apache.spark.shuffle.sort.lifecycle.LocalDiskShuffleDriverComponents;
 
-public class DefaultShuffleDataIO implements ShuffleDataIO {
+/**
+ * Implementation of the {@link ShuffleDataIO} plugin system that replicates the local shuffle
+ * storage and index file functionality that has historically been used from Spark 2.4 and earlier.
+ */
+public class LocalDiskShuffleDataIO implements ShuffleDataIO {
 
   private final SparkConf sparkConf;
 
-  public DefaultShuffleDataIO(SparkConf sparkConf) {
+  public LocalDiskShuffleDataIO(SparkConf sparkConf) {
     this.sparkConf = sparkConf;
   }
 
   @Override
-  public ShuffleExecutorComponents executor() {
-    return new DefaultShuffleExecutorComponents(sparkConf);
+  public ShuffleDriverComponents driver() {
+    return new LocalDiskShuffleDriverComponents();
   }
 
   @Override
-  public ShuffleDriverComponents driver() {
-    return new DefaultShuffleDriverComponents();
+  public ShuffleExecutorComponents executor() {
+    return new LocalDiskShuffleExecutorComponents(sparkConf);
   }
+
 }

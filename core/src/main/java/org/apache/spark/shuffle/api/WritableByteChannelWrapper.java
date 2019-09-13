@@ -15,25 +15,28 @@
  * limitations under the License.
  */
 
-package org.apache.spark.api.shuffle;
+package org.apache.spark.shuffle.api;
 
-import java.io.IOException;
+import java.io.Closeable;
+import java.nio.channels.WritableByteChannel;
 
-import org.apache.spark.annotation.Experimental;
-import org.apache.spark.api.java.Optional;
-import org.apache.spark.storage.BlockManagerId;
+import org.apache.spark.annotation.Private;
 
 /**
- * :: Experimental ::
- * An interface for creating and managing shuffle partition writers
+ * :: Private ::
+ *
+ * A thin wrapper around a {@link WritableByteChannel}.
+ * <p>
+ * This is primarily provided for the local disk shuffle implementation to provide a
+ * {@link java.nio.channels.FileChannel} that keeps the channel open across partition writes.
  *
  * @since 3.0.0
  */
-@Experimental
-public interface ShuffleMapOutputWriter {
-  ShufflePartitionWriter getPartitionWriter(int partitionId) throws IOException;
+@Private
+public interface WritableByteChannelWrapper extends Closeable {
 
-  Optional<BlockManagerId> commitAllPartitions() throws IOException;
-
-  void abort(Throwable error) throws IOException;
+  /**
+   * The underlying channel to write bytes into.
+   */
+  WritableByteChannel channel();
 }

@@ -21,11 +21,10 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
+import java.util.Optional;
 import javax.annotation.Nullable;
 
-import org.apache.spark.api.java.Optional;
 import scala.None$;
 import scala.Option;
 import scala.Product2;
@@ -40,11 +39,11 @@ import org.slf4j.LoggerFactory;
 import org.apache.spark.Partitioner;
 import org.apache.spark.ShuffleDependency;
 import org.apache.spark.SparkConf;
-import org.apache.spark.api.shuffle.SupportsTransferTo;
-import org.apache.spark.api.shuffle.ShuffleMapOutputWriter;
-import org.apache.spark.api.shuffle.ShufflePartitionWriter;
-import org.apache.spark.api.shuffle.ShuffleWriteSupport;
-import org.apache.spark.api.shuffle.TransferrableWritableByteChannel;
+import org.apache.spark.shuffle.api.MapOutputWriterCommitMessage;
+import org.apache.spark.shuffle.api.ShuffleExecutorComponents;
+import org.apache.spark.shuffle.api.ShuffleMapOutputWriter;
+import org.apache.spark.shuffle.api.ShufflePartitionWriter;
+import org.apache.spark.shuffle.api.WritableByteChannelWrapper;
 import org.apache.spark.internal.config.package$;
 import org.apache.spark.scheduler.MapStatus;
 import org.apache.spark.scheduler.MapStatus$;
@@ -90,13 +89,13 @@ final class BypassMergeSortShuffleWriter<K, V> extends ShuffleWriter<K, V> {
   private final int mapId;
   private final long mapTaskAttemptId;
   private final Serializer serializer;
-  private final ShuffleWriteSupport shuffleWriteSupport;
+  private final ShuffleExecutorComponents shuffleExecutorComponents;
 
   /** Array of file writers, one for each partition */
   private DiskBlockObjectWriter[] partitionWriters;
   private FileSegment[] partitionWriterSegments;
   @Nullable private MapStatus mapStatus;
-  private long[] partitionLengths;
+  private MapOutputWriterCommitMessage commitMessage;
 
   /**
    * Are we in the process of stopping? Because map tasks can call stop() with success = true
@@ -112,34 +111,33 @@ final class BypassMergeSortShuffleWriter<K, V> extends ShuffleWriter<K, V> {
       long mapTaskAttemptId,
       SparkConf conf,
       ShuffleWriteMetricsReporter writeMetrics,
-      ShuffleWriteSupport shuffleWriteSupport) {
+      ShuffleExecutorComponents shuffleExecutorComponents) {
     // Use getSizeAsKb (not bytes) to maintain backwards compatibility if no units are provided
     this.fileBufferSize = (int) (long) conf.get(package$.MODULE$.SHUFFLE_FILE_BUFFER_SIZE()) * 1024;
     this.transferToEnabled = conf.getBoolean("spark.file.transferTo", true);
     this.blockManager = blockManager;
     final ShuffleDependency<K, V, V> dep = handle.dependency();
     this.mapId = mapId;
-    this.shuffleId = dep.shuffleId();
     this.mapTaskAttemptId = mapTaskAttemptId;
+    this.shuffleId = dep.shuffleId();
     this.partitioner = dep.partitioner();
     this.numPartitions = partitioner.numPartitions();
     this.writeMetrics = writeMetrics;
     this.serializer = dep.serializer();
-    this.shuffleWriteSupport = shuffleWriteSupport;
+    this.shuffleExecutorComponents = shuffleExecutorComponents;
   }
 
   @Override
   public void write(Iterator<Product2<K, V>> records) throws IOException {
     assert (partitionWriters == null);
-    ShuffleMapOutputWriter mapOutputWriter = shuffleWriteSupport
+    ShuffleMapOutputWriter mapOutputWriter = shuffleExecutorComponents
         .createMapOutputWriter(shuffleId, mapId, mapTaskAttemptId, numPartitions);
     try {
       if (!records.hasNext()) {
-        partitionLengths = new long[numPartitions];
-        Optional<BlockManagerId> location = mapOutputWriter.commitAllPartitions();
+        commitMessage = mapOutputWriter.commitAllPartitions();
         mapStatus = MapStatus$.MODULE$.apply(
-            location.orNull(),
-            partitionLengths,
+            commitMessage.getLocation().orElse(null),
+            commitMessage.getPartitionLengths(),
             mapTaskAttemptId);
         return;
       }
@@ -172,14 +170,17 @@ final class BypassMergeSortShuffleWriter<K, V> extends ShuffleWriter<K, V> {
         }
       }
 
-      partitionLengths = writePartitionedData(mapOutputWriter);
-      Optional<BlockManagerId> location = mapOutputWriter.commitAllPartitions();
-      mapStatus = MapStatus$.MODULE$.apply(location.orNull(), partitionLengths, mapTaskAttemptId);
+      commitMessage = writePartitionedData(mapOutputWriter);
+      mapStatus = MapStatus$.MODULE$.apply(
+          commitMessage.getLocation().orElse(null),
+          commitMessage.getPartitionLengths(),
+          mapTaskAttemptId);
     } catch (Exception e) {
       try {
         mapOutputWriter.abort(e);
       } catch (Exception e2) {
         logger.error("Failed to abort the writer after failing to write map output.", e2);
+        e.addSuppressed(e2);
       }
       throw e;
     }
@@ -187,7 +188,7 @@ final class BypassMergeSortShuffleWriter<K, V> extends ShuffleWriter<K, V> {
 
   @VisibleForTesting
   long[] getPartitionLengths() {
-    return partitionLengths;
+    return commitMessage.getPartitionLengths();
   }
 
   /**
@@ -195,61 +196,75 @@ final class BypassMergeSortShuffleWriter<K, V> extends ShuffleWriter<K, V> {
    *
    * @return array of lengths, in bytes, of each partition of the file (used by map output tracker).
    */
-  private long[] writePartitionedData(ShuffleMapOutputWriter mapOutputWriter) throws IOException {
+  private MapOutputWriterCommitMessage writePartitionedData(
+      ShuffleMapOutputWriter mapOutputWriter) throws IOException {
     // Track location of the partition starts in the output file
-    final long[] lengths = new long[numPartitions];
-    if (partitionWriters == null) {
-      // We were passed an empty iterator
-      return lengths;
-    }
-    final long writeStartTime = System.nanoTime();
-    try {
-      for (int i = 0; i < numPartitions; i++) {
-        final File file = partitionWriterSegments[i].file();
-        ShufflePartitionWriter writer = mapOutputWriter.getPartitionWriter(i);
-        if (file.exists()) {
-          boolean copyThrewException = true;
-          if (transferToEnabled) {
-            FileInputStream in = new FileInputStream(file);
-            TransferrableWritableByteChannel outputChannel = null;
-            try (FileChannel inputChannel = in.getChannel()) {
-              if (writer instanceof SupportsTransferTo) {
-                outputChannel = ((SupportsTransferTo) writer).openTransferrableChannel();
+    if (partitionWriters != null) {
+      final long writeStartTime = System.nanoTime();
+      try {
+        for (int i = 0; i < numPartitions; i++) {
+          final File file = partitionWriterSegments[i].file();
+          ShufflePartitionWriter writer = mapOutputWriter.getPartitionWriter(i);
+          if (file.exists()) {
+            if (transferToEnabled) {
+              // Using WritableByteChannelWrapper to make resource closing consistent between
+              // this implementation and UnsafeShuffleWriter.
+              Optional<WritableByteChannelWrapper> maybeOutputChannel = writer.openChannelWrapper();
+              if (maybeOutputChannel.isPresent()) {
+                writePartitionedDataWithChannel(file, maybeOutputChannel.get());
               } else {
-                // Use default transferrable writable channel anyways in order to have parity with
-                // UnsafeShuffleWriter.
-                outputChannel = new DefaultTransferrableWritableByteChannel(
-                    Channels.newChannel(writer.openStream()));
+                writePartitionedDataWithStream(file, writer);
               }
-              outputChannel.transferFrom(inputChannel, 0L, inputChannel.size());
-              copyThrewException = false;
-            } finally {
-              Closeables.close(in, copyThrewException);
-              Closeables.close(outputChannel, copyThrewException);
+            } else {
+              writePartitionedDataWithStream(file, writer);
             }
-          } else {
-            FileInputStream in = new FileInputStream(file);
-            OutputStream outputStream = null;
-            try {
-              outputStream = writer.openStream();
-              Utils.copyStream(in, outputStream, false, false);
-              copyThrewException = false;
-            } finally {
-              Closeables.close(in, copyThrewException);
-              Closeables.close(outputStream, copyThrewException);
+            if (!file.delete()) {
+              logger.error("Unable to delete file for partition {}", i);
             }
-          }
-          if (!file.delete()) {
-            logger.error("Unable to delete file for partition {}", i);
           }
         }
-        lengths[i] = writer.getNumBytesWritten();
+      } finally {
+        writeMetrics.incWriteTime(System.nanoTime() - writeStartTime);
+      }
+      partitionWriters = null;
+    }
+    return mapOutputWriter.commitAllPartitions();
+  }
+
+  private void writePartitionedDataWithChannel(
+      File file,
+      WritableByteChannelWrapper outputChannel) throws IOException {
+    boolean copyThrewException = true;
+    try {
+      FileInputStream in = new FileInputStream(file);
+      try (FileChannel inputChannel = in.getChannel()) {
+        Utils.copyFileStreamNIO(
+            inputChannel, outputChannel.channel(), 0L, inputChannel.size());
+        copyThrewException = false;
+      } finally {
+        Closeables.close(in, copyThrewException);
       }
     } finally {
-      writeMetrics.incWriteTime(System.nanoTime() - writeStartTime);
+      Closeables.close(outputChannel, copyThrewException);
     }
-    partitionWriters = null;
-    return lengths;
+  }
+
+  private void writePartitionedDataWithStream(File file, ShufflePartitionWriter writer)
+      throws IOException {
+    boolean copyThrewException = true;
+    FileInputStream in = new FileInputStream(file);
+    OutputStream outputStream;
+    try {
+      outputStream = writer.openStream();
+      try {
+        Utils.copyStream(in, outputStream, false, false);
+        copyThrewException = false;
+      } finally {
+        Closeables.close(outputStream, copyThrewException);
+      }
+    } finally {
+      Closeables.close(in, copyThrewException);
+    }
   }
 
   @Override

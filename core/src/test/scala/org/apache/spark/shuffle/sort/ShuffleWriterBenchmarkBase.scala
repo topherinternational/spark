@@ -29,7 +29,7 @@ import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.util.Random
 
-import org.apache.spark.{HashPartitioner, ShuffleDependency, SparkConf, TaskContext}
+import org.apache.spark.{HashPartitioner, MapOutputTracker, ShuffleDependency, SparkConf, TaskContext}
 import org.apache.spark.benchmark.{Benchmark, BenchmarkBase}
 import org.apache.spark.executor.TaskMetrics
 import org.apache.spark.memory.{MemoryManager, TaskMemoryManager, TestMemoryManager}
@@ -50,9 +50,11 @@ abstract class ShuffleWriterBenchmarkBase extends BenchmarkBase {
   @Mock(answer = RETURNS_SMART_NULLS) protected var taskContext: TaskContext = _
   @Mock(answer = RETURNS_SMART_NULLS) protected var rpcEnv: RpcEnv = _
   @Mock(answer = RETURNS_SMART_NULLS) protected var rpcEndpointRef: RpcEndpointRef = _
+  // only used to retrieve info about the maps at the beginning, doesn't affect perf
+  @Mock(answer = RETURNS_SMART_NULLS) protected var mapOutputTracker: MapOutputTracker = _
 
   protected val defaultConf: SparkConf = new SparkConf(loadDefaults = false)
-  protected  val serializer: Serializer = new KryoSerializer(defaultConf)
+  protected val serializer: Serializer = new KryoSerializer(defaultConf)
   protected val partitioner: HashPartitioner = new HashPartitioner(10)
   protected val serializerManager: SerializerManager =
     new SerializerManager(serializer, defaultConf)

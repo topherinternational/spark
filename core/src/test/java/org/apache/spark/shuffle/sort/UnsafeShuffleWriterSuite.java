@@ -38,6 +38,7 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import org.apache.spark.HashPartitioner;
+import org.apache.spark.MapOutputTracker;
 import org.apache.spark.ShuffleDependency;
 import org.apache.spark.SparkConf;
 import org.apache.spark.TaskContext;
@@ -56,7 +57,7 @@ import org.apache.spark.scheduler.MapStatus;
 import org.apache.spark.security.CryptoStreamUtils;
 import org.apache.spark.serializer.*;
 import org.apache.spark.shuffle.IndexShuffleBlockResolver;
-import org.apache.spark.shuffle.sort.io.DefaultShuffleWriteSupport;
+import org.apache.spark.shuffle.sort.io.LocalDiskShuffleExecutorComponents;
 import org.apache.spark.storage.*;
 import org.apache.spark.util.Utils;
 
@@ -87,6 +88,8 @@ public class UnsafeShuffleWriterSuite {
   @Mock(answer = RETURNS_SMART_NULLS) DiskBlockManager diskBlockManager;
   @Mock(answer = RETURNS_SMART_NULLS) TaskContext taskContext;
   @Mock(answer = RETURNS_SMART_NULLS) ShuffleDependency<Object, Object, Object> shuffleDep;
+  @Mock(answer = RETURNS_SMART_NULLS) MapOutputTracker mapOutputTracker;
+  @Mock(answer = RETURNS_SMART_NULLS) SerializerManager serializerManager;
 
   @After
   public void tearDown() {
@@ -138,8 +141,7 @@ public class UnsafeShuffleWriterSuite {
       });
 
     when(shuffleBlockResolver.getDataFile(anyInt(), anyInt())).thenReturn(mergedOutputFile);
-
-    Answer renameTempAnswer = invocationOnMock -> {
+    Answer<?> renameTempAnswer = invocationOnMock -> {
       partitionSizesInMergedFile = (long[]) invocationOnMock.getArguments()[2];
       File tmp = (File) invocationOnMock.getArguments()[3];
       if (!mergedOutputFile.delete()) {
@@ -172,23 +174,25 @@ public class UnsafeShuffleWriterSuite {
     when(shuffleDep.serializer()).thenReturn(serializer);
     when(shuffleDep.partitioner()).thenReturn(hashPartitioner);
     when(taskContext.taskMemoryManager()).thenReturn(taskMemoryManager);
-
-    TaskContext$.MODULE$.setTaskContext(taskContext);
   }
 
-  private UnsafeShuffleWriter<Object, Object> createWriter(
-      boolean transferToEnabled) throws IOException {
+  private UnsafeShuffleWriter createWriter(boolean transferToEnabled) {
     conf.set("spark.file.transferTo", String.valueOf(transferToEnabled));
-    return new UnsafeShuffleWriter<>(
+    return new UnsafeShuffleWriter(
       blockManager,
-        taskMemoryManager,
+      taskMemoryManager,
       new SerializedShuffleHandle<>(0, 1, shuffleDep),
       0, // map id
       taskContext,
       conf,
       taskContext.taskMetrics().shuffleWriteMetrics(),
-      new DefaultShuffleWriteSupport(conf, shuffleBlockResolver, blockManager.shuffleServerId())
-    );
+      new LocalDiskShuffleExecutorComponents(
+        conf,
+        blockManager,
+        mapOutputTracker,
+        serializerManager,
+        shuffleBlockResolver,
+        BlockManagerId.apply("localhost", 7077)));
   }
 
   private void assertSpillFilesWereCleanedUp() {
@@ -414,7 +418,7 @@ public class UnsafeShuffleWriterSuite {
 
   @Test
   public void mergeSpillsWithCompressionAndEncryptionSlowPath() throws Exception {
-    conf.set(package$.MODULE$.SHUFFLE_UNDAFE_FAST_MERGE_ENABLE(), false);
+    conf.set(package$.MODULE$.SHUFFLE_UNSAFE_FAST_MERGE_ENABLE(), false);
     testMergingSpills(false, LZ4CompressionCodec.class.getName(), true);
   }
 
@@ -539,16 +543,21 @@ public class UnsafeShuffleWriterSuite {
     final long numRecordsPerPage = pageSizeBytes / recordLengthBytes;
     taskMemoryManager = spy(taskMemoryManager);
     when(taskMemoryManager.pageSizeBytes()).thenReturn(pageSizeBytes);
-    final UnsafeShuffleWriter<Object, Object> writer =
-      new UnsafeShuffleWriter<>(
+    final UnsafeShuffleWriter writer = new UnsafeShuffleWriter(
         blockManager,
-          taskMemoryManager,
+        taskMemoryManager,
         new SerializedShuffleHandle<>(0, 1, shuffleDep),
         0, // map id
         taskContext,
         conf,
         taskContext.taskMetrics().shuffleWriteMetrics(),
-        new DefaultShuffleWriteSupport(conf, shuffleBlockResolver, blockManager.shuffleServerId()));
+        new LocalDiskShuffleExecutorComponents(
+            conf,
+            blockManager,
+            mapOutputTracker,
+            serializerManager,
+            shuffleBlockResolver,
+            BlockManagerId.apply("localhost", 7077)));
 
     // Peak memory should be monotonically increasing. More specifically, every time
     // we allocate a new page it should increase by exactly the size of the page.

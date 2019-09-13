@@ -22,11 +22,11 @@ import java.util.Map;
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.spark.SparkEnv;
-import org.apache.spark.api.shuffle.ShuffleDriverComponents;
+import org.apache.spark.shuffle.api.ShuffleDriverComponents;
 import org.apache.spark.internal.config.package$;
 import org.apache.spark.storage.BlockManagerMaster;
 
-public class DefaultShuffleDriverComponents implements ShuffleDriverComponents {
+public class LocalDiskShuffleDriverComponents implements ShuffleDriverComponents {
 
   private BlockManagerMaster blockManagerMaster;
   private boolean shouldUnregisterOutputOnHostOnFetchFailure;

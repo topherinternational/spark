@@ -17,36 +17,45 @@
 
 package org.apache.spark.shuffle.sort.io;
 
-import org.apache.spark.SparkConf;
-import org.apache.spark.TaskContext;
-import org.apache.spark.api.shuffle.ShuffleMapOutputWriter;
-import org.apache.spark.api.shuffle.ShuffleWriteSupport;
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+
 import org.apache.spark.shuffle.IndexShuffleBlockResolver;
+import org.apache.spark.shuffle.api.MapOutputWriterCommitMessage;
+import org.apache.spark.shuffle.api.SingleSpillShuffleMapOutputWriter;
 import org.apache.spark.storage.BlockManagerId;
+import org.apache.spark.util.Utils;
 
-public class DefaultShuffleWriteSupport implements ShuffleWriteSupport {
+public class LocalDiskSingleSpillMapOutputWriter
+    implements SingleSpillShuffleMapOutputWriter {
 
-  private final SparkConf sparkConf;
+  private final int shuffleId;
+  private final int mapId;
   private final IndexShuffleBlockResolver blockResolver;
   private final BlockManagerId shuffleServerId;
 
-  public DefaultShuffleWriteSupport(
-      SparkConf sparkConf,
+  public LocalDiskSingleSpillMapOutputWriter(
+      int shuffleId,
+      int mapId,
       IndexShuffleBlockResolver blockResolver,
       BlockManagerId shuffleServerId) {
-    this.sparkConf = sparkConf;
+    this.shuffleId = shuffleId;
+    this.mapId = mapId;
     this.blockResolver = blockResolver;
     this.shuffleServerId = shuffleServerId;
   }
 
   @Override
-  public ShuffleMapOutputWriter createMapOutputWriter(
-      int shuffleId,
-      int mapId,
-      long mapTaskAttemptId,
-      int numPartitions) {
-    return new DefaultShuffleMapOutputWriter(
-      shuffleId, mapId, numPartitions, shuffleServerId,
-      TaskContext.get().taskMetrics().shuffleWriteMetrics(), blockResolver, sparkConf);
+  public MapOutputWriterCommitMessage transferMapSpillFile(
+      File mapSpillFile,
+      long[] partitionLengths) throws IOException {
+    // The map spill file already has the proper format, and it contains all of the partition data.
+    // So just transfer it directly to the destination without any merging.
+    File outputFile = blockResolver.getDataFile(shuffleId, mapId);
+    File tempFile = Utils.tempFileWith(outputFile);
+    Files.move(mapSpillFile.toPath(), tempFile.toPath());
+    blockResolver.writeIndexFileAndCommit(shuffleId, mapId, partitionLengths, tempFile);
+    return MapOutputWriterCommitMessage.of(partitionLengths, shuffleServerId);
   }
 }

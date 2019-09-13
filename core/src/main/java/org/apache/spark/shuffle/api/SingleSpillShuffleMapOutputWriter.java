@@ -15,30 +15,23 @@
  * limitations under the License.
  */
 
-package org.apache.spark.api.shuffle;
+package org.apache.spark.shuffle.api;
 
+import java.io.File;
 import java.io.IOException;
-import java.io.OutputStream;
 
-import org.apache.spark.annotation.Experimental;
+import org.apache.spark.annotation.Private;
 
 /**
- * :: Experimental ::
- * An interface for giving streams / channels for shuffle writes.
- *
- * @since 3.0.0
+ * Optional extension for partition writing that is optimized for transferring a single
+ * file to the backing store.
  */
-@Experimental
-public interface ShufflePartitionWriter {
+@Private
+public interface SingleSpillShuffleMapOutputWriter {
 
   /**
-   * Opens and returns an underlying {@link OutputStream} that can write bytes to the underlying
-   * data store.
+   * Transfer a file that contains the bytes of all the partitions written by this map task.
    */
-  OutputStream openStream() throws IOException;
-
-  /**
-   * Get the number of bytes written by this writer's stream returned by {@link #openStream()}.
-   */
-  long getNumBytesWritten();
+  MapOutputWriterCommitMessage transferMapSpillFile(
+      File mapOutputFile, long[] partitionLengths) throws IOException;
 }

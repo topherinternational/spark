@@ -19,8 +19,7 @@ package org.apache.spark.shuffle.sort
 
 import org.apache.spark.SparkConf
 import org.apache.spark.benchmark.Benchmark
-import org.apache.spark.shuffle.sort.io.DefaultShuffleWriteSupport
-import org.apache.spark.storage.BlockManagerId
+import org.apache.spark.shuffle.sort.io.LocalDiskShuffleExecutorComponents
 
 /**
  * Benchmark to measure performance for aggregate primitives.
@@ -49,9 +48,13 @@ object BypassMergeSortShuffleWriterBenchmark extends ShuffleWriterBenchmarkBase 
     val conf = new SparkConf(loadDefaults = false)
     conf.set("spark.file.transferTo", String.valueOf(transferTo))
     conf.set("spark.shuffle.file.buffer", "32k")
-    val shuffleWriteSupport =
-      new DefaultShuffleWriteSupport(
-        conf, blockResolver, BlockManagerId("0", "localhost", 7077, None))
+    val shuffleExecutorComponents = new LocalDiskShuffleExecutorComponents(
+      conf,
+      blockManager,
+      mapOutputTracker,
+      serializerManager,
+      blockResolver,
+      blockManager.shuffleServerId)
 
     val shuffleWriter = new BypassMergeSortShuffleWriter[String, String](
       blockManager,
@@ -60,7 +63,7 @@ object BypassMergeSortShuffleWriterBenchmark extends ShuffleWriterBenchmarkBase 
       taskContext.taskAttemptId(),
       conf,
       taskContext.taskMetrics().shuffleWriteMetrics,
-      shuffleWriteSupport
+      shuffleExecutorComponents
     )
 
     shuffleWriter

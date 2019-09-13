@@ -15,23 +15,25 @@
  * limitations under the License.
  */
 
-package org.apache.spark.api.shuffle;
+package org.apache.spark.shuffle.api;
 
 import java.io.IOException;
+import java.util.Map;
 
-import org.apache.spark.annotation.Experimental;
+public interface ShuffleDriverComponents {
 
-/**
- * :: Experimental ::
- * An interface for deploying a shuffle map output writer
- *
- * @since 3.0.0
- */
-@Experimental
-public interface ShuffleWriteSupport {
-  ShuffleMapOutputWriter createMapOutputWriter(
-    int shuffleId,
-    int mapId,
-    long mapTaskAttemptId,
-    int numPartitions) throws IOException;
+  /**
+   * @return additional SparkConf values necessary for the executors.
+   */
+  Map<String, String> initializeApplication();
+
+  default void cleanupApplication() throws IOException {}
+
+  default void registerShuffle(int shuffleId) throws IOException {}
+
+  default void removeShuffle(int shuffleId, boolean blocking) throws IOException {}
+
+  default boolean shouldUnregisterOutputOnHostOnFetchFailure() {
+    return false;
+  }
 }
