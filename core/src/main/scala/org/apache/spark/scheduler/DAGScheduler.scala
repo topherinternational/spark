@@ -43,6 +43,7 @@ import org.apache.spark.network.util.JavaUtils
 import org.apache.spark.partial.{ApproximateActionListener, ApproximateEvaluator, PartialResult}
 import org.apache.spark.rdd.{DeterministicLevel, RDD, RDDCheckpointData}
 import org.apache.spark.rpc.RpcTimeout
+import org.apache.spark.shuffle.api.ShuffleDriverComponents.MapOutputUnregistrationStrategy
 import org.apache.spark.storage._
 import org.apache.spark.storage.BlockManagerMessages.BlockManagerHeartbeat
 import org.apache.spark.util._
@@ -1672,7 +1673,8 @@ private[spark] class DAGScheduler(
           // TODO: mark the executor as failed only if there were lots of fetch failures on it
           if (bmAddress != null) {
             if (bmAddress.executorId == null) {
-              if (shuffleDriverComponents.shouldUnregisterOutputOnHostOnFetchFailure()) {
+              if (shuffleDriverComponents.unregistrationStrategyOnFetchFailure() ==
+                  MapOutputUnregistrationStrategy.HOST) {
                 val currentEpoch = task.epoch
                 val host = bmAddress.host
                 logInfo("Shuffle files lost for host: %s (epoch %d)".format(host, currentEpoch))
@@ -1681,7 +1683,8 @@ private[spark] class DAGScheduler(
               }
             } else {
               val hostToUnregisterOutputs =
-                if (shuffleDriverComponents.shouldUnregisterOutputOnHostOnFetchFailure()) {
+                if (shuffleDriverComponents.unregistrationStrategyOnFetchFailure() ==
+                    MapOutputUnregistrationStrategy.HOST) {
                   // We had a fetch failure with the external shuffle service, so we
                   // assume all shuffle data on the node is bad.
                   Some(bmAddress.host)
@@ -1863,8 +1866,11 @@ private[spark] class DAGScheduler(
             logInfo("Shuffle files lost for host: %s (epoch %d)".format(host, currentEpoch))
             mapOutputTracker.removeOutputsOnHost(host)
           case None =>
-            logInfo("Shuffle files lost for executor: %s (epoch %d)".format(execId, currentEpoch))
-            mapOutputTracker.removeOutputsOnExecutor(execId)
+            if (shuffleDriverComponents.unregistrationStrategyOnFetchFailure() ==
+                MapOutputUnregistrationStrategy.EXECUTOR) {
+              logInfo("Shuffle files lost for executor: %s (epoch %d)".format(execId, currentEpoch))
+              mapOutputTracker.removeOutputsOnExecutor(execId)
+            }
         }
         clearCacheLocs()
 

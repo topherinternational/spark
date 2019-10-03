@@ -48,8 +48,11 @@ public class LocalDiskShuffleDriverComponents implements ShuffleDriverComponents
   }
 
   @Override
-  public boolean shouldUnregisterOutputOnHostOnFetchFailure() {
-    return shouldUnregisterOutputOnHostOnFetchFailure;
+  public MapOutputUnregistrationStrategy unregistrationStrategyOnFetchFailure() {
+    if (shouldUnregisterOutputOnHostOnFetchFailure) {
+      return MapOutputUnregistrationStrategy.HOST;
+    }
+    return MapOutputUnregistrationStrategy.EXECUTOR;
   }
 
   private void checkInitialized() {
