@@ -29,7 +29,8 @@ import org.apache.spark.internal.config.Network.{RPC_ASK_TIMEOUT, RPC_MESSAGE_MA
 import org.apache.spark.rpc.{RpcAddress, RpcCallContext, RpcEnv}
 import org.apache.spark.scheduler.{CompressedMapStatus, MapStatus}
 import org.apache.spark.shuffle.FetchFailedException
-import org.apache.spark.storage.{BlockManagerId, ShuffleBlockAttemptId, ShuffleBlockId}
+import org.apache.spark.shuffle.api.ShuffleDriverComponents
+import org.apache.spark.storage.{BlockManagerId, ShuffleBlockAttemptId}
 
 class MapOutputTrackerSuite extends SparkFunSuite {
   private val conf = new SparkConf
@@ -37,7 +38,9 @@ class MapOutputTrackerSuite extends SparkFunSuite {
   private def newTrackerMaster(sparkConf: SparkConf = conf) = {
     val broadcastManager = new BroadcastManager(true, sparkConf,
       new SecurityManager(sparkConf))
-    new MapOutputTrackerMaster(sparkConf, broadcastManager, true)
+    val driverComponents = mock(classOf[ShuffleDriverComponents])
+    when(driverComponents.checkIfMapOutputStoredOutsideExecutor(any(), any())).thenReturn(false)
+    new MapOutputTrackerMaster(sparkConf, broadcastManager, true, driverComponents)
   }
 
   def createRpcEnv(name: String, host: String = "localhost", port: Int = 0,
