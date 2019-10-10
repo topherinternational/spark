@@ -17,7 +17,6 @@
 
 package org.apache.spark.shuffle
 
-import java.io.InputStream
 import java.lang.{Iterable => JIterable}
 import java.util.{Map => JMap}
 
@@ -25,7 +24,7 @@ import com.google.common.collect.ImmutableMap
 
 import org.apache.spark.{LocalSparkContext, SparkConf, SparkContext, SparkFunSuite}
 import org.apache.spark.internal.config.SHUFFLE_IO_PLUGIN_CLASS
-import org.apache.spark.shuffle.api.{ShuffleBlockInfo, ShuffleDataIO, ShuffleDriverComponents, ShuffleExecutorComponents, ShuffleMapOutputWriter}
+import org.apache.spark.shuffle.api.{ShuffleBlockInfo, ShuffleBlockInputStream, ShuffleDataIO, ShuffleDriverComponents, ShuffleExecutorComponents, ShuffleMapOutputWriter}
 import org.apache.spark.shuffle.sort.io.LocalDiskShuffleExecutorComponents
 
 class ShuffleDriverComponentsSuite extends SparkFunSuite with LocalSparkContext {
@@ -74,7 +73,7 @@ class TestShuffleExecutorComponents(sparkConf: SparkConf) extends ShuffleExecuto
   }
 
   override def getPartitionReaders(
-      blockMetadata: JIterable[ShuffleBlockInfo]): JIterable[InputStream] = {
+      blockMetadata: JIterable[ShuffleBlockInfo]): JIterable[ShuffleBlockInputStream] = {
     delegate.getPartitionReaders(blockMetadata)
   }
 
