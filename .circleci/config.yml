@@ -39,11 +39,11 @@ step_templates:
   restore-ivy-cache: &restore-ivy-cache
     restore_cache:
       keys:
-        - v7-ivy-dependency-cache-{{ .Branch }}-{{ checksum "pom.xml" }}
+        - v8-ivy-dependency-cache-{{ .Branch }}-{{ checksum "pom.xml" }}
         # if cache for exact version of `pom.xml` is not present then load any most recent one
-        - v7-ivy-dependency-cache-{{ .Branch }}-
-        - v7-ivy-dependency-cache-master-{{ checksum "pom.xml" }}
-        - v7-ivy-dependency-cache-master-
+        - v8-ivy-dependency-cache-{{ .Branch }}-
+        - v8-ivy-dependency-cache-master-{{ checksum "pom.xml" }}
+        - v8-ivy-dependency-cache-master-
   restore-gradle-wrapper-cache: &restore-gradle-wrapper-cache
     restore_cache: { key: 'gradle-wrapper-v2-{{ checksum "gradle/wrapper/gradle-wrapper.properties" }}' }
   restore-gradle-cache: &restore-gradle-cache
@@ -237,7 +237,7 @@ jobs:
       - store_artifacts:
           path: /tmp/heap.bin
       - save_cache:
-          key: v7-ivy-dependency-cache-{{ .Branch }}-{{ checksum "pom.xml" }}
+          key: v8-ivy-dependency-cache-{{ .Branch }}-{{ checksum "pom.xml" }}
           paths:
             - "~/.ivy2"
       - store_artifacts:
