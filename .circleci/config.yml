@@ -187,8 +187,7 @@ jobs:
       # Failed to execute goal on project spark-assembly_2.11: Could not resolve dependencies for project org.apache.spark:spark-assembly_2.11:pom:2.4.0-SNAPSHOT
       - restore_cache:
           key: maven-dependency-cache-{{ checksum "pom.xml" }}
-# Restoring any build binaries for this particular sub-step appears to create problems... for now, force all computation to occur from scratch.
-# - *restore-build-binaries-cache
+      - *restore-build-binaries-cache
       - run:
           name: Run style tests
           command: dev/run-style-tests.py
