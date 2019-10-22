@@ -54,7 +54,7 @@ step_templates:
         - v2-home-sbt-{{ checksum "build/sbt" }}-{{ checksum "project/target/streams/$global/update/$global/streams/update_cache_2.10/inputs" }}
   restore-build-sbt-cache: &restore-build-sbt-cache
     restore_cache:
-      key: v1-build-sbt-{{ .Branch }}-{{ .Revision }}
+      key: v2-build-sbt-{{ .Branch }}-{{ .Revision }}
   link-in-build-sbt-cache: &link-in-build-sbt-cache
     run:
       name: Hard link cache contents into current build directory
@@ -216,9 +216,9 @@ jobs:
       # Saves us from recompiling every time...
       #- restore_cache:
           #keys:
-            #- v1-build-sbt-{{ .Branch }}-{{ .Revision }}
-            #- v1-build-sbt-{{ .Branch }}-
-            #- v1-build-sbt-master-
+            #- v2-build-sbt-{{ .Branch }}-{{ .Revision }}
+            #- v2-build-sbt-{{ .Branch }}-
+            #- v2-build-sbt-master-
       - *checkout-code
       - run:
           name: Hard link cache contents into current build directory
@@ -254,7 +254,7 @@ jobs:
             --exclude '***/*.jar' --include 'target/***'
             --include '**/' --exclude '*' . "$BUILD_SBT_CACHE/"
       - save_cache:
-          key: v1-build-sbt-{{ .Branch }}-{{ .Revision }}
+          key: v2-build-sbt-{{ .Branch }}-{{ .Revision }}
           paths:
             - "~/build-sbt-cache"
       # Also save all the assembly jars directories to the workspace - need them for spark submitting
