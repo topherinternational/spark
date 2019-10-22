@@ -73,8 +73,7 @@ private[spark] class BlockStoreShuffleReader[K, C](
         }
       }.asJava).iterator()
 
-    val retryingWrappedStreams = streamsIterator.asScala.map { shuffleBlock =>
-      val rawReaderStream = shuffleBlock.getInputStream
+    val retryingWrappedStreams = streamsIterator.asScala.map { rawReaderStream =>
       if (shuffleExecutorComponents.shouldWrapPartitionReaderStream()) {
         if (compressShuffle) {
           compressionCodec.compressedInputStream(
