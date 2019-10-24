@@ -131,10 +131,11 @@ private class ShuffleStatus(numPartitions: Int) {
    * remove outputs which are served by an external shuffle server (if one exists).
    */
   type MapId = Int
-  def removeOutputsByFilter(f: (MapId, BlockManagerId) => Boolean): Unit = synchronized {
+  type AttemptId = Long
+  def removeOutputsByFilter(f: (MapId, AttemptId, BlockManagerId) => Boolean): Unit = synchronized {
     for (mapId <- 0 until mapStatuses.length) {
       if (mapStatuses(mapId) != null && mapStatuses(mapId).location != null
-          && f(mapId, mapStatuses(mapId).location)) {
+          && f(mapId, mapStatuses(mapId).mapTaskAttemptId, mapStatuses(mapId).location)) {
         decrementNumAvailableOutputs(mapStatuses(mapId).location)
         mapStatuses(mapId) = null
         invalidateSerializedMapOutputStatusCache()
@@ -515,9 +516,10 @@ private[spark] class MapOutputTrackerMaster(
   def removeOutputsOnHost(host: String): Unit = {
     shuffleStatuses.foreach { case (shuffleId, shuffleStatus) =>
       shuffleStatus.removeOutputsByFilter(
-        (mapId, location) => {
+        (mapId, attemptId, location) => {
           location.host == host &&
-            !shuffleDriverComponents.checkIfMapOutputStoredOutsideExecutor(shuffleId, mapId)
+            !shuffleDriverComponents.checkIfMapOutputStoredOutsideExecutor(
+              shuffleId, mapId, attemptId)
         })
     }
     incrementEpoch()
@@ -531,9 +533,10 @@ private[spark] class MapOutputTrackerMaster(
   def removeOutputsOnExecutor(execId: String): Unit = {
     shuffleStatuses.foreach { case (shuffleId, shuffleStatus) =>
       shuffleStatus.removeOutputsByFilter(
-        (mapId, location) => {
+        (mapId, attemptId, location) => {
           location.executorId == execId &&
-            !shuffleDriverComponents.checkIfMapOutputStoredOutsideExecutor(shuffleId, mapId)
+            !shuffleDriverComponents.checkIfMapOutputStoredOutsideExecutor(
+              shuffleId, mapId, attemptId)
         })
     }
     incrementEpoch()
