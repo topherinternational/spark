@@ -474,7 +474,7 @@ private[spark] class MapOutputTrackerMaster(
   def unregisterAllMapOutput(shuffleId: Int) {
     shuffleStatuses.get(shuffleId) match {
       case Some(shuffleStatus) =>
-        shuffleStatus.removeOutputsByFilter((x, y) => true)
+        shuffleStatus.removeOutputsByFilter((_, _, _) => true)
         incrementEpoch()
       case None =>
         throw new SparkException(
