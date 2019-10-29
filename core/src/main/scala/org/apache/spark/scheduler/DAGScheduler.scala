@@ -1526,6 +1526,7 @@ private[spark] class DAGScheduler(
             s"(attempt ${failedStage.latestInfo.attemptNumber}) running")
         } else {
           failedStage.failedAttemptIds.add(task.stageAttemptId)
+          logInfo(s"Adding failed attemptId ${task.stageAttemptId} to stage ${failedStage}")
           val shouldAbortStage =
             failedStage.failedAttemptIds.size >= maxConsecutiveStageAttempts ||
             disallowStageRetryForTest
@@ -1547,8 +1548,11 @@ private[spark] class DAGScheduler(
             // Mark all the map as broken in the map stage, to ensure retry all the tasks on
             // resubmitted stage attempt.
             mapOutputTracker.unregisterAllMapOutput(shuffleId)
+            logInfo(s"Map stage ${mapStage} is a barrier, so unregister all map outputs")
           } else if (mapId != -1) {
             // Mark the map whose fetch failed as broken in the map stage
+            logInfo(s"Unregistering MapOutput " +
+              s"(shuffleId=$shuffleId, mapId=$mapId, bmAddr=$bmAddress")
             mapOutputTracker.unregisterMapOutput(shuffleId, mapId, bmAddress)
           }
 
