@@ -1138,6 +1138,7 @@ private[spark] class DAGScheduler(
       }
     } catch {
       case NonFatal(e) =>
+        logDebug(s"Creating new stage attempt due to exception", e)
         stage.makeNewStageAttempt(partitionsToCompute.size)
         listenerBus.post(SparkListenerStageSubmitted(stage.latestInfo, properties))
         abortStage(stage, s"Task creation failed: $e\n${Utils.exceptionString(e)}", Some(e))
@@ -1145,6 +1146,7 @@ private[spark] class DAGScheduler(
         return
     }
 
+    logDebug(s"Creating new stage attempt")
     stage.makeNewStageAttempt(partitionsToCompute.size, taskIdToLocations.values.toSeq)
 
     // If there are tasks to execute, record the submission time of the stage. Otherwise,
