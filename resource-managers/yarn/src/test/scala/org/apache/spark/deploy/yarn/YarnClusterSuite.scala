@@ -79,6 +79,7 @@ class YarnClusterSuite extends BaseYarnClusterSuite {
 
   private val TEST_CONDA_PYFILE = """
     |import mod1, mod2
+    |import os
     |import sys
     |from operator import add
     |
@@ -97,6 +98,51 @@ class YarnClusterSuite extends BaseYarnClusterSuite {
     |    # Addict exists only in external-conda-forge, not anaconda
     |    sc.addCondaChannel("https://conda.anaconda.org/conda-forge")
     |    sc.addCondaPackages('addict=2.2.0')
+    |
+    |    # Save list of installed packages if specified
+    |    spec_file_path = os.getenv("TEMP_SPEC_FILE")
+    |    if spec_file_path:
+    |        sys.stderr.write("Inside conditional\n")
+    |        spec_file = open(spec_file_path, 'w')
+    |        package_urls = sc.getTransitiveCondaPackageUrls()
+    |        py_package_urls = [package_urls.apply(i) for i in range(package_urls.size())]
+    |        sys.stderr.write(str(py_package_urls))
+    |        for package_url in py_package_urls:
+    |            spec_file.write("%s\n" % package_url)
+    |        spec_file.close()
+    |
+    |    def numpy_multiply(x):
+    |        # Ensure package from non-base channel is installed
+    |        import addict
+    |        numpy.multiply(x, mod1.func() * mod2.func())
+    |
+    |    rdd = sc.parallelize(range(10)).map(numpy_multiply)
+    |    cnt = rdd.count()
+    |    if cnt == 10:
+    |        result = "success"
+    |    else:
+    |        result = "failure"
+    |    status.write(result)
+    |    status.close()
+    |    sc.stop()
+  """.stripMargin
+
+  private val TEST_CONDA_NO_ADD_PYFILE = """
+    |import mod1, mod2
+    |import os
+    |import sys
+    |from operator import add
+    |
+    |from pyspark import SparkConf , SparkContext
+    |if __name__ == "__main__":
+    |    if len(sys.argv) != 2:
+    |        print >> sys.stderr, "Usage: test.py [result file]"
+    |        exit(-1)
+    |    sc = SparkContext(conf=SparkConf())
+    |
+    |    import numpy
+    |
+    |    status = open(sys.argv[1],'w')
     |
     |    def numpy_multiply(x):
     |        # Ensure package from non-base channel is installed
@@ -229,11 +275,11 @@ class YarnClusterSuite extends BaseYarnClusterSuite {
   }
 
   test("run Python application within Conda in yarn-client mode") {
-    testCondaPySpark(true)
+    testCondaPySparkAllModes(clientMode = true)
   }
 
   test("run Python application within Conda in yarn-cluster mode") {
-    testCondaPySpark(false)
+    testCondaPySparkAllModes(clientMode = false)
   }
 
   test("run Python application in yarn-cluster mode using " +
@@ -368,9 +414,11 @@ class YarnClusterSuite extends BaseYarnClusterSuite {
 
   private def testCondaPySpark(
       clientMode: Boolean,
+      testFile: String,
+      extraConf: Map[String, String] = Map(),
       extraEnv: Map[String, String] = Map()): Unit = {
     val primaryPyFile = new File(tempDir, "test.py")
-    Files.write(TEST_CONDA_PYFILE, primaryPyFile, StandardCharsets.UTF_8)
+    Files.write(testFile, primaryPyFile, StandardCharsets.UTF_8)
 
     // When running tests, let's not assume the user has built the assembly module, which also
     // creates the pyspark archive. Instead, let's use PYSPARK_ARCHIVES_PATH to point at the
@@ -382,12 +430,6 @@ class YarnClusterSuite extends BaseYarnClusterSuite {
     val extraEnvVars = Map(
       "PYSPARK_ARCHIVES_PATH" -> pythonPath.map("local:" + _).mkString(File.pathSeparator),
       "PYTHONPATH" -> pythonPath.mkString(File.pathSeparator)) ++ extraEnv
-
-    val extraConf: Map[String, String] = Map(
-      "spark.conda.binaryPath" -> sys.env("CONDA_BIN"),
-      "spark.conda.channelUrls" -> "https://repo.continuum.io/pkgs/main",
-      "spark.conda.bootstrapPackages" -> "python=3.6"
-    )
 
     val moduleDir =
       if (clientMode) {
@@ -405,14 +447,45 @@ class YarnClusterSuite extends BaseYarnClusterSuite {
     val mod2Archive = TestUtils.createJarWithFiles(Map("mod2.py" -> TEST_PYMODULE), moduleDir)
     val pyFiles = Seq(pyModule.getAbsolutePath(), mod2Archive.getPath()).mkString(",")
     val result = File.createTempFile("result", null, tempDir)
+    val outFile = Some(File.createTempFile("stdout", null, tempDir))
 
     val finalState = runSpark(clientMode, primaryPyFile.getAbsolutePath(),
       sparkArgs = Seq("--py-files" -> pyFiles),
       appArgs = Seq(result.getAbsolutePath()),
       extraEnv = extraEnvVars,
       extraConf = extraConf,
+      outFile = outFile,
       timeoutDuration = 4.minutes) // give it a bit longer
-    checkResult(finalState, result)
+    checkResult(finalState, result, outFile = outFile)
+  }
+
+  private def testCondaPySparkAllModes(clientMode: Boolean): Unit = {
+    // step 1 run conda normally and save spec file contents into a file
+    val specFile = new File(tempDir, "specFile")
+    val extraConfForCreate: Map[String, String] = Map(
+      "spark.conda.binaryPath" -> sys.env("CONDA_BIN"),
+      "spark.conda.channelUrls" -> "https://repo.continuum.io/pkgs/main",
+      "spark.conda.bootstrapPackages" -> "python=3.6"
+    )
+    val extraEnvForCreate: Map[String, String] = Map(
+      "TEMP_SPEC_FILE" -> specFile.getAbsolutePath
+    )
+    testCondaPySpark(
+      clientMode = clientMode,
+      TEST_CONDA_PYFILE,
+      extraConf = extraConfForCreate,
+      extraEnv = extraEnvForCreate)
+
+    // step 2 read spec file contents
+    val bootstrapPackageUrls = Source.fromFile(specFile).getLines().toList
+
+    // step 3 run conda with bootstrap urls from spec file contents
+    val extraConfForFile: Map[String, String] = Map(
+      "spark.conda.binaryPath" -> sys.env("CONDA_BIN"),
+      "spark.conda.bootstrapMode" -> "File",
+      "spark.conda.bootstrapPackageUrls" -> bootstrapPackageUrls.mkString(",")
+    )
+    testCondaPySpark(clientMode, TEST_CONDA_NO_ADD_PYFILE, extraConf = extraConfForFile)
   }
 
   private def testUseClassPathFirst(clientMode: Boolean): Unit = {

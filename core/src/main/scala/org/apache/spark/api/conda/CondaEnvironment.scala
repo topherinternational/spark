@@ -24,6 +24,7 @@ import javax.ws.rs.core.UriBuilder
 
 import scala.collection.mutable
 
+import org.apache.spark.SparkException
 import org.apache.spark.internal.Logging
 
 /**
@@ -33,13 +34,16 @@ import org.apache.spark.internal.Logging
  * @param rootPath  The root path under which envs/ and pkgs/ are located.
  * @param envName   The name of the environment.
  */
-final class CondaEnvironment(val manager: CondaEnvironmentManager,
-                             val rootPath: Path,
-                             val envName: String,
-                             bootstrapPackages: Seq[String],
-                             bootstrapChannels: Seq[String],
-                             extraArgs: Seq[String] = Nil,
-                             envVars: Map[String, String] = Map.empty) extends Logging {
+final class CondaEnvironment(
+    val manager: CondaEnvironmentManager,
+    val rootPath: Path,
+    val envName: String,
+    bootstrapMode: CondaBootstrapMode,
+    bootstrapPackages: Seq[String],
+    bootstrapPackageUrls: Seq[String],
+    bootstrapChannels: Seq[String],
+    extraArgs: Seq[String] = Nil,
+    envVars: Map[String, String] = Map.empty) extends Logging {
 
   import CondaEnvironment._
 
@@ -70,7 +74,16 @@ final class CondaEnvironment(val manager: CondaEnvironmentManager,
     channels ++= urls.iterator.map(AuthenticatedChannel.apply)
   }
 
+  def getTransitivePackageUrls(): List[String] = {
+    manager.listPackagesExplicit(condaEnvDir.toAbsolutePath.toString)
+  }
+
   def installPackages(packages: Seq[String]): Unit = {
+    if (bootstrapMode.equals(CondaBootstrapMode.File)) {
+      throw new SparkException(
+        "Install packages is not supported if CondaEnvironment was created with file.")
+    }
+
     manager.runCondaProcess(rootPath,
       List("install", "-n", envName, "-y")
         ::: extraArgs.toList
@@ -98,7 +111,13 @@ final class CondaEnvironment(val manager: CondaEnvironmentManager,
    * This is for sending the instructions to the executors so they can replicate the same steps.
    */
   def buildSetupInstructions: CondaSetupInstructions = {
-    CondaSetupInstructions(packages.toList, channels.toList, extraArgs, envVars)
+    CondaSetupInstructions(
+      bootstrapMode,
+      packages.toList,
+      bootstrapPackageUrls,
+      channels.toList,
+      extraArgs,
+      envVars)
   }
 }
 
@@ -155,13 +174,20 @@ object CondaEnvironment {
    * Note that only the first parameter list is used by implementations of toString, equals etc.
    */
   case class CondaSetupInstructions(
-         packages: Seq[String],
-         unauthenticatedChannels: Seq[UnauthenticatedChannel],
-         extraArgs: Seq[String],
-         envVars: Map[String, String])
-        (userInfos: Map[UnauthenticatedChannel, String]) {
-    require(unauthenticatedChannels.nonEmpty)
-    require(packages.nonEmpty)
+      mode: CondaBootstrapMode,
+      packages: Seq[String],
+      packageUrls: Seq[String],
+      unauthenticatedChannels: Seq[UnauthenticatedChannel],
+      extraArgs: Seq[String],
+      envVars: Map[String, String])
+      (userInfos: Map[UnauthenticatedChannel, String]) {
+    mode match {
+      case CondaBootstrapMode.Solve =>
+        require(unauthenticatedChannels.nonEmpty)
+        require(packages.nonEmpty)
+      case CondaBootstrapMode.File =>
+        require(packageUrls.nonEmpty)
+    }
 
     /**
      * Channels with authentication applied.
@@ -170,11 +196,15 @@ object CondaEnvironment {
   }
 
   object CondaSetupInstructions {
-    def apply(packages: Seq[String], channels: Seq[AuthenticatedChannel], extraArgs: Seq[String],
-              envVars: Map[String, String])
-        : CondaSetupInstructions = {
+    def apply(
+        mode: CondaBootstrapMode,
+        packages: Seq[String],
+        packageUrls: Seq[String],
+        channels: Seq[AuthenticatedChannel],
+        extraArgs: Seq[String],
+        envVars: Map[String, String]): CondaSetupInstructions = {
       val ChannelsWithCreds(unauthed, userInfos) = unauthenticateChannels(channels)
-      CondaSetupInstructions(packages, unauthed, extraArgs, envVars)(userInfos)
+      CondaSetupInstructions(mode, packages, packageUrls, unauthed, extraArgs, envVars)(userInfos)
     }
   }
 }
