@@ -18,6 +18,7 @@
 package org.apache.spark.sql
 
 import java.io.{File, FileNotFoundException}
+import java.nio.file.{Files, StandardOpenOption}
 import java.util.Locale
 
 import scala.collection.mutable
@@ -479,6 +480,107 @@ class FileBasedDataSourceSuite extends QueryTest with SharedSQLContext with Befo
         sparkContext.removeSparkListener(bytesReadListener)
       }
     }
+  }
+
+  test("Option recursiveFileLookup: recursive loading correctly") {
+
+    val expectedFileList = mutable.ListBuffer[String]()
+
+    def createFile(dir: File, fileName: String, format: String): Unit = {
+      val path = new File(dir, s"${fileName}.${format}")
+      Files.write(
+        path.toPath,
+        s"content of ${path.toString}".getBytes,
+        StandardOpenOption.CREATE, StandardOpenOption.WRITE
+      )
+      val fsPath = new Path(path.getAbsoluteFile.toURI).toString
+      expectedFileList.append(fsPath)
+    }
+
+    def createDir(path: File, dirName: String, level: Int): Unit = {
+      val dir = new File(path, s"dir${dirName}-${level}")
+      dir.mkdir()
+      createFile(dir, s"file${level}", "bin")
+      createFile(dir, s"file${level}", "text")
+
+      if (level < 4) {
+        // create sub-dir
+        createDir(dir, "sub0", level + 1)
+        createDir(dir, "sub1", level + 1)
+      }
+    }
+
+    withTempPath { path =>
+      path.mkdir()
+      createDir(path, "root", 0)
+
+      val dataPath = new File(path, "dirroot-0").getAbsolutePath
+      val fileList = spark.read.format("binaryFile")
+        .option("recursiveFileLookup", true)
+        .load(dataPath)
+        .select("path").collect().map(_.getString(0))
+
+      assert(fileList.toSet === expectedFileList.toSet)
+
+      val fileList2 = spark.read.format("binaryFile")
+        .option("recursiveFileLookup", true)
+        .option("pathGlobFilter", "*.bin")
+        .load(dataPath)
+        .select("path").collect().map(_.getString(0))
+
+      assert(fileList2.toSet === expectedFileList.filter(_.endsWith(".bin")).toSet)
+    }
+  }
+
+  test("Option pathGlobFilter: filter files correctly") {
+    withTempPath { path =>
+      val dataDir = path.getCanonicalPath
+      Seq("foo").toDS().write.text(dataDir)
+      Seq("bar").toDS().write.mode("append").parquet(dataDir)
+      val df = spark.read.option("pathGlobFilter", "*.txt").text(dataDir)
+      checkAnswer(df, Row("foo"))
+
+      // Both glob pattern in option and path should be effective to filter files.
+      val df2 = spark.read.option("pathGlobFilter", "*.txt").text(dataDir + "/*.parquet")
+      checkAnswer(df2, Seq.empty)
+
+      val df3 = spark.read.option("pathGlobFilter", "*.txt").text(dataDir + "/*xt")
+      checkAnswer(df3, Row("foo"))
+    }
+  }
+
+  test("Option pathGlobFilter: simple extension filtering should contains partition info") {
+    withTempPath { path =>
+      val input = Seq(("foo", 1), ("oof", 2)).toDF("a", "b")
+      input.write.partitionBy("b").text(path.getCanonicalPath)
+      Seq("bar").toDS().write.mode("append").parquet(path.getCanonicalPath + "/b=1")
+
+      // If we use glob pattern in the path, the partition column won't be shown in the result.
+      val df = spark.read.text(path.getCanonicalPath + "/*/*.txt")
+      checkAnswer(df, input.select("a"))
+
+      val df2 = spark.read.option("pathGlobFilter", "*.txt").text(path.getCanonicalPath)
+      checkAnswer(df2, input)
+    }
+  }
+
+  test("Option recursiveFileLookup: disable partition inferring") {
+    val dataPath = Thread.currentThread().getContextClassLoader
+      .getResource("test-data/text-partitioned").toString
+
+    val df = spark.read.format("binaryFile")
+      .option("recursiveFileLookup", true)
+      .load(dataPath)
+
+    assert(!df.columns.contains("year"), "Expect partition inferring disabled")
+    val fileList = df.select("path").collect().map(_.getString(0))
+
+    val expectedFileList = Array(
+      dataPath + "/year=2014/data.txt",
+      dataPath + "/year=2015/data.txt"
+    ).map(path => new Path(path).toString)
+
+    assert(fileList.toSet === expectedFileList.toSet)
   }
 }
 
