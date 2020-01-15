@@ -34,8 +34,8 @@ deployable-branches-and-tags: &deployable-branches-and-tags
 
 step_templates:
   restore-build-binaries-cache: &restore-build-binaries-cache
-    restore_cache:
-      key: build-binaries-{{ checksum "build/mvn" }}-{{ checksum "build/sbt" }}
+    #restore_cache:
+      #key: build-binaries-{{ checksum "build/mvn" }}-{{ checksum "build/sbt" }}
   restore-ivy-cache: &restore-ivy-cache
     restore_cache:
       keys:
