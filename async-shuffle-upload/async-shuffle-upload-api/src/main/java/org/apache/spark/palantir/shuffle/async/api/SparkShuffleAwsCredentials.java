@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package com.palantir.spark.shuffle.async.api;
+package org.apache.spark.palantir.shuffle.async.api;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -24,7 +24,7 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.palantir.logsafe.UnsafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
-import com.palantir.spark.shuffle.async.immutables.ImmutablesStyle;
+import org.apache.spark.palantir.shuffle.async.immutables.ImmutablesStyle;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import org.immutables.value.Value;

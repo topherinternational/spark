@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package com.palantir.spark.shuffle.async.immutables;
+package org.apache.spark.palantir.shuffle.async.immutables;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;

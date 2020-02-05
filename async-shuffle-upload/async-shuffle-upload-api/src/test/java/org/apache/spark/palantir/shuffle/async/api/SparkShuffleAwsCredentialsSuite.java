@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package com.palantir.spark.shuffle.async.api;
+package org.apache.spark.palantir.shuffle.async.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
