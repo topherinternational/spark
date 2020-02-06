@@ -33,7 +33,7 @@ repositories {
 }
 
 apply plugin: 'java'
-version '1.0'
+version System.getProperty("test-project-version")
 group 'org.apache.spark'
 sourceCompatibility = 1.8
 
@@ -44,6 +44,8 @@ dependencies {
 
 sparkDocker {
   baseImage 'openjdk:8-jdk-slim'
-  imageName 'docker.palantir.test/spark/spark-test-app'
+  imagePath 'spark/spark-test-app'
+  snapshotRegistry 'docker.palantir.test.snapshot'
+  releaseRegistry 'docker.palantir.test.release'
   tags System.getProperty('docker-tag')
 }

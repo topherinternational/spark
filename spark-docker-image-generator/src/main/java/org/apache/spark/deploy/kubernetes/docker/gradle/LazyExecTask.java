@@ -19,20 +19,20 @@ package org.apache.spark.deploy.kubernetes.docker.gradle;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.gradle.api.DefaultTask;
-import org.gradle.api.provider.Property;
+import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.TaskAction;
 
 public class LazyExecTask extends DefaultTask {
 
-    private List<Property<String>> commandLine;
+    private List<Provider<String>> commandLine;
 
     @Input
-    public final List<Property<String>> getCommandLine() {
+    public final List<Provider<String>> getCommandLine() {
         return commandLine;
     }
 
-    public final void setCommandLine(List<Property<String>> commandLine) {
+    public final void setCommandLine(List<Provider<String>> commandLine) {
         this.commandLine = commandLine;
     }
 
@@ -40,7 +40,7 @@ public class LazyExecTask extends DefaultTask {
     public final void runCommand() {
         getProject().exec(exec ->
                 exec.commandLine(commandLine.stream()
-                        .map(Property::get)
+                        .map(Provider::get)
                         .collect(Collectors.toList())));
     }
 }
