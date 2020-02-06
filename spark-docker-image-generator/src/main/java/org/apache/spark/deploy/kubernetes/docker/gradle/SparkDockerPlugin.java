@@ -16,8 +16,6 @@
  */
 package org.apache.spark.deploy.kubernetes.docker.gradle;
 
-import com.palantir.sls.versions.OrderableSlsVersion;
-import com.palantir.sls.versions.SlsVersionType;
 import java.io.File;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -29,7 +27,6 @@ import java.util.stream.Collectors;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
-import org.gradle.api.Transformer;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
@@ -115,23 +112,13 @@ public final class SparkDockerPlugin implements Plugin<Project> {
             File dockerFile,
             Project project,
             SparkDockerExtension extension) {
-        Provider<String> resolvedImageName = extension.getImagePath().flatMap(
-                (Transformer<Provider<String>, String>) imagePath ->
-                        extension.getSnapshotRegistry().flatMap(
-                                (Transformer<Provider<String>, String>) snapshotRegistry ->
-                                        extension.getReleaseRegistry().map(releaseRegistry ->
-                                                resolveImageName(
-                                                        project,
-                                                        imagePath,
-                                                        snapshotRegistry,
-                                                        releaseRegistry))));
         DockerBuildTask dockerBuild = project.getTasks().create(
                 "sparkDockerBuild",
                 DockerBuildTask.class,
                 dockerBuildTask -> {
                     dockerBuildTask.setDockerBuildDirectory(buildDirectory);
                     dockerBuildTask.setDockerFile(dockerFile);
-                    dockerBuildTask.setImageName(resolvedImageName);
+                    dockerBuildTask.setImageName(extension.getResolvedImage());
                     dockerBuildTask.dependsOn("sparkDockerPrepare");
                 });
         Task tagAllTask = project.getTasks().create("sparkDockerTag");
@@ -139,10 +126,10 @@ public final class SparkDockerPlugin implements Plugin<Project> {
                 "sparkDockerPush",
                 LazyExecTask.class,
                 task -> {
-                    List<Provider<String>> commandLine = new ArrayList<>();
+                    List<Property<String>> commandLine = new ArrayList<>();
                     commandLine.add(constProperty(project, "docker"));
                     commandLine.add(constProperty(project, "push"));
-                    commandLine.add(resolvedImageName);
+                    commandLine.add(extension.getResolvedImage());
                     task.setCommandLine(commandLine);
                 });
         project.afterEvaluate(evaluatedProject -> {
@@ -158,8 +145,10 @@ public final class SparkDockerPlugin implements Plugin<Project> {
                                                     task.commandLine(
                                                             "docker",
                                                             "tag",
-                                                            resolvedImageName.get(),
-                                                            String.format("%s:%s", resolvedImageName.get(), tag))
+                                                            extension.getResolvedImage().get(),
+                                                            String.format(
+                                                                    "%s:%s",
+                                                                    extension.getResolvedImage().get(), tag))
                                                             .dependsOn(dockerBuild)))
                     .collect(Collectors.toList());
             if (!tagTasks.isEmpty()) {
@@ -174,7 +163,9 @@ public final class SparkDockerPlugin implements Plugin<Project> {
                                     Exec.class,
                                     task ->
                                             task.commandLine(
-                                                    "docker", "push", String.format("%s:%s", resolvedImageName, tag))
+                                                    "docker",
+                                                    "push",
+                                                    String.format("%s:%s", extension.getResolvedImage().get(), tag))
                                                     .dependsOn(String.format("sparkDockerTag%s", tag))))
                     .collect(Collectors.toList());
             if (!pushTasks.isEmpty()) {
@@ -185,34 +176,9 @@ public final class SparkDockerPlugin implements Plugin<Project> {
         });
     }
 
-    private String resolveImageName(
-            Project project,
-            String imagePath,
-            String snapshotRegistry,
-            String releaseRegistry) {
-        StringBuilder imageNameBuilder = new StringBuilder();
-        if (isReleaseVersion(project.getVersion().toString())) {
-            imageNameBuilder.append(releaseRegistry);
-        } else {
-            imageNameBuilder.append(snapshotRegistry);
-        }
-        if (!imagePath.startsWith("/")) {
-            imageNameBuilder.append('/');
-        }
-        imageNameBuilder.append(imagePath);
-        return imageNameBuilder.toString();
-    }
-
     private Property<String> constProperty(Project project, String value) {
         Property<String> prop = project.getObjects().property(String.class);
         prop.set(value);
         return prop;
-    }
-
-    private static boolean isReleaseVersion(String versionString) {
-        return OrderableSlsVersion.safeValueOf(versionString)
-                .map(version -> version.getType() == SlsVersionType.RELEASE
-                        || version.getType() == SlsVersionType.RELEASE_CANDIDATE)
-                .orElse(false);
     }
 }

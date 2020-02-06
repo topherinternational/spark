@@ -20,7 +20,6 @@ import java.util.ArrayList;
 import java.util.List;
 import org.gradle.api.Project;
 import org.gradle.api.provider.Property;
-import org.gradle.api.provider.Provider;
 import org.gradle.process.ExecSpec;
 import org.junit.Before;
 import org.junit.Test;
@@ -49,7 +48,7 @@ public final class LazyExecTaskSuite {
 
     @Test
     public void testRunCommand_setsCommandLineOnExecSpec() {
-        List<Provider<String>> command = new ArrayList<>();
+        List<Property<String>> command = new ArrayList<>();
         command.add(constProperty("ls"));
         command.add(constProperty("-lahrt"));
         command.add(constProperty("git"));

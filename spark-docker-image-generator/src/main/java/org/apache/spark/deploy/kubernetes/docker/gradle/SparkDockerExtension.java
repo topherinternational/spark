@@ -20,7 +20,9 @@ import java.util.Collection;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.gradle.api.Project;
+import org.gradle.api.Transformer;
 import org.gradle.api.provider.Property;
+import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.SetProperty;
 
 public class SparkDockerExtension {
@@ -30,6 +32,7 @@ public class SparkDockerExtension {
     private final Property<String> snapshotRegistry;
     private final Property<String> releaseRegistry;
     private final SetProperty<String> tags;
+    private final Property<String> resolvedImage;
 
     public SparkDockerExtension(Project project) {
         this.baseImage = project.getObjects().property(String.class);
@@ -37,6 +40,17 @@ public class SparkDockerExtension {
         this.snapshotRegistry = project.getObjects().property(String.class);
         this.releaseRegistry = project.getObjects().property(String.class);
         this.tags = project.getObjects().setProperty(String.class);
+        this.resolvedImage = project.getObjects().property(String.class);
+        resolvedImage.set(imagePath.flatMap(
+                (Transformer<Provider<String>, String>) resolvedImagePath ->
+                        snapshotRegistry.flatMap(
+                                (Transformer<Provider<String>, String>) resolvedSnapshotRegistry ->
+                                        releaseRegistry.map(resolvedReleaseRegistry ->
+                                                ImageResolver.resolveImageName(
+                                                        project,
+                                                        resolvedImagePath,
+                                                        resolvedSnapshotRegistry,
+                                                        resolvedReleaseRegistry)))));
     }
 
     public final Property<String> getBaseImage() {
@@ -57,6 +71,10 @@ public class SparkDockerExtension {
 
     public final SetProperty<String> getTags() {
         return tags;
+    }
+
+    public final Property<String> getResolvedImage() {
+        return resolvedImage;
     }
 
     @SuppressWarnings("HiddenField")

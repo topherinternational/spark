@@ -18,7 +18,7 @@ package org.apache.spark.deploy.kubernetes.docker.gradle;
 
 import java.io.File;
 import org.gradle.api.DefaultTask;
-import org.gradle.api.provider.Provider;
+import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputDirectory;
 import org.gradle.api.tasks.InputFile;
@@ -28,7 +28,7 @@ public class DockerBuildTask extends DefaultTask {
 
     private File dockerFile;
     private File dockerBuildDirectory;
-    private Provider<String> imageName;
+    private Property<String> imageName;
 
     @InputFile
     public final File getDockerFile() {
@@ -41,7 +41,7 @@ public class DockerBuildTask extends DefaultTask {
     }
 
     @Input
-    public final Provider<String> getImageName() {
+    public final Property<String> getImageName() {
         return imageName;
     }
 
@@ -53,7 +53,7 @@ public class DockerBuildTask extends DefaultTask {
         this.dockerBuildDirectory = dockerBuildDirectory;
     }
 
-    public final void setImageName(Provider<String> imageName) {
+    public final void setImageName(Property<String> imageName) {
         this.imageName = imageName;
     }
 
