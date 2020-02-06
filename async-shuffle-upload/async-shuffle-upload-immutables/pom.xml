@@ -25,9 +25,9 @@
     <relativePath>../../pom.xml</relativePath>
   </parent>
 
-  <artifactId>spark-async-shuffle-upload-immutables</artifactId>
+  <artifactId>spark-async-shuffle-upload-immutables_2.11</artifactId>
   <properties>
-    <sbt.project.name>spark-async-shuffle-upload-immutables</sbt.project.name>
+    <sbt.project.name>async-shuffle-upload-immutables</sbt.project.name>
   </properties>
   <packaging>jar</packaging>
   <name>Spark Project Async Shuffle Upload Immutables</name>

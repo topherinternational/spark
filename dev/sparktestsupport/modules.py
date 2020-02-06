@@ -563,6 +563,28 @@ cloud = Module(
     sbt_test_goals=["hadoop-cloud/test"]
 )
 
+asyncShuffleUploadImmutables = Module(
+    name="async-shuffle-upload-immutables",
+    dependencies=[],
+    source_file_regexes=[
+        "async-shuffle-upload/async-shuffle-upload-immutables/",
+    ],
+    sbt_test_goals=[
+        "async-shuffle-upload-immutables/test",
+    ],
+)
+
+asyncShuffleUploadApi = Module(
+    name="async-shuffle-upload-api",
+    dependencies=[asyncShuffleUploadImmutables],
+    source_file_regexes=[
+        "async-shuffle-upload/async-shuffle-upload-api/",
+    ],
+    sbt_test_goals=[
+        "async-shuffle-upload-api/test",
+    ],
+)
+
 # The root module is a dummy module which is used to run all of the tests.
 # No other modules should directly depend on this module.
 root = Module(

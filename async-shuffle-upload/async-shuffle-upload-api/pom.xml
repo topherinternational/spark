@@ -24,9 +24,9 @@
     <relativePath>../../pom.xml</relativePath>
   </parent>
 
-  <artifactId>spark-async-shuffle-upload-api</artifactId>
+  <artifactId>spark-async-shuffle-upload-api_2.11</artifactId>
   <properties>
-    <sbt.project.name>spark-async-shuffle-upload-api</sbt.project.name>
+    <sbt.project.name>async-shuffle-upload-api</sbt.project.name>
   </properties>
   <packaging>jar</packaging>
   <name>Spark Project Async Shuffle Upload API</name>
@@ -50,7 +50,7 @@
     </dependency>
     <dependency>
       <groupId>org.apache.spark</groupId>
-      <artifactId>spark-async-shuffle-upload-immutables</artifactId>
+      <artifactId>spark-async-shuffle-upload-immutables_${scala.binary.version}</artifactId>
       <version>${project.version}</version>
       <scope>provided</scope>
     </dependency>

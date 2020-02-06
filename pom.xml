@@ -116,7 +116,7 @@
     <module>tools</module>
 
     <!-- Async shuffle upload modules-->
-    <module>async-shuffle-upload/immutables</module>
+    <module>async-shuffle-upload/async-shuffle-upload-immutables</module>
     <module>async-shuffle-upload/async-shuffle-upload-api</module>
     <!-- See additional modules enabled by profiles below -->
   </modules>
