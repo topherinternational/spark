@@ -19,20 +19,26 @@ package org.apache.spark.palantir.shuffle.async.api;
 
 public final class SparkShuffleApiConstants {
 
-    // Identifiers used by the spark shuffle plugin
-    public static final String SHUFFLE_BASE_URI_CONF = "spark.shuffle.hadoop.async.base-uri";
+  // Identifiers used by the spark shuffle plugin
+  public static final String SHUFFLE_BASE_URI_CONF = "spark.shuffle.hadoop.async.base-uri";
 
-    public static final String SHUFFLE_PLUGIN_APP_NAME_CONF = "spark.shuffle.hadoop.async.appName";
-    public static final String SHUFFLE_PLUGIN_APP_NAME_CONF_DEPRECATED = "spark.plugin.shuffle.async.appName";
+  public static final String SHUFFLE_PLUGIN_APP_NAME_CONF = "spark.shuffle.hadoop.async.appName";
+  public static final String SHUFFLE_PLUGIN_APP_NAME_CONF_DEPRECATED =
+      "spark.plugin.shuffle.async.appName";
 
-    public static final String SHUFFLE_S3A_CREDS_FILE_CONF = "spark.shuffle.hadoop.async.s3a.credsFile";
-    public static final String SHUFFLE_S3A_CREDS_FILE_CONF_DEPRECATED = "spark.plugin.shuffle.async.s3a.credsFile";
+  public static final String SHUFFLE_S3A_CREDS_FILE_CONF =
+      "spark.shuffle.hadoop.async.s3a.credsFile";
+  public static final String SHUFFLE_S3A_CREDS_FILE_CONF_DEPRECATED =
+      "spark.plugin.shuffle.async.s3a.credsFile";
 
-    public static final String SHUFFLE_S3A_ENDPOINT_CONF = "spark.shuffle.hadoop.async.s3a.endpoint";
+  public static final String SHUFFLE_S3A_ENDPOINT_CONF =
+      "spark.shuffle.hadoop.async.s3a.endpoint";
 
-    public static final String METRICS_FACTORY_CLASS_CONF = "spark.shuffle.hadoop.async.metrics.factory.class";
-    public static final String METRICS_FACTORY_CLASS_CONF_DEPRECATED = "spark.plugin.shuffle.async.metricsFactoryClass";
+  public static final String METRICS_FACTORY_CLASS_CONF =
+      "spark.shuffle.hadoop.async.metrics.factory.class";
+  public static final String METRICS_FACTORY_CLASS_CONF_DEPRECATED =
+      "spark.plugin.shuffle.async.metricsFactoryClass";
 
-    private SparkShuffleApiConstants() {}
+  private SparkShuffleApiConstants() {}
 
 }

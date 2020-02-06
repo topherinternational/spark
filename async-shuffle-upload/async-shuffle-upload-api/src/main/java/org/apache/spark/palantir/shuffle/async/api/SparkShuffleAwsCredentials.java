@@ -25,8 +25,10 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.palantir.logsafe.UnsafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import org.apache.spark.palantir.shuffle.async.immutables.ImmutablesStyle;
+
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+
 import org.immutables.value.Value;
 
 @ImmutablesStyle
@@ -36,35 +38,37 @@ import org.immutables.value.Value;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public abstract class SparkShuffleAwsCredentials {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+  private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    public abstract String accessKeyId();
+  public abstract String accessKeyId();
 
-    public abstract String secretAccessKey();
+  public abstract String secretAccessKey();
 
-    public abstract String sessionToken();
+  public abstract String sessionToken();
 
-    public final byte[] toBytes() {
-        try {
-            return MAPPER.writeValueAsString(this).getBytes(StandardCharsets.UTF_8);
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException(e);
-        }
+  public final byte[] toBytes() {
+    try {
+      return MAPPER.writeValueAsString(this).getBytes(StandardCharsets.UTF_8);
+    } catch (JsonProcessingException e) {
+      throw new RuntimeException(e);
     }
+  }
 
-    public static SparkShuffleAwsCredentials fromBytes(byte[] bytes) {
-        try {
-            return MAPPER.readValue(new String(bytes, StandardCharsets.UTF_8), SparkShuffleAwsCredentials.class);
-        } catch (IOException e) {
-            throw new SafeIllegalArgumentException(
-                "Could not deserialize bytes as AWS credentials.",
-                UnsafeArg.of("cause", e));
-        }
+  public static SparkShuffleAwsCredentials fromBytes(byte[] bytes) {
+    try {
+      return MAPPER.readValue(
+          new String(bytes, StandardCharsets.UTF_8), SparkShuffleAwsCredentials.class);
+    } catch (IOException e) {
+      throw new SafeIllegalArgumentException(
+          "Could not deserialize bytes as AWS credentials.",
+          UnsafeArg.of("cause", e));
     }
+  }
 
-    public static Builder builder() {
-        return new Builder();
-    }
+  public static Builder builder() {
+    return new Builder();
+  }
 
-    public static final class Builder extends ImmutableSparkShuffleAwsCredentials.Builder {}
+  public static final class Builder extends ImmutableSparkShuffleAwsCredentials.Builder {
+  }
 }

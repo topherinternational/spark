@@ -21,31 +21,32 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
 
 import java.nio.charset.StandardCharsets;
+
 import org.junit.Test;
 
 public final class SparkShuffleAwsCredentialsSuite {
 
-    @Test
-    public void testSerialize() {
-        SparkShuffleAwsCredentials creds = SparkShuffleAwsCredentials.builder()
-                .accessKeyId("access-key")
-                .secretAccessKey("secret-key")
-                .sessionToken("session-token")
-                .build();
-        byte[] bytes = creds.toBytes();
-        assertThat(new String(bytes, StandardCharsets.UTF_8))
-                .isEqualTo("{\"accessKeyId\":\"access-key\","
-                        + "\"secretAccessKey\":\"secret-key\","
-                        + "\"sessionToken\":\"session-token\"}");
-    }
+  @Test
+  public void testSerialize() {
+    SparkShuffleAwsCredentials creds = SparkShuffleAwsCredentials.builder()
+        .accessKeyId("access-key")
+        .secretAccessKey("secret-key")
+        .sessionToken("session-token")
+        .build();
+    byte[] bytes = creds.toBytes();
+    assertThat(new String(bytes, StandardCharsets.UTF_8))
+        .isEqualTo("{\"accessKeyId\":\"access-key\","
+            + "\"secretAccessKey\":\"secret-key\","
+            + "\"sessionToken\":\"session-token\"}");
+  }
 
-    @Test
-    public void testDeserialize() {
-        String serializedString = "{\"accessKeyId\":\"access-key\","
-                + "\"secretAccessKey\":\"secret-key\","
-                + "\"sessionToken\":\"session-token\"}";
+  @Test
+  public void testDeserialize() {
+    String serializedString = "{\"accessKeyId\":\"access-key\","
+        + "\"secretAccessKey\":\"secret-key\","
+        + "\"sessionToken\":\"session-token\"}";
 
-        SparkShuffleAwsCredentials creds =
-                SparkShuffleAwsCredentials.fromBytes(serializedString.getBytes(StandardCharsets.UTF_8));
-    }
+    SparkShuffleAwsCredentials creds =
+        SparkShuffleAwsCredentials.fromBytes(serializedString.getBytes(StandardCharsets.UTF_8));
+  }
 }
