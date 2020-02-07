@@ -18,7 +18,6 @@
 package org.apache.spark.palantir.shuffle.async.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.fail;
 
 import java.nio.charset.StandardCharsets;
 
