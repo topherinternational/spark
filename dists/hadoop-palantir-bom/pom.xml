@@ -152,12 +152,14 @@
 
             <!-- async shuffle upload modules -->
             <dependency>
-              <groupId>org.apache.spark</groupId>
-              <artifactId>spark-async-shuffle-upload-api_2.11</artifactId>
+                <groupId>org.apache.spark</groupId>
+                <artifactId>spark-async-shuffle-upload-api_2.11</artifactId>
+                <version>${project.version}</version>
             </dependency>
             <dependency>
-              <groupId>org.apache.spark</groupId>
-              <artifactId>spark-async-shuffle-upload-immutables_2.11</artifactId>
+                <groupId>org.apache.spark</groupId>
+                <artifactId>spark-async-shuffle-upload-immutables_2.11</artifactId>
+                <version>${project.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
