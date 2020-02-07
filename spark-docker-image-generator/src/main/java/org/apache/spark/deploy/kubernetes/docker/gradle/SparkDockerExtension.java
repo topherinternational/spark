@@ -20,9 +20,7 @@ import java.util.Collection;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.gradle.api.Project;
-import org.gradle.api.Transformer;
 import org.gradle.api.provider.Property;
-import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.SetProperty;
 
 public class SparkDockerExtension {
@@ -41,16 +39,12 @@ public class SparkDockerExtension {
         this.releaseRegistry = project.getObjects().property(String.class);
         this.tags = project.getObjects().setProperty(String.class);
         this.resolvedImage = project.getObjects().property(String.class);
-        resolvedImage.set(imagePath.flatMap(
-                (Transformer<Provider<String>, String>) resolvedImagePath ->
-                        snapshotRegistry.flatMap(
-                                (Transformer<Provider<String>, String>) resolvedSnapshotRegistry ->
-                                        releaseRegistry.map(resolvedReleaseRegistry ->
-                                                ImageResolver.resolveImageName(
-                                                        project,
-                                                        resolvedImagePath,
-                                                        resolvedSnapshotRegistry,
-                                                        resolvedReleaseRegistry)))));
+        resolvedImage.set(project.provider(() ->
+                ImageResolver.resolveImageName(
+                        project,
+                        imagePath.get(),
+                        snapshotRegistry.get(),
+                        releaseRegistry.get())));
     }
 
     public final Property<String> getBaseImage() {
