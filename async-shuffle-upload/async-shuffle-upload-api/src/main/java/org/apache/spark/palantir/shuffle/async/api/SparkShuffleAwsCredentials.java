@@ -69,6 +69,5 @@ public abstract class SparkShuffleAwsCredentials {
     return new Builder();
   }
 
-  public static final class Builder extends ImmutableSparkShuffleAwsCredentials.Builder {
-  }
+  public static final class Builder extends ImmutableSparkShuffleAwsCredentials.Builder {}
 }
