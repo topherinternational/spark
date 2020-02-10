@@ -21,3 +21,4 @@ com.spotify:docker-client = 8.15.0
 org.assertj:assertj-core = 3.11.1
 org.mockito:mockito-core = 2.24.0
 junit:junit = 4.12
+com.palantir.sls.versions:sls-versions = 0.12.0

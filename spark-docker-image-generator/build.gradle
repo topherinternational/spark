@@ -26,6 +26,7 @@ dependencies {
   compile gradleApi()
   compile 'org.apache.commons:commons-compress'
   compile 'commons-io:commons-io'
+  compile 'com.palantir.sls.versions:sls-versions'
   testCompile 'org.assertj:assertj-core'
   testCompile 'org.mockito:mockito-core'
   testCompile 'junit:junit'

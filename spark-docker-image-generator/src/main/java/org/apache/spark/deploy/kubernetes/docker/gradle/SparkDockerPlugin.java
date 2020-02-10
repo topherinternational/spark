@@ -73,7 +73,7 @@ public final class SparkDockerPlugin implements Plugin<Project> {
                     Copy.class,
                     copyTask -> copyTask.from(
                             project.files(project.getConfigurations()
-                                .getByName(SPARK_DOCKER_RUNTIME_CONFIGURATION_NAME)),
+                                    .getByName(SPARK_DOCKER_RUNTIME_CONFIGURATION_NAME)),
                             sparkAppJar)
                             .into(jarsDirProvider));
             copySparkAppLibTask.dependsOn(jarTask);
@@ -118,7 +118,7 @@ public final class SparkDockerPlugin implements Plugin<Project> {
                 dockerBuildTask -> {
                     dockerBuildTask.setDockerBuildDirectory(buildDirectory);
                     dockerBuildTask.setDockerFile(dockerFile);
-                    dockerBuildTask.setImageName(extension.getImageName());
+                    dockerBuildTask.setImageName(extension.getResolvedImage());
                     dockerBuildTask.dependsOn("sparkDockerPrepare");
                 });
         Task tagAllTask = project.getTasks().create("sparkDockerTag");
@@ -129,12 +129,11 @@ public final class SparkDockerPlugin implements Plugin<Project> {
                     List<Property<String>> commandLine = new ArrayList<>();
                     commandLine.add(constProperty(project, "docker"));
                     commandLine.add(constProperty(project, "push"));
-                    commandLine.add(extension.getImageName());
+                    commandLine.add(extension.getResolvedImage());
                     task.setCommandLine(commandLine);
                 });
         project.afterEvaluate(evaluatedProject -> {
             Set<String> tags = extension.getTags().getOrElse(Collections.emptySet());
-            String resolvedImageName = extension.getImageName().get();
             List<Exec> tagTasks = tags.stream()
                     .map(tag ->
                             evaluatedProject
@@ -146,8 +145,10 @@ public final class SparkDockerPlugin implements Plugin<Project> {
                                                     task.commandLine(
                                                             "docker",
                                                             "tag",
-                                                            resolvedImageName,
-                                                            String.format("%s:%s", resolvedImageName, tag))
+                                                            extension.getResolvedImage().get(),
+                                                            String.format(
+                                                                    "%s:%s",
+                                                                    extension.getResolvedImage().get(), tag))
                                                             .dependsOn(dockerBuild)))
                     .collect(Collectors.toList());
             if (!tagTasks.isEmpty()) {
@@ -162,7 +163,9 @@ public final class SparkDockerPlugin implements Plugin<Project> {
                                     Exec.class,
                                     task ->
                                             task.commandLine(
-                                                    "docker", "push", String.format("%s:%s", resolvedImageName, tag))
+                                                    "docker",
+                                                    "push",
+                                                    String.format("%s:%s", extension.getResolvedImage().get(), tag))
                                                     .dependsOn(String.format("sparkDockerTag%s", tag))))
                     .collect(Collectors.toList());
             if (!pushTasks.isEmpty()) {

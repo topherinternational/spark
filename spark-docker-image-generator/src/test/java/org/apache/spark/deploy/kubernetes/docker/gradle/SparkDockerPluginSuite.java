@@ -31,12 +31,31 @@ import org.gradle.testkit.runner.GradleRunner;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
+@RunWith(Parameterized.class)
 public final class SparkDockerPluginSuite {
 
     private static final File TEST_PROJECT_DIR = Paths.get("src/test/resources/plugin-test-project").toFile();
 
+    private final String version;
+    private final String expectedRegistry;
+
     private String dockerTag;
+
+    @Parameterized.Parameters
+    public static String[][] dockerRegistryAndVersion() {
+        return new String[][] {
+                new String[] { "0.1.0", "docker.palantir.test.release" },
+                new String[] { "0.4.10-21-g7a1ebad", "docker.palantir.test.snapshot" }
+        };
+    }
+
+    public SparkDockerPluginSuite(String version, String expectedRegistry) {
+        this.version = version;
+        this.expectedRegistry = expectedRegistry;
+    }
 
     @Before
     public void before() {
@@ -47,7 +66,7 @@ public final class SparkDockerPluginSuite {
     public void after() throws Exception {
         try (DockerClient dockerClient = DefaultDockerClient.fromEnv().build()) {
             ImageInfo taggedImageInfo = dockerClient.inspectImage(
-                    String.format("docker.palantir.test/spark/spark-test-app:%s", dockerTag));
+                    String.format("%s/spark/spark-test-app:%s", expectedRegistry, dockerTag));
             dockerClient.removeImage(taggedImageInfo.id(), true, false);
         }
     }
@@ -60,6 +79,7 @@ public final class SparkDockerPluginSuite {
                         "clean",
                         "sparkDockerTag",
                         String.format("-Ddocker-tag=%s", dockerTag),
+                        String.format("-Dtest-project-version=%s", version),
                         "--stacktrace",
                         "--info")
                 .withProjectDir(TEST_PROJECT_DIR)
@@ -68,7 +88,7 @@ public final class SparkDockerPluginSuite {
 
         try (DockerClient dockerClient = DefaultDockerClient.fromEnv().build()) {
             ImageInfo taggedImageInfo = dockerClient.inspectImage(
-                    String.format("docker.palantir.test/spark/spark-test-app:%s", dockerTag));
+                    String.format("%s/spark/spark-test-app:%s", expectedRegistry, dockerTag));
             Assertions.assertThat(taggedImageInfo).isNotNull();
             ContainerConfig containerConfig = ContainerConfig.builder()
                     .entrypoint("bash")
@@ -84,7 +104,7 @@ public final class SparkDockerPluginSuite {
                         "/opt/spark/jars",
                         "guava-21.0.jar",
                         "commons-io-2.4.jar",
-                        "plugin-test-project-1.0.jar");
+                        String.format("plugin-test-project-%s.jar", version));
                 expectFilesInDir(
                         dockerClient,
                         containerId,

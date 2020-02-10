@@ -26,25 +26,49 @@ import org.gradle.api.provider.SetProperty;
 public class SparkDockerExtension {
 
     private final Property<String> baseImage;
-    private final Property<String> imageName;
+    private final Property<String> imagePath;
+    private final Property<String> snapshotRegistry;
+    private final Property<String> releaseRegistry;
     private final SetProperty<String> tags;
+    private final Property<String> resolvedImage;
 
     public SparkDockerExtension(Project project) {
         this.baseImage = project.getObjects().property(String.class);
-        this.imageName = project.getObjects().property(String.class);
+        this.imagePath = project.getObjects().property(String.class);
+        this.snapshotRegistry = project.getObjects().property(String.class);
+        this.releaseRegistry = project.getObjects().property(String.class);
         this.tags = project.getObjects().setProperty(String.class);
+        this.resolvedImage = project.getObjects().property(String.class);
+        resolvedImage.set(project.provider(() ->
+                ImageResolver.resolveImageName(
+                        project,
+                        imagePath.get(),
+                        snapshotRegistry.get(),
+                        releaseRegistry.get())));
     }
 
     public final Property<String> getBaseImage() {
         return baseImage;
     }
 
-    public final Property<String> getImageName() {
-        return imageName;
+    public final Property<String> getImagePath() {
+        return imagePath;
+    }
+
+    public final Property<String> getSnapshotRegistry() {
+        return snapshotRegistry;
+    }
+
+    public final Property<String> getReleaseRegistry() {
+        return releaseRegistry;
     }
 
     public final SetProperty<String> getTags() {
         return tags;
+    }
+
+    public final Property<String> getResolvedImage() {
+        return resolvedImage;
     }
 
     @SuppressWarnings("HiddenField")
@@ -53,8 +77,18 @@ public class SparkDockerExtension {
     }
 
     @SuppressWarnings("HiddenField")
-    public final void imageName(String imageName) {
-        this.imageName.set(imageName);
+    public final void imagePath(String imagePath) {
+        this.imagePath.set(imagePath);
+    }
+
+    @SuppressWarnings("HiddenField")
+    public final void snapshotRegistry(String snapshotRegistry) {
+        this.snapshotRegistry.set(snapshotRegistry);
+    }
+
+    @SuppressWarnings("HiddenField")
+    public final void releaseRegistry(String releaseRegistry) {
+        this.releaseRegistry.set(releaseRegistry);
     }
 
     @SuppressWarnings("HiddenField")
