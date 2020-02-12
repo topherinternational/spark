@@ -1,0 +1,44 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.apache.spark.palantir.shuffle.async.util;
+
+import org.apache.spark.palantir.shuffle.async.immutables.ImmutablesStyle;
+
+import org.immutables.value.Value;
+
+@Value.Immutable
+@ImmutablesStyle
+public interface PartitionOffsets {
+
+  long dataOffset();
+
+  long nextOffset();
+
+  @Value.Derived
+  default long length() {
+    return nextOffset() - dataOffset();
+  }
+
+  static PartitionOffsets of(long dataOffset, long nextOffset) {
+    return builder().dataOffset(dataOffset).nextOffset(nextOffset).build();
+  }
+
+  static ImmutablePartitionOffsets.Builder builder() {
+    return ImmutablePartitionOffsets.builder();
+  }
+}
