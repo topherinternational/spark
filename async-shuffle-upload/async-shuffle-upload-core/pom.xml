@@ -209,6 +209,13 @@
           <skip>false</skip> <!-- skip testCompile -->
         </configuration>
       </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+        <configuration>
+          <createDependencyReducedPom>false</createDependencyReducedPom>
+        </configuration>
+      </plugin>
     </plugins>
   </build>
 </project>
