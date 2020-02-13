@@ -38,6 +38,7 @@ import org.apache.hadoop.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.spark.palantir.shuffle.async.AsyncShuffleDataIoSparkConfigs;
 import org.apache.spark.palantir.shuffle.async.ShuffleDriverEndpointRef;
 import org.apache.spark.palantir.shuffle.async.client.ShuffleClient;
 import org.apache.spark.palantir.shuffle.async.io.PartitionDecoder;
@@ -48,6 +49,28 @@ import org.apache.spark.palantir.shuffle.async.util.PartitionOffsets;
 import org.apache.spark.palantir.shuffle.async.util.Suppliers;
 import org.apache.spark.palantir.shuffle.async.util.streams.SeekableInput;
 
+/**
+ * The main driver for dealing with shuffle files that are backed up to the Hadoop file system.
+ * <p>
+ * This implements the
+ * {@link org.apache.spark.palantir.shuffle.async.client.ShuffleStorageStrategy#BASIC} storage
+ * strategy, and is the primary storage strategy that is recommended for use.
+ * >p>
+ * Uploading submits an asynchronous task to upload the index file and the data files.
+ * <p>
+ * Downloading involves a number of optimizations, primarily around how data blocks are stored to
+ * be served to the Spark reducer task. In particular, if the block is small enough to fit in
+ * memory, as defined by the configuration threshold given by
+ * {@link AsyncShuffleDataIoSparkConfigs#DOWNLOAD_SHUFFLE_BLOCKS_IN_MEMORY_MAX_SIZE()}, then the
+ * block is downloaded as an in-memory byte array. Otherwise, the block is saved to local disk.
+ * <p>
+ * Fetching is done eagerly to allow multiple blocks to be downloaded simultaneously. Returning
+ * an InputStream doesn't eagerly download the shuffle block, so reduce tasks that only operate on
+ * one data block input stream at a time are only downloading one block at a time. In reality, we
+ * prefer a single reduce task to be able to simultaneously download multiple blocks. This behavior
+ * is inspired by Spark's bulit-in implementation of shuffle block fetchinig - see
+ * {@link org.apache.spark.storage.ShuffleBlockFetcherIterator}.
+ */
 public final class HadoopShuffleClient implements ShuffleClient {
 
   private static final InputStream EMPTY_INPUT_STREAM = new ByteArrayInputStream(new byte[0]);

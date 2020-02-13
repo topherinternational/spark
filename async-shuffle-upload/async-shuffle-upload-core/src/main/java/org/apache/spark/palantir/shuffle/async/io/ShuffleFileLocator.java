@@ -19,6 +19,9 @@ package org.apache.spark.palantir.shuffle.async.io;
 
 import java.io.File;
 
+/**
+ * Thin wrapper for locating local shuffle files that were written by Spark's map tasks.
+ */
 public interface ShuffleFileLocator {
 
   File getDataFile(int shuffleId, int mapId);

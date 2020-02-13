@@ -19,6 +19,9 @@ package org.apache.spark.palantir.shuffle.async.client.basic;
 
 import org.apache.spark.palantir.shuffle.async.util.PartitionOffsets;
 
+/**
+ * Manages the fetching of {@link PartitionOffsets} from remote storage.
+ */
 public interface PartitionOffsetsFetcher {
 
   PartitionOffsets fetchPartitionOffsets(int shuffleId, int mapId, long mapAttemptId, int reduceId);

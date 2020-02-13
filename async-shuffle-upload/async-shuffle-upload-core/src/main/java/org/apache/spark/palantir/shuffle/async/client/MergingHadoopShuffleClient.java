@@ -54,6 +54,21 @@ import org.apache.spark.palantir.shuffle.async.util.SizedInput;
 import org.apache.spark.palantir.shuffle.async.util.streams.SeekableInput;
 import org.apache.spark.storage.BlockManagerId;
 
+/**
+ * Experimental implementation of {@link ShuffleClient} that concatenates shuffle data and index
+ * files before writing them to remote storage.
+ * <p>
+ * This implements the {@link ShuffleStorageStrategy#MERGING} storage strategy for backing up
+ * shuffle files. This was originally built under the assumption that reading and writing small
+ * files may be prohibitively expensive. This fact remains to be seen, but this implementation has
+ * been largely untested and also should be updated to match optimizations present in
+ * {@link org.apache.spark.palantir.shuffle.async.client.basic.HadoopShuffleClient}.
+ * <p>
+ * When uploading files, the data is not sent to remote storage automatically. A periodic task
+ * batches together data and index files, and uploads groups of them as concatenated files.
+ * Downloading blocks requires the merged files to be downloaded and split on local disk first
+ * before they can be served to the reducer tasks.
+ */
 public final class MergingHadoopShuffleClient implements ShuffleClient {
 
   private final String appId;

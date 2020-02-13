@@ -35,6 +35,7 @@ import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.spark.palantir.shuffle.async.AsyncShuffleDataIoSparkConfigs;
 import org.apache.spark.palantir.shuffle.async.ShuffleDriverEndpointRef;
 import org.apache.spark.palantir.shuffle.async.io.PartitionDecoder;
 import org.apache.spark.palantir.shuffle.async.metadata.MapOutputId;
@@ -43,6 +44,14 @@ import org.apache.spark.palantir.shuffle.async.util.PartitionOffsets;
 import org.apache.spark.palantir.shuffle.async.util.streams.BufferedSeekableInput;
 import org.apache.spark.palantir.shuffle.async.util.streams.SeekableInput;
 
+/**
+ * Default implementation of {@link PartitionOffsetsFetcher} that is backed by index files stored
+ * by the {@link HadoopShuffleClient} module.
+ * <p>
+ * This module may cache index files on local disk, if it is so configured via
+ * {@link AsyncShuffleDataIoSparkConfigs#CACHE_INDEX_FILES_LOCALLY()}. An asynchronous task also
+ * periodically removes downloaded index files that are no longer needed.
+ */
 public final class DefaultPartitionOffsetsFetcher implements PartitionOffsetsFetcher {
   private static final Logger LOG = LoggerFactory.getLogger(DefaultPartitionOffsetsFetcher.class);
 

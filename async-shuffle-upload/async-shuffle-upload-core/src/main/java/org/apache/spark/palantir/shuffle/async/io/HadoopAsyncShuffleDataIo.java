@@ -30,6 +30,13 @@ import org.apache.spark.shuffle.sort.io.LocalDiskShuffleDataIO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * Root of the plugin tree, that implements shuffle plugins proposed in SPARK-25299 via
+ * asynchronously backing up data to a remote storage system.
+ * <p>
+ * Throughout the plugin tree, we delegate operations to the local disk implementation. This makes
+ * it such that we don't have to re-invent the local disk work from scratch.
+ */
 public final class HadoopAsyncShuffleDataIo implements ShuffleDataIO {
   private static final Logger log = LoggerFactory.getLogger(HadoopAsyncShuffleDataIo.class);
 

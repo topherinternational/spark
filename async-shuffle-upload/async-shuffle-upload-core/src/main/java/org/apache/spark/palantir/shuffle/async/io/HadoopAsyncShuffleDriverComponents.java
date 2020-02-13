@@ -63,6 +63,12 @@ public final class HadoopAsyncShuffleDriverComponents implements ShuffleDriverCo
     return delegate.initializeApplication();
   }
 
+  /**
+   * Called when the application is shutting down.
+   * <p>
+   * For now, we don't clear all the data on the remote storage layer. This is because the removal
+   * operation may be prohibitively expensive, particularly in the case of S3.
+   */
   @Override
   public void cleanupApplication() throws IOException {
     LOG.info("Cleaning up application data");
@@ -83,6 +89,13 @@ public final class HadoopAsyncShuffleDriverComponents implements ShuffleDriverCo
     delegate.removeShuffle(shuffleId, blocking);
   }
 
+  /**
+   * Called by the {@link org.apache.spark.MapOutputTracker} to determine if a block should be
+   * re-computed by a retried task.
+   * <p>
+   * The implementation will report that the block does not need to be recomputed if it can be
+   * fetched from remote storage.
+   */
   @Override
   public boolean checkIfMapOutputStoredOutsideExecutor(
       int shuffleId, int mapId, long mapTaskAttemptId) {

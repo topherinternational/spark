@@ -29,6 +29,14 @@ import org.apache.spark.palantir.shuffle.async.util.streams.SeekableInput;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * Helper module for extracting partition index offsets and data blocks from shuffle data
+ * files and index files represented by {@link SeekableInput} streams.
+ * <p>
+ * Recall that shuffle data files are sequences of byte blocks - each byte block has a byte start
+ * index and a byte end index. An index file that is the companion of a data file indicates the byte
+ * start and end offsets where a partition data block starts and ends.
+ */
 public final class PartitionDecoder {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(PartitionDecoder.class);
