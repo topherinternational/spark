@@ -42,7 +42,7 @@ public final class DefaultHadoopFetcherIteratorFactory implements HadoopFetcherI
         shuffleClient,
         blocks,
         metrics);
-    iterator.fetchDataFromS3();
+    iterator.fetchDataFromHadoop();
     return iterator;
   }
 }

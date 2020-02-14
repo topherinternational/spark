@@ -82,7 +82,7 @@ public final class DefaultHadoopFetcherIteratorTest {
 
   @Test
   public void testGetsBlock() {
-    fetcherIterator.fetchDataFromS3();
+    fetcherIterator.fetchDataFromHadoop();
     inputStreamFuture.set(() -> inputStream);
     ShuffleBlockInputStream actualInputStream = fetcherIterator.next();
     verify(shuffleClient).getBlockData(
@@ -96,7 +96,7 @@ public final class DefaultHadoopFetcherIteratorTest {
 
   @Test
   public void testFetchFails() {
-    fetcherIterator.fetchDataFromS3();
+    fetcherIterator.fetchDataFromHadoop();
     inputStreamFuture.setException(new Exception("Could not fetch from S3"));
     assertThatThrownBy(() -> fetcherIterator.next())
         .isInstanceOf(FetchFailedException.class)
@@ -105,7 +105,7 @@ public final class DefaultHadoopFetcherIteratorTest {
 
   @Test
   public void testFuturesCancelledWhenStopped() {
-    fetcherIterator.fetchDataFromS3();
+    fetcherIterator.fetchDataFromHadoop();
     // stop the fetcher iterator
     fetcherIterator.cleanup();
     assertThat(inputStreamFuture.isCancelled()).isTrue();
@@ -113,7 +113,7 @@ public final class DefaultHadoopFetcherIteratorTest {
 
   @Test
   public void testFetchedFailedStreamsInCleanup() {
-    fetcherIterator.fetchDataFromS3();
+    fetcherIterator.fetchDataFromHadoop();
     inputStreamFuture.setException(new Exception("Could not fetch from S3"));
     fetcherIterator.cleanup();
   }
@@ -144,7 +144,7 @@ public final class DefaultHadoopFetcherIteratorTest {
     when(shuffleClient.getBlockData(
         SHUFFLE_ID, MAP_ID, 2, 0))
         .thenReturn(inputStreamFuture2);
-    fetcherIterator.fetchDataFromS3();
+    fetcherIterator.fetchDataFromHadoop();
 
     inputStreamFuture1.set(() -> inputStream);
     inputStreamFuture.setException(new Exception("Could not fetch from S3"));

@@ -54,7 +54,7 @@ import org.apache.spark.storage.ShuffleBlockId;
  * <p>
  * Download requests are immediately pushed to the backing
  * {@link org.apache.spark.palantir.shuffle.async.client.basic.HadoopShuffleClient} in
- * {@link #fetchDataFromS3()}. As each result is returned from the shuffle client, it is pushed
+ * {@link #fetchDataFromHadoop()}. As each result is returned from the shuffle client, it is pushed
  * onto a blocking queue. Calls to {@link #next} block on a result to become available. Thus this
  * implementation is a classic case of the producer-consumer paradigm.
  * <p>
@@ -89,7 +89,7 @@ public final class DefaultHadoopFetcherIterator implements HadoopFetcherIterator
     this.blocksToFetch = blocksToFech;
   }
 
-  void fetchDataFromS3() {
+  void fetchDataFromHadoop() {
     // Find all blocks that were not yet successfully fetched from the executors.
     blocksToFetch.forEach(shuffleBlockInfo -> {
       // Request all remaining blocks from remote storage.
