@@ -172,7 +172,8 @@ public final class HadoopAsyncShuffleReadSupport {
 
     private final ExecutorThenHadoopFetcherIterator executorThenHadoopFetcherIterator;
 
-    ExecutorThenHadoopShuffleCompletionListener(ExecutorThenHadoopFetcherIterator executorThenHadoopFetcherIterator) {
+    ExecutorThenHadoopShuffleCompletionListener(
+        ExecutorThenHadoopFetcherIterator executorThenHadoopFetcherIterator) {
       this.executorThenHadoopFetcherIterator = executorThenHadoopFetcherIterator;
     }
 
