@@ -91,7 +91,7 @@ public final class ExecutorThenHadoopFetcherIteratorTest {
 
   @Test
   public void testRetrievesFromExecutorOnly() {
-    ExecutorThenS3FetcherIterator iteratorUnderTest = getIteratorUnderTest(
+    ExecutorThenHadoopFetcherIterator iteratorUnderTest = getIteratorUnderTest(
         new FetchFailedThrowingStreamList().addStream(BLOCK_INFO_1),
         ImmutableSet.of());
     assertThat(iteratorUnderTest.hasNext()).isTrue();
@@ -101,7 +101,7 @@ public final class ExecutorThenHadoopFetcherIteratorTest {
 
   @Test
   public void testRetrievesFromRemoteOnly() {
-    ExecutorThenS3FetcherIterator iteratorUnderTest = getIteratorUnderTest(
+    ExecutorThenHadoopFetcherIterator iteratorUnderTest = getIteratorUnderTest(
         new FetchFailedThrowingStreamList(),
         ImmutableSet.of(BLOCK_INFO_1));
     assertThat(iteratorUnderTest.hasNext()).isTrue();
@@ -111,7 +111,7 @@ public final class ExecutorThenHadoopFetcherIteratorTest {
 
   @Test
   public void testEmpty() {
-    ExecutorThenS3FetcherIterator iteratorUnderTest = getIteratorUnderTest(
+    ExecutorThenHadoopFetcherIterator iteratorUnderTest = getIteratorUnderTest(
         new FetchFailedThrowingStreamList(),
         ImmutableSet.of());
     assertThat(iteratorUnderTest.hasNext()).isFalse();
@@ -119,7 +119,7 @@ public final class ExecutorThenHadoopFetcherIteratorTest {
 
   @Test
   public void testExecutorThenRemote() {
-    ExecutorThenS3FetcherIterator iteratorUnderTest = getIteratorUnderTest(
+    ExecutorThenHadoopFetcherIterator iteratorUnderTest = getIteratorUnderTest(
         new FetchFailedThrowingStreamList().addStream(BLOCK_INFO_1),
         ImmutableSet.of(BLOCK_INFO_2));
     assertThat(iteratorUnderTest.hasNext()).isTrue();
@@ -134,7 +134,7 @@ public final class ExecutorThenHadoopFetcherIteratorTest {
   @Test
   public void testExecutorFailsAndBlocksDoesntExist() {
     when(driverEndpointRef.getShuffleStorageStates(0)).thenReturn(ImmutableMap.of());
-    ExecutorThenS3FetcherIterator iteratorUnderTest = getIteratorUnderTest(
+    ExecutorThenHadoopFetcherIterator iteratorUnderTest = getIteratorUnderTest(
         new FetchFailedThrowingStreamList()
             .addThrownFetchFailed(BLOCK_INFO_1),
         ImmutableSet.of(),
@@ -151,7 +151,7 @@ public final class ExecutorThenHadoopFetcherIteratorTest {
         new MapOutputId(BLOCK_INFO_1.getShuffleId(), BLOCK_INFO_1.getMapId(),
             BLOCK_INFO_1.getMapTaskAttemptId()),
         new OnExecutorOnly(BlockManagerId.apply("host", 1234))));
-    ExecutorThenS3FetcherIterator iteratorUnderTest = getIteratorUnderTest(
+    ExecutorThenHadoopFetcherIterator iteratorUnderTest = getIteratorUnderTest(
         new FetchFailedThrowingStreamList()
             .addThrownFetchFailed(BLOCK_INFO_1),
         ImmutableSet.of(),
@@ -171,7 +171,7 @@ public final class ExecutorThenHadoopFetcherIteratorTest {
         new MapOutputId(BLOCK_INFO_2.getShuffleId(), BLOCK_INFO_2.getMapId(),
             BLOCK_INFO_2.getMapTaskAttemptId()),
         new OnRemoteOnly(Option.empty())));
-    ExecutorThenS3FetcherIterator iteratorUnderTest = getIteratorUnderTest(
+    ExecutorThenHadoopFetcherIterator iteratorUnderTest = getIteratorUnderTest(
         new FetchFailedThrowingStreamList()
             .addThrownFetchFailed(BLOCK_INFO_1)
             .addThrownFetchFailed(BLOCK_INFO_2),
@@ -188,12 +188,12 @@ public final class ExecutorThenHadoopFetcherIteratorTest {
         BLOCK_INFO_1.getShuffleLocation().get());
   }
 
-  private ExecutorThenS3FetcherIterator getIteratorUnderTest(
+  private ExecutorThenHadoopFetcherIterator getIteratorUnderTest(
       FetchFailedThrowingStreamList streamsFromExecutors,
       Set<ShuffleBlockInfo> initialRemoteBlocksToFetch,
       TestHadoopFetcherIteratorFactory s3FetcherIteratorFactory) {
     this.testS3FetcherIteratorFactory = s3FetcherIteratorFactory;
-    return new ExecutorThenS3FetcherIterator(
+    return new ExecutorThenHadoopFetcherIterator(
         0,
         streamsFromExecutors.iterator(),
         ImmutableSet.copyOf(streamsFromExecutors.blockInfos()),
@@ -205,7 +205,7 @@ public final class ExecutorThenHadoopFetcherIteratorTest {
         driverEndpointRef);
   }
 
-  private ExecutorThenS3FetcherIterator getIteratorUnderTest(
+  private ExecutorThenHadoopFetcherIterator getIteratorUnderTest(
       FetchFailedThrowingStreamList streamsFromExecutors,
       Set<ShuffleBlockInfo> remoteStorageFetchFailedBlocks) {
     testS3FetcherIteratorFactory = new TestHadoopFetcherIteratorFactory(

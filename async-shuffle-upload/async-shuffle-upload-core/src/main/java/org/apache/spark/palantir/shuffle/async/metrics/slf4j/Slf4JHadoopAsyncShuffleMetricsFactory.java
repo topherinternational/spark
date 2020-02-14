@@ -21,6 +21,9 @@ import org.apache.spark.SparkConf;
 import org.apache.spark.palantir.shuffle.async.metrics.HadoopAsyncShuffleMetrics;
 import org.apache.spark.palantir.shuffle.async.metrics.HadoopAsyncShuffleMetricsFactory;
 
+/**
+ * Root of the default implementation of metrics recording that simply logs metrics via SLF4J.
+ */
 public final class Slf4JHadoopAsyncShuffleMetricsFactory
     implements HadoopAsyncShuffleMetricsFactory {
 

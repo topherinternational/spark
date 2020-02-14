@@ -23,6 +23,8 @@ public final class SparkShuffleApiConstants {
   public static final String SHUFFLE_BASE_URI_CONF = "spark.shuffle.hadoop.async.base-uri";
 
   public static final String SHUFFLE_PLUGIN_APP_NAME_CONF = "spark.shuffle.hadoop.async.appName";
+  // Deprecated configurations are picked up as fallbacks when their newer counterparts are not
+  // specified.
   public static final String SHUFFLE_PLUGIN_APP_NAME_CONF_DEPRECATED =
       "spark.plugin.shuffle.async.appName";
 

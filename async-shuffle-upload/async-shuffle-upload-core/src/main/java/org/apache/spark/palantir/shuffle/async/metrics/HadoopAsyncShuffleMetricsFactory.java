@@ -31,7 +31,6 @@ public interface HadoopAsyncShuffleMetricsFactory {
 
   /**
    * Instantiate a metrics system for measuring the performance of shuffle uploads and downloads.
-   * <p>
    *
    * @param sparkConf    The Spark configuration of the application.
    * @param sparkAppName The name of the application. Either the appId, or can be overridden by

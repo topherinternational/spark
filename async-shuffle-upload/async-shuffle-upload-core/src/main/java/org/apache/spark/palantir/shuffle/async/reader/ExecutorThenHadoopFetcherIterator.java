@@ -49,9 +49,10 @@ import org.apache.spark.storage.ShuffleIndexBlockId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public final class ExecutorThenS3FetcherIterator implements Iterator<ShuffleBlockInputStream> {
+public final class ExecutorThenHadoopFetcherIterator implements Iterator<ShuffleBlockInputStream> {
 
-  private static final Logger LOG = LoggerFactory.getLogger(ExecutorThenS3FetcherIterator.class);
+  private static final Logger LOG = LoggerFactory.getLogger(
+      ExecutorThenHadoopFetcherIterator.class);
 
   private final Iterator<ShuffleBlockInputStream> fetchFromExecutorsIterator;
   private final HadoopFetcherIteratorFactory hadoopFetcherIteratorFactory;
@@ -64,7 +65,7 @@ public final class ExecutorThenS3FetcherIterator implements Iterator<ShuffleBloc
 
   private HadoopFetcherIterator hadoopFetcherIterator = null;
 
-  public ExecutorThenS3FetcherIterator(
+  public ExecutorThenHadoopFetcherIterator(
       int shuffleId,
       Iterator<ShuffleBlockInputStream> fetchFromExecutorsIterator,
       Set<ShuffleBlockInfo> shuffleBlocksFromExecutor,

@@ -21,6 +21,9 @@ import java.util.Iterator;
 
 import org.apache.spark.shuffle.api.ShuffleBlockInputStream;
 
+/**
+ * Iterator for fetching input streams from the remote storage system.
+ */
 public interface HadoopFetcherIterator extends Iterator<ShuffleBlockInputStream> {
 
   void cleanup();

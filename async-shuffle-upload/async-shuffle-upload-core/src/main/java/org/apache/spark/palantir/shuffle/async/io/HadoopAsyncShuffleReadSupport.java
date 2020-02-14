@@ -36,7 +36,7 @@ import org.apache.spark.palantir.shuffle.async.metadata.ShuffleStorageState;
 import org.apache.spark.palantir.shuffle.async.metadata.ShuffleStorageStateVisitor;
 import org.apache.spark.palantir.shuffle.async.metrics.HadoopFetcherIteratorMetrics;
 import org.apache.spark.palantir.shuffle.async.reader.DefaultHadoopFetcherIteratorFactory;
-import org.apache.spark.palantir.shuffle.async.reader.ExecutorThenS3FetcherIterator;
+import org.apache.spark.palantir.shuffle.async.reader.ExecutorThenHadoopFetcherIterator;
 import org.apache.spark.serializer.SerializerManager;
 import org.apache.spark.shuffle.api.ShuffleBlockInfo;
 import org.apache.spark.shuffle.api.ShuffleBlockInputStream;
@@ -132,7 +132,7 @@ public final class HadoopAsyncShuffleReadSupport {
     Iterable<ShuffleBlockInputStream> inputStreams = delegate.getPartitionReaders(
         shuffleBlocksFromExecutors);
     return () -> {
-      ExecutorThenS3FetcherIterator iterator = new ExecutorThenS3FetcherIterator(
+      ExecutorThenHadoopFetcherIterator iterator = new ExecutorThenHadoopFetcherIterator(
           shuffleId,
           inputStreams.iterator(),
           shuffleBlocksFromExecutors,
@@ -153,9 +153,9 @@ public final class HadoopAsyncShuffleReadSupport {
   private static final class FallbackToS3ShuffleCompletionIterator
       implements TaskCompletionListener {
 
-    private final ExecutorThenS3FetcherIterator fallbackToS3Iterator;
+    private final ExecutorThenHadoopFetcherIterator fallbackToS3Iterator;
 
-    FallbackToS3ShuffleCompletionIterator(ExecutorThenS3FetcherIterator fallbackToS3Iterator) {
+    FallbackToS3ShuffleCompletionIterator(ExecutorThenHadoopFetcherIterator fallbackToS3Iterator) {
       this.fallbackToS3Iterator = fallbackToS3Iterator;
     }
 

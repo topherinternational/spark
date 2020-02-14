@@ -31,6 +31,13 @@ import org.immutables.value.Value;
 
 import org.apache.spark.palantir.shuffle.async.immutables.ImmutablesStyle;
 
+/**
+ * Structure for holding AWS credentials for accessing Amazon S3.
+ * <p>
+ * Allowing using a file to store AWS credentials when S3a is used as the backing store for
+ * shuffle files. The path to a file holding the credentials is specified via
+ * {@link SparkShuffleApiConstants#SHUFFLE_S3A_CREDS_FILE_CONF}.
+ */
 @ImmutablesStyle
 @Value.Immutable
 @JsonSerialize(as = ImmutableSparkShuffleAwsCredentials.class)
