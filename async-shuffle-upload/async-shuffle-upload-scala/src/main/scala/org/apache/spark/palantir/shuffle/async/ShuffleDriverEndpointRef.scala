@@ -23,6 +23,10 @@ import org.apache.spark.palantir.shuffle.async.metadata.{MapOutputId, ShuffleSto
 import org.apache.spark.rpc.RpcEndpointRef
 import org.apache.spark.storage.BlockManagerId
 
+/**
+ * Represents a hook to the driver to query about the metadata of shuffle files, primarily their
+ * states and possible merge ids.
+ */
 trait ShuffleDriverEndpointRef {
   def isShuffleRegistered(shuffleId: Int): Boolean
 

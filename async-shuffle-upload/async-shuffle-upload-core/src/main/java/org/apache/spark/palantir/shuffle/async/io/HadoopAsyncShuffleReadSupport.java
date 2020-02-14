@@ -60,7 +60,8 @@ import org.slf4j.LoggerFactory;
  * {@link ExecutorThenHadoopFetcherIterator} that can read blocks from both buckets.
  * <p>
  * If {@link #preferDownloadFromHadoop} is set, blocks that could be fetched from either remote
- * storage or from executors are preferred to be fetched from the remote store.
+ * storage or from executors are preferred to be fetched from the remote store. Otherwise, we
+ * prefer downloading blocks from executors whenever possible.
  */
 public final class HadoopAsyncShuffleReadSupport {
 

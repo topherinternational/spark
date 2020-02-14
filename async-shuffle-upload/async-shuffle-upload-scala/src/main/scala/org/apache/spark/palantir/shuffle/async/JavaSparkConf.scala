@@ -20,6 +20,12 @@ package org.apache.spark.palantir.shuffle.async
 import org.apache.spark.SparkConf
 import org.apache.spark.internal.config.ConfigEntry
 
+/**
+ * A wrapper around  {@link SparkConf} that allows access to getting configurations with stronogly
+ * typed fields that are backed by ConfigEntrys.
+ * <p>
+ * As the name would suggest, this is primarily intended for use in Java code.
+ */
 case class JavaSparkConf(conf: SparkConf) {
 
   def getInt(key: ConfigEntry[Int]): Int = conf.get(key)

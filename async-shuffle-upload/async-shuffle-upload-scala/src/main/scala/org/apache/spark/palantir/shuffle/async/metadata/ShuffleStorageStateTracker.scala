@@ -29,6 +29,36 @@ import com.palantir.logsafe.exceptions.SafeIllegalStateException
 
 import org.apache.spark.storage.BlockManagerId
 
+/**
+ * Module for managing the states of shuffle files.
+ * <p>
+ * Map output files can reside either on the executor, on remote storage, both, or neither.
+ * The places where the files are available  primarily affects the read pattern on reducers. For
+ * example, files that are on remote storage but not on the executor can obviously only be read
+ * from the remote storage location.
+ * <p>
+ * A map output is first written to local disk, and the map task registers the map output via
+ * {@link #registerLocallyWrittenMapOutput}. Afterwards, the file is backed up to remote
+ * storage. When the backup is complete, the mapper calls {@link #registerMergedBackedUpMapOutput}
+ * or {@link #registerUnmergedBackedUpMapOutput}, depending on if the map output is stored via the
+ * merging storage strategy or the basic storage strategy, respectively. The block should
+ * transition states from being stored on the executor, to being stored on both the executor and
+ * the remote storage.
+ * <p>
+ * When an executor attempts to read a shuffle block from an executor and then receives a fetch
+ * failure in response, the reducer will call {@link #blacklistExecutor} with the source location.
+ * At this point, for each block that was stored on that executor:
+ * <p>
+ * a) If the block was registered as backed up, the block is marked as only being available in the
+ *    remote storage location. Or,
+ * <p>
+ * b) If the block was not registered as being backed up, the block is removed and is considered
+ *    unregistered. Such a block would need to be recomputed by another attempt of the map task.
+ * <p>
+ * Mutation operations are always treated as state transitions - a mutation can cause a
+ * non-existing block to enter an initial state, or for an existing block to transition from an
+ * initial state to a following state ({@link #updateStorageState}).
+ */
 class ShuffleStorageStateTracker {
 
   import ShuffleStorageStateTracker._

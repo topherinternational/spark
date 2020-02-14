@@ -29,6 +29,12 @@ import org.apache.spark.shuffle.api.MapOutputWriterCommitMessage;
 import org.apache.spark.shuffle.api.ShuffleMapOutputWriter;
 import org.apache.spark.shuffle.api.ShufflePartitionWriter;
 
+/**
+ * Implementation of {@link ShuffleMapOutputWriter} that delegates to a
+ * {@link org.apache.spark.shuffle.sort.io.LocalDiskShuffleMapOutputWriter} to write partitions
+ * to local disk, then kicks off an asynchronous backup task to upload the map output data and
+ * index files to remote storage.
+ */
 public final class HadoopAsyncShuffleMapOutputWriter implements ShuffleMapOutputWriter {
 
   private final ShuffleMapOutputWriter delegate;

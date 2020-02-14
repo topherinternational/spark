@@ -20,6 +20,10 @@ package org.apache.spark.palantir.shuffle.async
 import org.apache.spark.palantir.shuffle.async.metadata.ShuffleStorageStateTracker
 import org.apache.spark.rpc.{RpcCallContext, RpcEnv, ThreadSafeRpcEndpoint}
 
+/**
+ * Communication hook on the driver for receiving queries from executors and delegating them to the
+ * {@link ShuffleStorageStateTracker}.
+ */
 final class AsyncShuffleUploadDriverEndpoint(
     override val rpcEnv: RpcEnv,
     shuffleStorageStateTracker: ShuffleStorageStateTracker) extends ThreadSafeRpcEndpoint {
