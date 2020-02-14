@@ -176,8 +176,8 @@ public interface BaseHadoopShuffleClientConfiguration {
   }
 
   @Value.Derived
-  default boolean preferDownloadFromS3() {
-    return javaSparkConf().getBoolean(AsyncShuffleDataIoSparkConfigs.PREFER_DOWNLOAD_FROM_S3());
+  default boolean preferDownloadFromHadoop() {
+    return javaSparkConf().getBoolean(AsyncShuffleDataIoSparkConfigs.PREFER_DOWNLOAD_FROM_HADOOP());
   }
 
   @Value.Derived

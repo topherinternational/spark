@@ -158,7 +158,7 @@ public final class HadoopAsyncShuffleExecutorComponents implements ShuffleExecut
             resolvedMetrics.s3FetcherIteratorMetrics(),
             () -> Optional.ofNullable(TaskContext.get()),
             shuffleDriverEndpointRef,
-            shuffleClientConf.preferDownloadFromS3()));
+            shuffleClientConf.preferDownloadFromHadoop()));
   }
 
   @Override

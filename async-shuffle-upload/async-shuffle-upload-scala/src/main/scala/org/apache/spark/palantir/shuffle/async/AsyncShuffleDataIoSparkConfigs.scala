@@ -195,11 +195,17 @@ object AsyncShuffleDataIoSparkConfigs {
       .booleanConf
       .createWithDefault(false)
 
-  val PREFER_DOWNLOAD_FROM_S3 = ConfigBuilder("spark.shuffle.hadoop.async.io.download.prefer.s3")
-    .doc("Prefer download from s3 over download from another executor if the shuffle file" +
-      " exists on both.")
-    .booleanConf
-    .createWithDefault(false)
+  val PREFER_DOWNLOAD_FROM_HADOOP_DEPRECATED =
+    ConfigBuilder("spark.shuffle.hadoop.async.io.download.prefer.s3")
+      .doc("Deprecated variant of preferring downloading blocks from remote storage..")
+      .booleanConf
+      .createWithDefault(false)
+
+  val PREFER_DOWNLOAD_FROM_HADOOP =
+    ConfigBuilder("spark.shuffle.hadoop.async.io.download.prefer.hadoop")
+      .doc("Prefer download from remote storage over download from another executor if the" +
+        " shuffle file exists on both.")
+      .fallbackConf(PREFER_DOWNLOAD_FROM_HADOOP_DEPRECATED)
 
   val S3A_UPLOAD_MULTIPART_TYPE =
     ConfigBuilder("spark.shuffle.hadoop.async.io.upload.multipart.buffer.type")

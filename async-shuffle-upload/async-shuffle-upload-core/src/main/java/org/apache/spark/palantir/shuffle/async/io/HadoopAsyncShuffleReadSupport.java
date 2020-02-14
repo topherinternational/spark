@@ -47,6 +47,21 @@ import org.apache.spark.util.TaskCompletionListener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * Submodule that is responsible for retrieving block input streams for reduce tasks.
+ * <p>
+ * Primarily separated out so that it doesn't have to bloat the contents of
+ * {@link HadoopAsyncShuffleExecutorComponents}.
+ * <p>
+ * When reading a group of blocks, we bucket the blocks into those we can fetch from other
+ * executors, and those that must be read from remote storage. The bucket of blocks that can be
+ * fetched from other executors are passed to the delegate
+ * {@link org.apache.spark.shuffle.sort.io.LocalDiskShuffleExecutorComponents}. The result is a
+ * {@link ExecutorThenHadoopFetcherIterator} that can read blocks from both buckets.
+ * <p>
+ * If {@link #preferDownloadFromHadoop} is set, blocks that could be fetched from either remote
+ * storage or from executors are preferred to be fetched from the remote store.
+ */
 public final class HadoopAsyncShuffleReadSupport {
 
   private static final Logger LOG = LoggerFactory.getLogger(HadoopAsyncShuffleReadSupport.class);
@@ -59,7 +74,7 @@ public final class HadoopAsyncShuffleReadSupport {
   private final HadoopFetcherIteratorMetrics metrics;
   private final Supplier<Optional<TaskContext>> taskContext;
   private final ShuffleDriverEndpointRef driverEndpointRef;
-  private final boolean preferDownloadFromS3;
+  private final boolean preferDownloadFromHadoop;
 
   public HadoopAsyncShuffleReadSupport(
       ShuffleExecutorComponents delegate,
@@ -70,7 +85,7 @@ public final class HadoopAsyncShuffleReadSupport {
       HadoopFetcherIteratorMetrics metrics,
       Supplier<Optional<TaskContext>> taskContext,
       ShuffleDriverEndpointRef driverEndpointRef,
-      boolean preferDownloadFromS3) {
+      boolean preferDownloadFromHadoop) {
     this.delegate = delegate;
     this.client = client;
     this.serializerManager = serializerManager;
@@ -79,7 +94,7 @@ public final class HadoopAsyncShuffleReadSupport {
     this.metrics = metrics;
     this.taskContext = taskContext;
     this.driverEndpointRef = driverEndpointRef;
-    this.preferDownloadFromS3 = preferDownloadFromS3;
+    this.preferDownloadFromHadoop = preferDownloadFromHadoop;
   }
 
   public Iterable<ShuffleBlockInputStream> getPartitionReaders(
@@ -115,7 +130,7 @@ public final class HadoopAsyncShuffleReadSupport {
         @Override
         public Set<ShuffleBlockInfo> onExecutorAndRemote(
             BlockManagerId _executorLocation, Optional<Long> _mergeId) {
-          if (preferDownloadFromS3) {
+          if (preferDownloadFromHadoop) {
             return shuffleBlocksFromRemote;
           } else {
             return shuffleBlocksFromExecutors;
