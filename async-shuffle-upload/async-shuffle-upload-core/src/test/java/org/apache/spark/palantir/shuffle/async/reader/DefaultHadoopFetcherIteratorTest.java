@@ -97,7 +97,7 @@ public final class DefaultHadoopFetcherIteratorTest {
   @Test
   public void testFetchFails() {
     fetcherIterator.fetchDataFromHadoop();
-    inputStreamFuture.setException(new Exception("Could not fetch from S3"));
+    inputStreamFuture.setException(new Exception("Could not fetch from remote storage."));
     assertThatThrownBy(() -> fetcherIterator.next())
         .isInstanceOf(FetchFailedException.class)
         .hasMessageContaining("Exception thrown when fetching data from remote storage.");
@@ -114,7 +114,7 @@ public final class DefaultHadoopFetcherIteratorTest {
   @Test
   public void testFetchedFailedStreamsInCleanup() {
     fetcherIterator.fetchDataFromHadoop();
-    inputStreamFuture.setException(new Exception("Could not fetch from S3"));
+    inputStreamFuture.setException(new Exception("Could not fetch from remote storage."));
     fetcherIterator.cleanup();
   }
 
@@ -147,7 +147,7 @@ public final class DefaultHadoopFetcherIteratorTest {
     fetcherIterator.fetchDataFromHadoop();
 
     inputStreamFuture1.set(() -> inputStream);
-    inputStreamFuture.setException(new Exception("Could not fetch from S3"));
+    inputStreamFuture.setException(new Exception("Could not fetch from remote storage."));
 
     fetcherIterator.cleanup();
     assertThat(inputStreamFuture2).isCancelled();

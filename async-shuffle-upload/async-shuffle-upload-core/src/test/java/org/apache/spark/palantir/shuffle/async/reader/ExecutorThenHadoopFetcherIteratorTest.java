@@ -81,12 +81,12 @@ public final class ExecutorThenHadoopFetcherIteratorTest {
   @Mock
   private ShuffleDriverEndpointRef driverEndpointRef;
 
-  private TestHadoopFetcherIteratorFactory testS3FetcherIteratorFactory;
+  private TestHadoopFetcherIteratorFactory testHadoopFetcherIteratorFactory;
 
   @Before
   public void before() {
     MockitoAnnotations.initMocks(this);
-    testS3FetcherIteratorFactory = null;
+    testHadoopFetcherIteratorFactory = null;
   }
 
   @Test
@@ -127,7 +127,7 @@ public final class ExecutorThenHadoopFetcherIteratorTest {
     assertThat(iteratorUnderTest.hasNext()).isTrue();
     assertThat(iteratorUnderTest.next().getBlockId()).isEqualTo(BLOCK_2);
     assertThat(iteratorUnderTest.hasNext()).isFalse();
-    assertThat(testS3FetcherIteratorFactory.getS3FetcherIterator().returnedBlockIds())
+    assertThat(testHadoopFetcherIteratorFactory.getHadoopFetcherIterator().returnedBlockIds())
         .containsExactly(BLOCK_2);
   }
 
@@ -182,7 +182,7 @@ public final class ExecutorThenHadoopFetcherIteratorTest {
     assertThat(iteratorUnderTest.hasNext()).isTrue();
     assertThat(iteratorUnderTest.next().getBlockId()).isEqualTo(BLOCK_1);
     assertThat(iteratorUnderTest.hasNext()).isFalse();
-    assertThat(testS3FetcherIteratorFactory.getS3FetcherIterator().returnedBlockIds())
+    assertThat(testHadoopFetcherIteratorFactory.getHadoopFetcherIterator().returnedBlockIds())
         .containsExactly(BLOCK_1, BLOCK_2);
     verify(driverEndpointRef, times(1)).blacklistExecutor(
         BLOCK_INFO_1.getShuffleLocation().get());
@@ -191,8 +191,8 @@ public final class ExecutorThenHadoopFetcherIteratorTest {
   private ExecutorThenHadoopFetcherIterator getIteratorUnderTest(
       FetchFailedThrowingStreamList streamsFromExecutors,
       Set<ShuffleBlockInfo> initialRemoteBlocksToFetch,
-      TestHadoopFetcherIteratorFactory s3FetcherIteratorFactory) {
-    this.testS3FetcherIteratorFactory = s3FetcherIteratorFactory;
+      TestHadoopFetcherIteratorFactory hadoopFetcherIteratorFactory) {
+    this.testHadoopFetcherIteratorFactory = hadoopFetcherIteratorFactory;
     return new ExecutorThenHadoopFetcherIterator(
         0,
         streamsFromExecutors.iterator(),
@@ -201,19 +201,19 @@ public final class ExecutorThenHadoopFetcherIteratorTest {
         serializerManager,
         compressionCodec,
         ImmutableSet.copyOf(initialRemoteBlocksToFetch),
-        s3FetcherIteratorFactory,
+        hadoopFetcherIteratorFactory,
         driverEndpointRef);
   }
 
   private ExecutorThenHadoopFetcherIterator getIteratorUnderTest(
       FetchFailedThrowingStreamList streamsFromExecutors,
       Set<ShuffleBlockInfo> remoteStorageFetchFailedBlocks) {
-    testS3FetcherIteratorFactory = new TestHadoopFetcherIteratorFactory(
+    testHadoopFetcherIteratorFactory = new TestHadoopFetcherIteratorFactory(
         remoteStorageFetchFailedBlocks);
     return getIteratorUnderTest(
         streamsFromExecutors,
         remoteStorageFetchFailedBlocks,
-        testS3FetcherIteratorFactory);
+        testHadoopFetcherIteratorFactory);
   }
 
   private static ShuffleBlockInputStream toBlockInputStream(ShuffleBlockInfo block) {
@@ -274,7 +274,7 @@ public final class ExecutorThenHadoopFetcherIteratorTest {
       implements HadoopFetcherIteratorFactory {
 
     private final Collection<ShuffleBlockInfo> expectedBlocks;
-    private TestHadoopFetcherIterator s3FetcherIterator;
+    private TestHadoopFetcherIterator hadoopFetcherIterator;
 
     TestHadoopFetcherIteratorFactory(Collection<ShuffleBlockInfo> expectedBlocks) {
       this.expectedBlocks = expectedBlocks;
@@ -285,12 +285,12 @@ public final class ExecutorThenHadoopFetcherIteratorTest {
         Collection<ShuffleBlockInfo> blocks) {
       assertThat(expectedBlocks).containsExactlyInAnyOrder(
           blocks.toArray(new ShuffleBlockInfo[blocks.size()]));
-      s3FetcherIterator = new TestHadoopFetcherIterator(new HashSet<>(blocks));
-      return s3FetcherIterator;
+      hadoopFetcherIterator = new TestHadoopFetcherIterator(new HashSet<>(blocks));
+      return hadoopFetcherIterator;
     }
 
-    public TestHadoopFetcherIterator getS3FetcherIterator() {
-      return s3FetcherIterator;
+    public TestHadoopFetcherIterator getHadoopFetcherIterator() {
+      return hadoopFetcherIterator;
     }
   }
 

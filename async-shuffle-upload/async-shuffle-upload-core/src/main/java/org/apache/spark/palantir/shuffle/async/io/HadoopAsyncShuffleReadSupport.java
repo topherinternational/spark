@@ -100,7 +100,7 @@ public final class HadoopAsyncShuffleReadSupport {
 
   public Iterable<ShuffleBlockInputStream> getPartitionReaders(
       Iterable<ShuffleBlockInfo> blockMetadata) throws IOException {
-    LOG.debug("Creating s3 shuffle partition reader");
+    LOG.debug("Creating hadoop shuffle partition reader");
     Iterator<ShuffleBlockInfo> blockInfoIterator = blockMetadata.iterator();
     if (!blockInfoIterator.hasNext()) {
       return ImmutableList.of();
@@ -161,24 +161,25 @@ public final class HadoopAsyncShuffleReadSupport {
               metrics),
           driverEndpointRef);
       taskContext.get().ifPresent(context ->
-          context.addTaskCompletionListener(new FallbackToS3ShuffleCompletionIterator(iterator)));
+          context.addTaskCompletionListener(
+              new ExecutorThenHadoopShuffleCompletionListener(iterator)));
       return iterator;
     };
   }
 
-  private static final class FallbackToS3ShuffleCompletionIterator
+  private static final class ExecutorThenHadoopShuffleCompletionListener
       implements TaskCompletionListener {
 
-    private final ExecutorThenHadoopFetcherIterator fallbackToS3Iterator;
+    private final ExecutorThenHadoopFetcherIterator executorThenHadoopFetcherIterator;
 
-    FallbackToS3ShuffleCompletionIterator(ExecutorThenHadoopFetcherIterator fallbackToS3Iterator) {
-      this.fallbackToS3Iterator = fallbackToS3Iterator;
+    ExecutorThenHadoopShuffleCompletionListener(ExecutorThenHadoopFetcherIterator executorThenHadoopFetcherIterator) {
+      this.executorThenHadoopFetcherIterator = executorThenHadoopFetcherIterator;
     }
 
     @Override
     @SuppressWarnings("StrictUnusedVariable")
     public void onTaskCompletion(TaskContext context) {
-      this.fallbackToS3Iterator.cleanup();
+      this.executorThenHadoopFetcherIterator.cleanup();
     }
   }
 }

@@ -155,7 +155,7 @@ public final class HadoopAsyncShuffleExecutorComponents implements ShuffleExecut
             serializerManager,
             compressionCodecSupplier.get(),
             shouldCompressShuffle,
-            resolvedMetrics.s3FetcherIteratorMetrics(),
+            resolvedMetrics.hadoopFetcherIteratorMetrics(),
             () -> Optional.ofNullable(TaskContext.get()),
             shuffleDriverEndpointRef,
             shuffleClientConf.preferDownloadFromHadoop()));

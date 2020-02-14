@@ -25,5 +25,5 @@ public interface HadoopAsyncShuffleMetrics {
 
   MergingShuffleClientMetrics mergingShuffleClientMetrics();
 
-  HadoopFetcherIteratorMetrics s3FetcherIteratorMetrics();
+  HadoopFetcherIteratorMetrics hadoopFetcherIteratorMetrics();
 }

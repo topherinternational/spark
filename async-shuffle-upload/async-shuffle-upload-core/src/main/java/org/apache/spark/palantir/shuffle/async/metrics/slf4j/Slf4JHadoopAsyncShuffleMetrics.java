@@ -33,13 +33,13 @@ public final class Slf4JHadoopAsyncShuffleMetrics implements HadoopAsyncShuffleM
   private final String sparkAppName;
   private final Slf4jBasicShuffleClientMetrics basicShuffleClientMetrics;
   private final Slf4jMergingShuffleClientMetrics mergingShuffleClientMetrics;
-  private final Slf4JHadoopFetcherIteratorMetrics s3FetcherIteratorMetrics;
+  private final Slf4JHadoopFetcherIteratorMetrics hadoopFetcherIteratorMetrics;
 
   public Slf4JHadoopAsyncShuffleMetrics(String sparkAppName) {
     this.sparkAppName = sparkAppName;
     this.basicShuffleClientMetrics = new Slf4jBasicShuffleClientMetrics(sparkAppName);
     this.mergingShuffleClientMetrics = new Slf4jMergingShuffleClientMetrics(sparkAppName);
-    this.s3FetcherIteratorMetrics = new Slf4JHadoopFetcherIteratorMetrics(sparkAppName);
+    this.hadoopFetcherIteratorMetrics = new Slf4JHadoopFetcherIteratorMetrics(sparkAppName);
   }
 
   @Override
@@ -58,7 +58,7 @@ public final class Slf4JHadoopAsyncShuffleMetrics implements HadoopAsyncShuffleM
   }
 
   @Override
-  public HadoopFetcherIteratorMetrics s3FetcherIteratorMetrics() {
-    return s3FetcherIteratorMetrics;
+  public HadoopFetcherIteratorMetrics hadoopFetcherIteratorMetrics() {
+    return hadoopFetcherIteratorMetrics;
   }
 }

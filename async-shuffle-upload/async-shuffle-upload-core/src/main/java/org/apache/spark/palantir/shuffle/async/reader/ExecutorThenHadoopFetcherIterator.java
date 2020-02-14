@@ -137,7 +137,7 @@ public final class ExecutorThenHadoopFetcherIterator implements Iterator<Shuffle
             ShuffleBlockInfo blockInfo =
                 remainingAttemptsByBlock.get(((FetchFailedException) e).getShuffleBlockId());
             driverEndpointRef.blacklistExecutor(blockInfo.getShuffleLocation().get());
-            if (canRetrieveRemainingBlocksFromS3()) {
+            if (canRetrieveRemainingBlocksFromHadoop()) {
               unsetFetchFailure();
               hadoopFetcherIterator = hadoopFetcherIteratorFactory
                   .createFetcherIteratorForBlocks(remainingAttemptsByBlock.values());
@@ -149,9 +149,9 @@ public final class ExecutorThenHadoopFetcherIterator implements Iterator<Shuffle
       } else if (hadoopFetcherIterator == null) {
         hadoopFetcherIterator = hadoopFetcherIteratorFactory
             .createFetcherIteratorForBlocks(remainingAttemptsByBlock.values());
-        resultStream = fetchFromS3();
+        resultStream = fetchFromRemote();
       } else {
-        resultStream = fetchFromS3();
+        resultStream = fetchFromRemote();
       }
     }
     // TODO(mcheah): #8 this should be FetchFailedException, not IllegalStateException.
@@ -169,9 +169,9 @@ public final class ExecutorThenHadoopFetcherIterator implements Iterator<Shuffle
     }
   }
 
-  private ShuffleBlockInputStream fetchFromS3() {
+  private ShuffleBlockInputStream fetchFromRemote() {
     Preconditions.checkNotNull(
-        hadoopFetcherIterator, "S3 fetcher iterator expected to not be null");
+        hadoopFetcherIterator, "Hadoop fetcher iterator expected to not be null");
     ShuffleBlockInputStream resultStream = hadoopFetcherIterator.next();
     BlockId blockId = resultStream.getBlockId();
     InputStream resultDeserialized = resultStream;
@@ -190,7 +190,7 @@ public final class ExecutorThenHadoopFetcherIterator implements Iterator<Shuffle
     }
   }
 
-  public boolean canRetrieveRemainingBlocksFromS3() {
+  private boolean canRetrieveRemainingBlocksFromHadoop() {
     Map<MapOutputId, ShuffleStorageState> registeredMapOutputs = driverEndpointRef
         .getShuffleStorageStates(shuffleId);
     return remainingAttemptsByBlock.values().stream().allMatch(block -> {

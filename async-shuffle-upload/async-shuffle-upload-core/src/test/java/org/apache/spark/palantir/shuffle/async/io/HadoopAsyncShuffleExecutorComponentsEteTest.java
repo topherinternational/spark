@@ -178,7 +178,7 @@ public final class HadoopAsyncShuffleExecutorComponentsEteTest {
         shuffleFileLocator, MAPPER_LOCATION);
     this.clock = new TestClock();
     when(metricsFactory.create(eq(sparkConf), any())).thenReturn(metrics);
-    when(metrics.s3FetcherIteratorMetrics()).thenReturn(hadoopFetcherIteratorMetrics);
+    when(metrics.hadoopFetcherIteratorMetrics()).thenReturn(hadoopFetcherIteratorMetrics);
     when(metrics.basicShuffleClientMetrics()).thenReturn(basicShuffleClientMetrics);
     when(metrics.mergingShuffleClientMetrics()).thenReturn(mergingShuffleClientMetrics);
     when(sparkEnv.blockManager()).thenReturn(blockManager);

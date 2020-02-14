@@ -67,7 +67,7 @@ public final class HadoopShuffleClientTest {
   @Mock
   private ShuffleDriverEndpointRef mockDriverEndpointRef;
 
-  private HadoopShuffleClient s3Client;
+  private HadoopShuffleClient clientUnderTest;
 
   private byte[][] data;
   private File dataFile;
@@ -100,7 +100,7 @@ public final class HadoopShuffleClientTest {
     RemoteShuffleFileSystem remoteShuffleFs = new InMemoryRemoteShuffleFileSystem();
     PartitionOffsetsFetcher partitionOffsetsFetcher = new TestPartitionOffsetsFetcher(
         remoteShuffleFs);
-    s3Client = new HadoopShuffleClient(
+    clientUnderTest = new HadoopShuffleClient(
         APP_ID,
         MoreExecutors.listeningDecorator(uploadExecService),
         MoreExecutors.listeningDecorator(downloadExecService),
@@ -119,7 +119,7 @@ public final class HadoopShuffleClientTest {
   @Test
   public void testWriteAndRead() throws Exception {
     when(mockDriverEndpointRef.isShuffleRegistered(SHUFFLE_ID)).thenReturn(true);
-    s3Client.asyncWriteDataAndIndexFilesAndClose(
+    clientUnderTest.asyncWriteDataAndIndexFilesAndClose(
         dataFile.toPath(),
         indexFile.toPath(),
         SHUFFLE_ID,
@@ -133,7 +133,7 @@ public final class HadoopShuffleClientTest {
   @Test
   public void testShuffleDoesNotExist() {
     when(mockDriverEndpointRef.isShuffleRegistered(SHUFFLE_ID)).thenReturn(false);
-    s3Client.asyncWriteDataAndIndexFilesAndClose(
+    clientUnderTest.asyncWriteDataAndIndexFilesAndClose(
         dataFile.toPath(),
         indexFile.toPath(),
         SHUFFLE_ID,
@@ -147,7 +147,7 @@ public final class HadoopShuffleClientTest {
   private void checkPartitionData(int partitionId)
       throws ExecutionException, InterruptedException, IOException {
     ListenableFuture<Supplier<InputStream>> inputStreamFuture =
-        s3Client.getBlockData(
+        clientUnderTest.getBlockData(
             SHUFFLE_ID, MAP_ID, partitionId, ATTEMPT_ID);
     downloadExecService.runUntilIdle();
     InputStream inputStream = inputStreamFuture.get().get();
