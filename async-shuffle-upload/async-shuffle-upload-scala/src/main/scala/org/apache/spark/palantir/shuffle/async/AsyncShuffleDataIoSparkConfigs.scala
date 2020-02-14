@@ -197,7 +197,7 @@ object AsyncShuffleDataIoSparkConfigs {
 
   val PREFER_DOWNLOAD_FROM_HADOOP_DEPRECATED =
     ConfigBuilder("spark.shuffle.hadoop.async.io.download.prefer.s3")
-      .doc("Deprecated variant of preferring downloading blocks from remote storage..")
+      .doc("Deprecated variant of preferring downloading blocks from remote storage.")
       .booleanConf
       .createWithDefault(false)
 
