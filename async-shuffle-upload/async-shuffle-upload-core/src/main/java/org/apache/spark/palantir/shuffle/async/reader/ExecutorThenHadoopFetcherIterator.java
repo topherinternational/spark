@@ -49,6 +49,26 @@ import org.apache.spark.storage.ShuffleIndexBlockId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * Returns input streams for shuffle blocks by reading a group of blocks (possibly empty) from the
+ * other executors, and reading another group of blocks (possibly empty) from remote storage.
+ * <p>
+ * The iterator attempts to fetch as many blocks as possible from the
+ * {@link #fetchFromExecutorsIterator}, which is actually a
+ * {@link org.apache.spark.storage.ShuffleBlockFetcherIterator} obtained from the default local disk
+ * shuffle reader. We stop fetching from the fromo-executors iterator if:
+ * <p>
+ * 1) There is a fetch failure. In this case, we check if all the remaining blocks can be fetched
+ *    from remote storage. If we can, we initialize the {@link HadoopFetcherIterator} with the
+ *    remaining blocks that need to be fetched, and provide all remaining blocks from there.
+ * 2) The local disk iterator is exhausted. In this case, we also fetch all remaining blocks from
+ *    remote storage.
+ * <p>
+ * If we encounter a {@link FetchFailedException} reading shuffle blocks from executors, we also
+ * blacklist the offending executor. This will eventually make it such that blocks from that
+ * executor are never attempted to be read from that executor again - they either have to be
+ * recomputed, or fetched from remote storage.
+ */
 public final class ExecutorThenHadoopFetcherIterator implements Iterator<ShuffleBlockInputStream> {
 
   private static final Logger LOG = LoggerFactory.getLogger(

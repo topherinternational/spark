@@ -25,6 +25,9 @@ import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 
+/**
+ * Implementation of {@link SeekableInput} that reads bytes from a file from remote storage.
+ */
 public final class SeekableHadoopInput implements SeekableInput {
 
   private final Path path;

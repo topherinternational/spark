@@ -33,6 +33,13 @@ import org.apache.spark.util.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * Output stream that creates a temporary file, and then atomically renames the temporary  file
+ * to the final file when {@link #close()} is called.
+ * <p>
+ * If {@link #abort(Exception)} is called, the temporary file is deleted and the final file is
+ * never created.
+ */
 public final class TempFileOutputStream extends AbortableOutputStream {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(TempFileOutputStream.class);

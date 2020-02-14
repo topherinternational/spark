@@ -41,12 +41,30 @@ import org.apache.spark.palantir.shuffle.async.client.ShuffleClient;
 import org.apache.spark.palantir.shuffle.async.immutables.ImmutablesStyle;
 import org.apache.spark.palantir.shuffle.async.metrics.HadoopFetcherIteratorMetrics;
 import org.apache.spark.palantir.shuffle.async.util.Suppliers;
+import org.apache.spark.shuffle.FetchFailedException;
 import org.apache.spark.shuffle.api.ShuffleBlockInfo;
 import org.apache.spark.shuffle.api.ShuffleBlockInputStream;
 import org.apache.spark.storage.BlockId;
 import org.apache.spark.storage.BlockManagerId;
 import org.apache.spark.storage.ShuffleBlockId;
 
+/**
+ * Implementation of {@link HadoopFetcherIterator} that submits all requests to fetch blocks
+ * immediately, then waits for the first available result to return in each call to {@link #next()}.
+ * <p>
+ * Download requests are immediately pushed to the backing
+ * {@link org.apache.spark.palantir.shuffle.async.client.basic.HadoopShuffleClient} in
+ * {@link #fetchDataFromS3()}. As each result is returned from the shuffle client, it is pushed
+ * onto a blocking queue. Calls to {@link #next} block on a result to become available. Thus this
+ * implementation is a classic case of the producer-consumer paradigm.
+ * <p>
+ * Note that we don't block with a time out when popping results from the queue, as downloads are
+ * eager and can be time-consuming. Unfortunately, that means that if all download tasks get stuck
+ * for some reason, we can end up blocking forever. We mitigate this by also pushing error results
+ * onto the queue - if a download fails, the queue is given a failure result instead of a success
+ * result, and attempting to use the error event's input stream results in a thrown
+ * {@link FetchFailedException}.
+ */
 public final class DefaultHadoopFetcherIterator implements HadoopFetcherIterator {
 
   private static final Logger LOG = LoggerFactory.getLogger(DefaultHadoopFetcherIterator.class);

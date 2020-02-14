@@ -20,11 +20,19 @@ package org.apache.spark.palantir.shuffle.async.util;
 import java.io.FilterOutputStream;
 import java.io.OutputStream;
 
+/**
+ * Output stream that may create some temporary resources that should be cleaned up
+ * if an error were to occur while the stream is open.
+ */
 public abstract class AbortableOutputStream extends FilterOutputStream {
 
   protected AbortableOutputStream(OutputStream out) {
     super(out);
   }
 
+  /**
+   * Has distinct semantics from {@link #close()} in that in the case of an error, no state that
+   * was created by this output stream should remain.
+   */
   public abstract void abort(Exception cause);
 }

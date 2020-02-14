@@ -24,6 +24,9 @@ import java.nio.channels.Channels;
 import java.nio.channels.SeekableByteChannel;
 import java.nio.file.Files;
 
+/**
+ * Implementation of {@link SeekableInput} that reads bytes from a file on local disk.
+ */
 public final class SeekableFileInput implements SeekableInput {
 
   private final File file;

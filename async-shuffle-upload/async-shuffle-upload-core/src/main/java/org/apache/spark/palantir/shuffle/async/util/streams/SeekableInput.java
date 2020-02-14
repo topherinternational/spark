@@ -20,12 +20,26 @@ package org.apache.spark.palantir.shuffle.async.util.streams;
 import java.io.IOException;
 import java.io.InputStream;
 
+/**
+ * Interface for opening input streams lazily at a given position.
+ */
 public interface SeekableInput {
 
+  /**
+   * Opens from the beginning of the stream.
+   */
   InputStream open() throws IOException;
 
+  /**
+   * Open the stream from the given starting position, with a known number of bytes to
+   * be read from the stream.
+   */
   InputStream seekToAndOpen(long startPosition, long len) throws IOException;
 
+  /**
+   * Open the stream from the given startingposition, without knowing the number of byte to read
+   * from the stream.
+   */
   InputStream seekToAndOpen(long startPosition) throws IOException;
 
 }

@@ -21,14 +21,26 @@ import org.apache.spark.palantir.shuffle.async.immutables.ImmutablesStyle;
 
 import org.immutables.value.Value;
 
+/**
+ * Structure representing the position where a data block starts and ends in a shuffle data file.
+ */
 @Value.Immutable
 @ImmutablesStyle
 public interface PartitionOffsets {
 
+  /**
+   * The byte index where the partition begins.
+   */
   long dataOffset();
 
+  /**
+   * The byte index where this partition ends and the next partition begins.
+   */
   long nextOffset();
 
+  /**
+   * The number of bytes that are in the partition.
+   */
   @Value.Derived
   default long length() {
     return nextOffset() - dataOffset();

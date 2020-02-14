@@ -21,6 +21,10 @@ import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
+/**
+ * Implementation of {@link SeekableInput} that wraps returned streams with a
+ * {@link BufferedInputStream}, with a buffer of the specified size.
+ */
 public final class BufferedSeekableInput implements SeekableInput {
 
   private final SeekableInput delegate;
