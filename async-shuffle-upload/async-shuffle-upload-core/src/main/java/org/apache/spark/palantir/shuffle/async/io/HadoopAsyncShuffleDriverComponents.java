@@ -56,9 +56,8 @@ public final class HadoopAsyncShuffleDriverComponents implements ShuffleDriverCo
   @Override
   public Map<String, String> initializeApplication() {
     RpcEnv sparkRpcEnv = SparkEnv.get().rpcEnv();
-    shuffleUploadDriverEndpoint = new AsyncShuffleUploadDriverEndpoint(
-        sparkRpcEnv,
-        shuffleStorageStateTracker);
+    shuffleUploadDriverEndpoint = AsyncShuffleUploadDriverEndpoint.create(
+        sparkRpcEnv, shuffleStorageStateTracker);
     sparkRpcEnv.setupEndpoint(AsyncShuffleUploadDriverEndpoint.NAME(), shuffleUploadDriverEndpoint);
     return delegate.initializeApplication();
   }

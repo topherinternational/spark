@@ -53,4 +53,9 @@ final class AsyncShuffleUploadDriverEndpoint(
 
 object AsyncShuffleUploadDriverEndpoint {
   val NAME = "async-shuffle-driver-endpoint"
+
+  def create(rpcEnv: RpcEnv, shuffleStorageStateTracker: ShuffleStorageStateTracker)
+      : AsyncShuffleUploadDriverEndpoint = {
+    new AsyncShuffleUploadDriverEndpoint(rpcEnv, shuffleStorageStateTracker)
+  }
 }
