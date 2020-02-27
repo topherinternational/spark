@@ -114,17 +114,18 @@ class BlockStoreShuffleReaderSuite extends SparkFunSuite with LocalSparkContext 
     // Make a mocked MapOutputTracker for the shuffle reader to use to determine what
     // shuffle data to read.
     val mapOutputTracker = mock(classOf[MapOutputTracker])
-    when(mapOutputTracker.getMapSizesByExecutorId(shuffleId, reduceId, reduceId + 1))
-      .thenAnswer(new Answer[Iterator[(Option[BlockManagerId], Seq[(BlockId, Long)])]] {
-        def answer(invocationOnMock: InvocationOnMock):
-        Iterator[(Option[BlockManagerId], Seq[(BlockId, Long)])] = {
+    when(mapOutputTracker.getPartitionMetadata(shuffleId, reduceId, reduceId + 1))
+      .thenAnswer(new Answer[PartitionMetadata]() {
+        def answer(invocationOnMock: InvocationOnMock): PartitionMetadata = {
           // Test a scenario where all data is local, to avoid creating a bunch of additional mocks
           // for the code to read data over the network.
           val shuffleBlockIdsAndSizes = (0 until numMaps).map { mapId =>
             val shuffleBlockId = ShuffleBlockAttemptId(shuffleId, mapId, reduceId, 0)
             (shuffleBlockId, byteOutputStream.size().toLong)
           }
-          Seq((Some(localBlockManagerId), shuffleBlockIdsAndSizes)).toIterator
+          PartitionMetadata(
+            None,
+            Seq((Some(localBlockManagerId), shuffleBlockIdsAndSizes)).toIterator)
         }
     })
 

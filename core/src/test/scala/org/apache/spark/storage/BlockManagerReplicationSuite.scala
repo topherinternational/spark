@@ -106,7 +106,7 @@ trait BlockManagerReplicationBehavior extends SparkFunSuite
         new LiveListenerBus(conf))), conf, true)
     driverComponents = new LocalDiskShuffleDriverComponents(master)
     mapOutputTracker = new MapOutputTrackerMaster(
-      conf, bcastManager, true, driverComponents)
+      conf, bcastManager, true, driverComponents, None)
     allStores.clear()
   }
 

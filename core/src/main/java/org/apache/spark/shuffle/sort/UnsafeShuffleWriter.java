@@ -28,6 +28,7 @@ import java.util.Iterator;
 import scala.Option;
 import scala.Product2;
 import scala.collection.JavaConverters;
+import scala.compat.java8.OptionConverters;
 import scala.reflect.ClassTag;
 import scala.reflect.ClassTag$;
 
@@ -47,10 +48,12 @@ import org.apache.spark.memory.TaskMemoryManager;
 import org.apache.spark.network.util.LimitedInputStream;
 import org.apache.spark.scheduler.MapStatus;
 import org.apache.spark.scheduler.MapStatus$;
+import org.apache.spark.scheduler.MapTaskResult;
 import org.apache.spark.shuffle.ShuffleWriteMetricsReporter;
 import org.apache.spark.serializer.SerializationStream;
 import org.apache.spark.serializer.SerializerInstance;
 import org.apache.spark.shuffle.ShuffleWriter;
+import org.apache.spark.shuffle.api.MapOutputMetadata;
 import org.apache.spark.shuffle.api.MapOutputWriterCommitMessage;
 import org.apache.spark.shuffle.api.ShuffleExecutorComponents;
 import org.apache.spark.shuffle.api.ShuffleMapOutputWriter;
@@ -87,6 +90,7 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
   private final int inputBufferSizeInBytes;
 
   @Nullable private MapStatus mapStatus;
+  @Nullable private Optional<MapOutputMetadata> outputMetadata;
   @Nullable private ShuffleExternalSorter sorter;
   private long peakMemoryUsedBytes = 0;
 
@@ -233,6 +237,7 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
         commitMessage.getLocation().orElse(null),
         commitMessage.getPartitionLengths(),
         taskContext.taskAttemptId());
+    outputMetadata = commitMessage.getMetadata();
   }
 
   @VisibleForTesting
@@ -493,7 +498,7 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
   }
 
   @Override
-  public Option<MapStatus> stop(boolean success) {
+  public Option<MapTaskResult> stop(boolean success) {
     try {
       taskContext.taskMetrics().incPeakExecutionMemory(getPeakMemoryUsedBytes());
 
@@ -505,7 +510,9 @@ public class UnsafeShuffleWriter<K, V> extends ShuffleWriter<K, V> {
           if (mapStatus == null) {
             throw new IllegalStateException("Cannot call stop(true) without having called write()");
           }
-          return Option.apply(mapStatus);
+          return Option.apply(
+              new MapTaskResult(
+                  mapStatus, OptionConverters.toScala(outputMetadata)));
         } else {
           return Option.apply(null);
         }

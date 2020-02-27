@@ -19,6 +19,7 @@ package org.apache.spark.shuffle.api;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Optional;
 
 public interface ShuffleDriverComponents {
 
@@ -26,6 +27,10 @@ public interface ShuffleDriverComponents {
    * @return additional SparkConf values necessary for the executors.
    */
   Map<String, String> initializeApplication();
+
+  default Optional<ShuffleOutputTracker> shuffleTracker() {
+    return Optional.empty();
+  }
 
   default void cleanupApplication() throws IOException {}
 

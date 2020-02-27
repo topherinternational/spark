@@ -141,6 +141,7 @@ class InternalAccumulatorSuite extends SparkFunSuite with LocalSparkContext {
           SparkEnv.get.blockManager.blockManagerId,
           sid,
           taskContext.partitionId(),
+          taskContext.taskAttemptId(),
           taskContext.partitionId(),
           "simulated fetch failure")
       } else {

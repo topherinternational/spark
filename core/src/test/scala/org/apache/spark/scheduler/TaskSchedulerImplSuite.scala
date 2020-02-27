@@ -1162,7 +1162,7 @@ class TaskSchedulerImplSuite extends SparkFunSuite with LocalSparkContext with B
       assert(tsm.runningTasks === 10)
       // fail attempt
       tsm.handleFailedTask(tsm.taskAttempts.head.head.taskId, TaskState.FAILED,
-        FetchFailed(null, 0, 0, 0, "fetch failed"))
+        FetchFailed(null, 0, 0, 0L, 0, "fetch failed"))
       // the attempt is a zombie, but the tasks are still running (this could be true even if
       // we actively killed those tasks, as killing is best-effort)
       assert(tsm.isZombie)

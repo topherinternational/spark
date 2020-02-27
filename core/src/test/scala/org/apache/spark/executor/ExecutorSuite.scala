@@ -441,6 +441,7 @@ class FetchFailureThrowingRDD(sc: SparkContext) extends RDD[Int](sc, Nil) {
           bmAddress = BlockManagerId("1", "hostA", 1234),
           shuffleId = 0,
           mapId = 0,
+          mapAttemptId = 0L,
           reduceId = 0,
           message = "fake fetch failure"
         )

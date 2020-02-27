@@ -27,20 +27,30 @@ public final class MapOutputWriterCommitMessage {
 
   private final long[] partitionLengths;
   private final Optional<BlockManagerId> location;
+  private final Optional<MapOutputMetadata> metadata;
 
   private MapOutputWriterCommitMessage(
-      long[] partitionLengths, Optional<BlockManagerId> location) {
+      long[] partitionLengths,
+      Optional<BlockManagerId> location,
+      Optional<MapOutputMetadata> metadata) {
     this.partitionLengths = partitionLengths;
     this.location = location;
+    this.metadata = metadata;
   }
 
   public static MapOutputWriterCommitMessage of(long[] partitionLengths) {
-    return new MapOutputWriterCommitMessage(partitionLengths, Optional.empty());
+    return new MapOutputWriterCommitMessage(
+        partitionLengths,
+        Optional.empty(),
+        Optional.empty());
   }
 
   public static MapOutputWriterCommitMessage of(
       long[] partitionLengths, BlockManagerId location) {
-    return new MapOutputWriterCommitMessage(partitionLengths, Optional.of(location));
+    return new MapOutputWriterCommitMessage(
+        partitionLengths,
+        Optional.of(location),
+        Optional.empty());
   }
 
   public long[] getPartitionLengths() {
@@ -49,5 +59,9 @@ public final class MapOutputWriterCommitMessage {
 
   public Optional<BlockManagerId> getLocation() {
     return location;
+  }
+
+  public Optional<MapOutputMetadata> getMetadata() {
+    return metadata;
   }
 }

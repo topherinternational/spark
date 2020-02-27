@@ -18,6 +18,7 @@
 package org.apache.spark.shuffle
 
 import org.apache.spark.{FetchFailed, TaskContext, TaskFailedReason}
+import org.apache.spark.shuffle.api.ShuffleBlockMetadata
 import org.apache.spark.storage.{BlockManagerId, ShuffleBlockId}
 import org.apache.spark.util.Utils
 
@@ -36,18 +37,21 @@ private[spark] class FetchFailedException(
     bmAddress: BlockManagerId,
     shuffleId: Int,
     mapId: Int,
+    mapAttemptId: Long,
     reduceId: Int,
     message: String,
-    cause: Throwable = null)
+    cause: Throwable = null,
+    blockMetadata: Option[ShuffleBlockMetadata] = None)
   extends Exception(message, cause) {
 
   def this(
       bmAddress: BlockManagerId,
       shuffleId: Int,
       mapId: Int,
+      mapAttemptId: Long,
       reduceId: Int,
       cause: Throwable) {
-    this(bmAddress, shuffleId, mapId, reduceId, cause.getMessage, cause)
+    this(bmAddress, shuffleId, mapId, mapAttemptId, reduceId, cause.getMessage, cause)
   }
 
   // SPARK-19276. We set the fetch failure in the task context, so that even if there is user-code
@@ -56,8 +60,15 @@ private[spark] class FetchFailedException(
   // because the TaskContext is not defined in some test cases.
   Option(TaskContext.get()).map(_.setFetchFailed(this))
 
-  def toTaskFailedReason: TaskFailedReason = FetchFailed(bmAddress, shuffleId, mapId, reduceId,
-    Utils.exceptionString(this))
+  def toTaskFailedReason: TaskFailedReason = {
+    FetchFailed(
+      bmAddress,
+      shuffleId,
+      mapId,
+      mapAttemptId,
+      reduceId,
+      Utils.exceptionString(this))
+  }
 
   def getShuffleBlockId(): ShuffleBlockId = ShuffleBlockId(shuffleId, mapId, reduceId)
 }
@@ -69,13 +80,15 @@ private[spark] class MetadataFetchFailedException(
     shuffleId: Int,
     reduceId: Int,
     message: String)
-  extends FetchFailedException(null, shuffleId, -1, reduceId, message)
+  extends FetchFailedException(null, shuffleId, -1, -1, reduceId, message)
 
 private[spark] class RemoteFetchFailedException(
     shuffleId: Int,
     mapId: Int,
+    mapAttemptId: Long,
     reduceId: Int,
     message: String,
     host: String,
     port: Int)
-  extends FetchFailedException(BlockManagerId(host, port), shuffleId, mapId, reduceId, message)
+  extends FetchFailedException(
+    BlockManagerId(host, port), shuffleId, mapId, mapAttemptId, reduceId, message)

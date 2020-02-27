@@ -1404,7 +1404,8 @@ private[spark] class DAGScheduler(
         task match {
           case smt: ShuffleMapTask =>
             val shuffleStage = stage.asInstanceOf[ShuffleMapStage]
-            val status = event.result.asInstanceOf[MapStatus]
+            val taskResult = event.result.asInstanceOf[MapTaskResult]
+            val status = taskResult.status
             if (status.location != null) {
               val execId = status.location.executorId
               if (execId != null) {
@@ -1416,15 +1417,15 @@ private[spark] class DAGScheduler(
                   // recent failure we're aware of for the executor), so mark the task's output as
                   // available.
                   mapOutputTracker.registerMapOutput(
-                    shuffleStage.shuffleDep.shuffleId, smt.partitionId, status)
+                    shuffleStage.shuffleDep.shuffleId, smt.partitionId, status, taskResult.metadata)
                 }
               } else {
                 mapOutputTracker.registerMapOutput(
-                  shuffleStage.shuffleDep.shuffleId, smt.partitionId, status)
+                  shuffleStage.shuffleDep.shuffleId, smt.partitionId, status, taskResult.metadata)
               }
             } else {
               mapOutputTracker.registerMapOutput(
-                shuffleStage.shuffleDep.shuffleId, smt.partitionId, status)
+                shuffleStage.shuffleDep.shuffleId, smt.partitionId, status, taskResult.metadata)
             }
           case _ =>
         }
@@ -1485,7 +1486,7 @@ private[spark] class DAGScheduler(
           case smt: ShuffleMapTask =>
             val shuffleStage = stage.asInstanceOf[ShuffleMapStage]
             shuffleStage.pendingPartitions -= task.partitionId
-            val status = event.result.asInstanceOf[MapStatus]
+            val status = event.result.asInstanceOf[MapTaskResult]
             if (runningStages.contains(shuffleStage) && shuffleStage.pendingPartitions.isEmpty) {
               markStageAsFinished(shuffleStage)
               logInfo("looking for newly runnable stages")
@@ -1518,7 +1519,14 @@ private[spark] class DAGScheduler(
             }
         }
 
-      case FetchFailed(bmAddress, shuffleId, mapId, _, failureMessage) =>
+      case FetchFailed(
+          bmAddress,
+          shuffleId,
+          mapId,
+          mapAttemptId,
+          reduceId,
+          failureMessage,
+          blockMetadata) =>
         val failedStage = stageIdToStage(task.stageId)
         val mapStage = shuffleIdToMapStage(shuffleId)
 
@@ -1555,7 +1563,8 @@ private[spark] class DAGScheduler(
             // Mark the map whose fetch failed as broken in the map stage
             logInfo(s"Unregistering MapOutput " +
               s"(shuffleId=$shuffleId, mapId=$mapId, bmAddr=$bmAddress")
-            mapOutputTracker.unregisterMapOutput(shuffleId, mapId, bmAddress)
+            mapOutputTracker.handleFetchFailure(
+              shuffleId, mapId, mapAttemptId, reduceId, bmAddress, blockMetadata)
           }
 
           if (failedStage.rdd.isBarrier()) {

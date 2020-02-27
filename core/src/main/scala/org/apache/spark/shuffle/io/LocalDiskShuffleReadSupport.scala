@@ -77,6 +77,10 @@ private class ShuffleBlockFetcherIterable(
     mapOutputTracker: MapOutputTracker) extends Iterable[ShuffleBlockInputStream] {
 
   override def iterator: Iterator[ShuffleBlockInputStream] = {
+    val attemptsByBlockId: Map[BlockId, Long] = blockMetadata.asScala.map { info =>
+      (ShuffleBlockId(info.getShuffleId, info.getMapId, info.getReduceId),
+        info.getMapTaskAttemptId)
+    }.toMap
     new ShuffleBlockFetcherIterator(
       context,
       blockManager.shuffleClient,
@@ -93,6 +97,7 @@ private class ShuffleBlockFetcherIterable(
                 info.getLength)).toSeq)
         }
         .iterator,
+      attemptsByBlockId,
       serializerManager.wrapStream,
       maxBytesInFlight,
       maxReqsInFlight,

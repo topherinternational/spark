@@ -146,7 +146,7 @@ public final class HadoopAsyncShuffleReadSupport {
     });
 
     Iterable<ShuffleBlockInputStream> inputStreams = delegate.getPartitionReaders(
-        shuffleBlocksFromExecutors);
+        shuffleBlocksFromExecutors, Optional.empty());
     return () -> {
       ExecutorThenHadoopFetcherIterator iterator = new ExecutorThenHadoopFetcherIterator(
           shuffleId,

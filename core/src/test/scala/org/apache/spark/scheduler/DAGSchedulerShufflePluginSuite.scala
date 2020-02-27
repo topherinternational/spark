@@ -16,27 +16,109 @@
  */
 package org.apache.spark.scheduler
 
-import java.util.{Collections, Map => JMap}
+import java.util.{Collections, List => JList, Map => JMap, Optional}
+import java.util.concurrent.ConcurrentHashMap
+
+import scala.collection.JavaConverters._
+import scala.collection.mutable
+import scala.compat.java8.OptionConverters._
 
 import org.apache.spark.{FetchFailed, HashPartitioner, ShuffleDependency, SparkConf, Success}
-import org.apache.spark.rdd.RDD
-import org.apache.spark.shuffle.api.ShuffleDriverComponents
+import org.apache.spark.shuffle.api.{MapOutputMetadata, ShuffleBlockMetadata, ShuffleDriverComponents, ShuffleMetadata, ShuffleOutputTracker}
 import org.apache.spark.storage.BlockManagerId
 
 class PluginShuffleDriverComponents extends ShuffleDriverComponents {
 
+  private val outputTracker = new TestShuffleOutputTracker()
+
   override def initializeApplication(): JMap[String, String] = Collections.emptyMap()
 
   override def unregisterOutputOnHostOnFetchFailure(): Boolean = true
+
+  override def shuffleTracker(): Optional[ShuffleOutputTracker] =
+    Some[ShuffleOutputTracker](outputTracker).asJava
+}
+
+case class ShuffleDataAttemptId(shuffleId: Int, mapId: Int, mapAttemptId: Long)
+
+case object LocalOnlyOutput extends MapOutputMetadata
+
+case object ExternalOutput extends MapOutputMetadata
+
+case class ExternalShuffleMetadata(externalOutputs: Set[ShuffleDataAttemptId])
+  extends ShuffleMetadata
+
+class TestShuffleOutputTracker extends ShuffleOutputTracker {
+
+  private val externalOutputs =
+    new ConcurrentHashMap[Int, mutable.Set[ShuffleDataAttemptId]]().asScala
+
+  override def registerShuffle(shuffleId: Int, numMaps: Int): Unit = {
+    externalOutputs.putIfAbsent(
+      shuffleId, ConcurrentHashMap.newKeySet[ShuffleDataAttemptId]().asScala)
+  }
+
+  override def registerMapOutput(
+      shuffleId: Int,
+      mapId: Int,
+      mapAttemptId: Long,
+      metadata: Optional[MapOutputMetadata]): Unit = {
+    metadata.asScala.getOrElse(LocalOnlyOutput) match {
+      case ExternalOutput =>
+        externalOutputs(shuffleId) += ShuffleDataAttemptId(shuffleId, mapId, mapAttemptId)
+      case _ =>
+    }
+  }
+
+  override def handleFetchFailure(
+      shuffleId: Int,
+      mapId: Int,
+      mapAttemptId: Long,
+      partitionId: Long,
+      block: Optional[ShuffleBlockMetadata]): Unit = {
+
+  }
+
+  override def invalidateShuffle(shuffleId: Int): Unit = {
+    externalOutputs(shuffleId).clear()
+  }
+
+  override def unregisterShuffle(shuffleId: Int): Unit = {
+    externalOutputs -= shuffleId
+  }
+
+  override def shuffleMetadata(shuffleId: Int): Optional[ShuffleMetadata] = {
+    externalOutputs.get(shuffleId).map(
+      dataAttemptIds =>
+        ExternalShuffleMetadata(dataAttemptIds.toSet)
+          .asInstanceOf[ShuffleMetadata])
+      .asJava
+  }
+
+  override def areAllPartitionsAvailableExternally(
+      shuffleId: Int, mapId: Int, mapAttemptId: Long): Boolean = {
+    externalOutputs.get(shuffleId).exists(
+      _.contains(ShuffleDataAttemptId(shuffleId, mapId, mapAttemptId)))
+  }
+
+  override def preferredMapOutputLocations(
+      shuffleId: Int, mapId: Int): JList[String] = {
+    Seq.empty[String].asJava
+  }
+
+  override def preferredPartitionLocations(
+      shuffleId: Int, mapId: Int): JList[String] = {
+    Seq.empty[String].asJava
+  }
 }
 
 class DAGSchedulerShufflePluginSuite extends DAGSchedulerSuite {
 
-  private def setupTest(): (RDD[_], Int) = {
-    afterEach()
-    val conf = new SparkConf()
-    // unregistering all outputs on a host is enabled for the individual file server case
-    init(conf, (_, _) => new PluginShuffleDriverComponents)
+  override def loadShuffleDriverComponents(): ShuffleDriverComponents = {
+    new PluginShuffleDriverComponents()
+  }
+
+  def setupRdds(): (MyRDD, Int) = {
     val shuffleMapRdd = new MyRDD(sc, 2, Nil)
     val shuffleDep = new ShuffleDependency(shuffleMapRdd, new HashPartitioner(2))
     val shuffleId = shuffleDep.shuffleId
@@ -44,104 +126,46 @@ class DAGSchedulerShufflePluginSuite extends DAGSchedulerSuite {
     (reduceRdd, shuffleId)
   }
 
-  test("Test simple file server") {
-    val (reduceRdd, shuffleId) = setupTest()
+  test("Some outputs available externally - do not recompute those.") {
+    val (reduceRdd, shuffleId) = setupRdds()
     submit(reduceRdd, Array(0, 1))
 
     // Perform map task
-    val mapStatus1 = makeMapStatus(null, "hostA")
-    val mapStatus2 = makeMapStatus(null, "hostB")
-    complete(taskSets(0), Seq((Success, mapStatus1), (Success, mapStatus2)))
-    assertMapShuffleLocations(shuffleId, Seq(mapStatus1, mapStatus2))
+    val taskResult1 = makeMapTaskLocalOnlyResult(null, "hostA")
+    val taskResult2 = makeMapTaskExternalResult(null, "hostB")
+    complete(taskSets(0), Seq((Success, taskResult1), (Success, taskResult2)))
 
-    // perform reduce task
-    complete(taskSets(1), Seq((Success, 42), (Success, 43)))
-    assert(results === Map(0 -> 42, 1 -> 43))
-    assertDataStructuresEmpty()
-  }
-
-  test("Test simple file server fetch failure") {
-    val (reduceRdd, shuffleId) = setupTest()
-    submit(reduceRdd, Array(0, 1))
-
-    // Perform map task
-    val mapStatus1 = makeMapStatus(null, "hostA")
-    val mapStatus2 = makeMapStatus(null, "hostB")
-    complete(taskSets(0), Seq((Success, mapStatus1), (Success, mapStatus2)))
-
-    complete(taskSets(1), Seq((Success, 42),
-      (FetchFailed(BlockManagerId(null, "hostB", 1234), shuffleId, 1, 0, "ignored"), null)))
-    assertMapShuffleLocations(shuffleId, Seq(mapStatus1, null))
-
+    complete(taskSets(1), Seq(
+      (FetchFailed(BlockManagerId(null, "hostA", 1234), shuffleId, 0, 0L, 0, "ignored"), null),
+      (FetchFailed(BlockManagerId(null, "hostB", 1234), shuffleId, 1, 0L, 0, "ignored"), null)))
+    // We keep taskResult2's map output, because we kept it externally.
+    assertMapShuffleLocations(shuffleId, Seq(null, taskResult2.status))
     scheduler.resubmitFailedStages()
-    complete(taskSets(2), Seq((Success, mapStatus2)))
+    assert(taskSets(2).tasks.length === 1)
+    val recomputedTaskResult1 = makeMapTaskLocalOnlyResult(null, "hostC")
+    complete(taskSets(2), Seq((Success, recomputedTaskResult1)))
+    complete(taskSets(3), Seq((Success, 42), (Success, 43)))
 
-    complete(taskSets(3), Seq((Success, 43)))
     assert(results === Map(0 -> 42, 1 -> 43))
     assertDataStructuresEmpty()
   }
 
-  test("Test simple file fetch server - duplicate host") {
-    val (reduceRdd, shuffleId) = setupTest()
-    submit(reduceRdd, Array(0, 1))
-
-    // Perform map task
-    val mapStatus1 = makeMapStatus(null, "hostA")
-    val mapStatus2 = makeMapStatus(null, "hostA")
-    complete(taskSets(0), Seq((Success, mapStatus1), (Success, mapStatus2)))
-
-    complete(taskSets(1), Seq((Success, 42),
-      (FetchFailed(BlockManagerId(null, "hostA", 1234), shuffleId, 1, 0, "ignored"), null)))
-    assertMapShuffleLocations(shuffleId, Seq(null, null)) // removes both
-
-    scheduler.resubmitFailedStages()
-    complete(taskSets(2), Seq((Success, mapStatus1), (Success, mapStatus2)))
-
-    complete(taskSets(3), Seq((Success, 43)))
-    assert(results === Map(0 -> 42, 1 -> 43))
-    assertDataStructuresEmpty()
+  def makeMapTaskLocalOnlyResult(execId: String, host: String): MapTaskResult = {
+    MapTaskResult(
+      MapStatus(BlockManagerId(execId, host, 1234), Array.fill[Long](2)(2), 0),
+      Some(LocalOnlyOutput))
   }
 
-  test("Test DFS case - empty BlockManagerId") {
-    val (reduceRdd, shuffleId) = setupTest()
-    submit(reduceRdd, Array(0, 1))
-
-    val mapStatus = makeEmptyMapStatus()
-    complete(taskSets(0), Seq((Success, mapStatus), (Success, mapStatus)))
-    assertMapShuffleLocations(shuffleId, Seq(mapStatus, mapStatus))
-
-    // perform reduce task
-    complete(taskSets(1), Seq((Success, 42), (Success, 43)))
-    assert(results === Map(0 -> 42, 1 -> 43))
-    assertDataStructuresEmpty()
+  def makeMapTaskExternalResult(execId: String, host: String): MapTaskResult = {
+    MapTaskResult(
+      MapStatus(BlockManagerId(execId, host, 1234), Array.fill[Long](2)(2), 0),
+      Some(ExternalOutput))
   }
 
-  test("Test DFS case - fetch failure") {
-    val (reduceRdd, shuffleId) = setupTest()
-    submit(reduceRdd, Array(0, 1))
-
-    // Perform map task
-    val mapStatus = makeEmptyMapStatus()
-    complete(taskSets(0), Seq((Success, mapStatus), (Success, mapStatus)))
-
-    complete(taskSets(1), Seq((Success, 42),
-      (FetchFailed(null, shuffleId, 1, 0, "ignored"), null)))
-    assertMapShuffleLocations(shuffleId, Seq(mapStatus, null))
-
-    scheduler.resubmitFailedStages()
-    complete(taskSets(2), Seq((Success, mapStatus)))
-
-    complete(taskSets(3), Seq((Success, 43)))
-    assert(results === Map(0 -> 42, 1 -> 43))
-    assertDataStructuresEmpty()
-  }
-
-  def makeMapStatus(execId: String, host: String): MapStatus = {
-    MapStatus(BlockManagerId(execId, host, 1234), Array.fill[Long](2)(2), 0)
-  }
-
-  def makeEmptyMapStatus(): MapStatus = {
-    MapStatus(null, Array.fill[Long](2)(2), 0)
+  def makeEmptyMapTaskLocalOnlyResult(): MapTaskResult = {
+    MapTaskResult(
+      MapStatus(null, Array.fill[Long](2)(2), 0),
+      Some(LocalOnlyOutput))
   }
 
   def assertMapShuffleLocations(shuffleId: Int, set: Seq[MapStatus]): Unit = {

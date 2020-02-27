@@ -96,7 +96,7 @@ abstract class BaseReceivedBlockHandlerSuite(enableEncryption: Boolean)
         new LiveListenerBus(conf))), conf, true)
     driverComponents = new LocalDiskShuffleDriverComponents(blockManagerMaster)
     mapOutputTracker = new MapOutputTrackerMaster(
-      conf, broadcastManager, true, driverComponents)
+      conf, broadcastManager, true, driverComponents, Option.empty);
 
     storageLevel = StorageLevel.MEMORY_ONLY_SER
     blockManager = createBlockManager(blockManagerSize, conf)

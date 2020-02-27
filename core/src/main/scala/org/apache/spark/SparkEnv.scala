@@ -23,6 +23,7 @@ import java.util.Locale
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
+import scala.compat.java8.OptionConverters._
 import scala.util.Properties
 
 import com.google.common.collect.MapMaker
@@ -345,7 +346,13 @@ object SparkEnv extends Logging {
     val shuffleDataIo = ShuffleDataIOUtils.loadShuffleDataIO(conf)
 
     val mapOutputTracker = if (isDriver) {
-      new MapOutputTrackerMaster(conf, broadcastManager, isLocal, shuffleDataIo.driver())
+      val shuffleDriverComponents = shuffleDataIo.driver()
+      new MapOutputTrackerMaster(
+        conf,
+        broadcastManager,
+        isLocal,
+        shuffleDriverComponents,
+        shuffleDriverComponents.shuffleTracker().asScala)
     } else {
       new MapOutputTrackerWorker(conf)
     }

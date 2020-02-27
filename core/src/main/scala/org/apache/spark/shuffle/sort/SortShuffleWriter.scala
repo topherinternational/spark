@@ -17,11 +17,13 @@
 
 package org.apache.spark.shuffle.sort
 
+import scala.compat.java8.OptionConverters._
+
 import org.apache.spark._
 import org.apache.spark.internal.{config, Logging}
-import org.apache.spark.scheduler.MapStatus
+import org.apache.spark.scheduler.{MapStatus, MapTaskResult}
 import org.apache.spark.shuffle.{BaseShuffleHandle, IndexShuffleBlockResolver, ShuffleWriter}
-import org.apache.spark.shuffle.api.ShuffleExecutorComponents
+import org.apache.spark.shuffle.api.{MapOutputMetadata, ShuffleExecutorComponents}
 import org.apache.spark.util.collection.ExternalSorter
 
 private[spark] class SortShuffleWriter[K, V, C](
@@ -44,6 +46,7 @@ private[spark] class SortShuffleWriter[K, V, C](
   private var stopping = false
 
   private var mapStatus: MapStatus = null
+  private var outputMetadata: Option[MapOutputMetadata] = None
 
   private val writeMetrics = context.taskMetrics().shuffleWriteMetrics
 
@@ -72,17 +75,18 @@ private[spark] class SortShuffleWriter[K, V, C](
       commitMessage.getLocation.orElse(null),
       commitMessage.getPartitionLengths,
       context.taskAttemptId())
+    outputMetadata = commitMessage.getMetadata.asScala
   }
 
   /** Close this writer, passing along whether the map completed */
-  override def stop(success: Boolean): Option[MapStatus] = {
+  override def stop(success: Boolean): Option[MapTaskResult] = {
     try {
       if (stopping) {
         return None
       }
       stopping = true
       if (success) {
-        return Option(mapStatus)
+        return Some(MapTaskResult(mapStatus, outputMetadata))
       } else {
         return None
       }

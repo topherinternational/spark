@@ -135,7 +135,7 @@ class BlockManagerSuite extends SparkFunSuite with Matchers with BeforeAndAfterE
         new LiveListenerBus(conf))), conf, true)
     driverComponents = new LocalDiskShuffleDriverComponents(master)
     mapOutputTracker = new MapOutputTrackerMaster(
-      new SparkConf(false), bcastManager, true, driverComponents)
+      new SparkConf(false), bcastManager, true, driverComponents, None)
 
     val initialize = PrivateMethod[Unit]('initialize)
     SizeEstimator invokePrivate initialize()

@@ -27,7 +27,7 @@ import org.apache.spark.internal.config
 import org.apache.spark.internal.config.Tests.TEST_NO_STAGE_RETRY
 import org.apache.spark.memory.TaskMemoryManager
 import org.apache.spark.rdd.{CoGroupedRDD, OrderedRDDFunctions, RDD, ShuffledRDD, SubtractedRDD}
-import org.apache.spark.scheduler.{MapStatus, MyRDD, SparkListener, SparkListenerTaskEnd}
+import org.apache.spark.scheduler.{MapStatus, MapTaskResult, MyRDD, SparkListener, SparkListenerTaskEnd}
 import org.apache.spark.serializer.KryoSerializer
 import org.apache.spark.shuffle.ShuffleWriter
 import org.apache.spark.storage.{ShuffleBlockId, ShuffleDataBlockId, ShuffleIndexBlockId}
@@ -73,8 +73,9 @@ abstract class ShuffleSuite extends SparkFunSuite with Matchers with LocalSparkC
 
     // All blocks must have non-zero size
     (0 until NUM_BLOCKS).foreach { id =>
-      val statuses = SparkEnv.get.mapOutputTracker.getMapSizesByExecutorId(shuffleId, id)
-      assert(statuses.forall(_._2.forall(blockIdSizePair => blockIdSizePair._2 > 0)))
+      val statuses = SparkEnv.get.mapOutputTracker.getPartitionMetadata(shuffleId, id)
+      assert(statuses.blocksByExecutorId.forall(_._2.forall(
+        blockIdSizePair => blockIdSizePair._2 > 0)))
     }
   }
 
@@ -112,8 +113,8 @@ abstract class ShuffleSuite extends SparkFunSuite with Matchers with LocalSparkC
     assert(c.count === 4)
 
     val blockSizes = (0 until NUM_BLOCKS).flatMap { id =>
-      val statuses = SparkEnv.get.mapOutputTracker.getMapSizesByExecutorId(shuffleId, id)
-      statuses.flatMap(_._2.map(_._2))
+      val statuses = SparkEnv.get.mapOutputTracker.getPartitionMetadata(shuffleId, id)
+      statuses.blocksByExecutorId.flatMap(_._2.map(_._2))
     }
     val nonEmptyBlocks = blockSizes.filter(x => x > 0)
 
@@ -137,8 +138,8 @@ abstract class ShuffleSuite extends SparkFunSuite with Matchers with LocalSparkC
     assert(c.count === 4)
 
     val blockSizes = (0 until NUM_BLOCKS).flatMap { id =>
-      val statuses = SparkEnv.get.mapOutputTracker.getMapSizesByExecutorId(shuffleId, id)
-      statuses.flatMap(_._2.map(_._2))
+      val statuses = SparkEnv.get.mapOutputTracker.getPartitionMetadata(shuffleId, id)
+      statuses.blocksByExecutorId.flatMap(_._2.map(_._2))
     }
     val nonEmptyBlocks = blockSizes.filter(x => x > 0)
 
@@ -385,7 +386,7 @@ abstract class ShuffleSuite extends SparkFunSuite with Matchers with LocalSparkC
     def writeAndClose(
         writer: ShuffleWriter[Int, Int],
         taskContext: TaskContext)(
-        iter: Iterator[(Int, Int)]): Option[MapStatus] = {
+        iter: Iterator[(Int, Int)]): Option[MapTaskResult] = {
       try {
         val files = writer.write(iter)
         writer.stop(true)
@@ -400,12 +401,12 @@ abstract class ShuffleSuite extends SparkFunSuite with Matchers with LocalSparkC
     // check that we can read the map output and it has the right data
     assert(mapOutput1.isDefined)
     assert(mapOutput2.isDefined)
-    assert(mapOutput1.get.location === mapOutput2.get.location)
-    assert(mapOutput1.get.getSizeForBlock(0) === mapOutput1.get.getSizeForBlock(0))
+    assert(mapOutput1.get.status.location === mapOutput2.get.status.location)
+    assert(mapOutput1.get.status.getSizeForBlock(0) === mapOutput1.get.status.getSizeForBlock(0))
 
     // register one of the map outputs -- doesn't matter which one
-    mapOutput1.foreach { case mapStatus =>
-      mapTrackerMaster.registerMapOutput(0, 0, mapStatus)
+    mapOutput1.foreach { case mapResult =>
+      mapTrackerMaster.registerMapOutput(0, 0, mapResult.status, mapResult.metadata)
     }
 
     val taskContext = new TaskContextImpl(

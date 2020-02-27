@@ -15,20 +15,18 @@
  * limitations under the License.
  */
 
-package org.apache.spark.shuffle
+package org.apache.spark.shuffle.api;
 
-import java.io.IOException
+import java.io.Serializable;
 
-import org.apache.spark.scheduler.{MapStatus, MapTaskResult}
+import org.apache.spark.annotation.Private;
 
 /**
- * Obtained inside a map task to write out records to the shuffle system.
+ * :: Private ::
+ * A tagging interface to mark the plugin-specific metadata related to a shuffle input stream.
+ * This is used to identify the source of fetch failures when performing error handling.
  */
-private[spark] abstract class ShuffleWriter[K, V] {
-  /** Write a sequence of records to this task's output */
-  @throws[IOException]
-  def write(records: Iterator[Product2[K, V]]): Unit
+@Private
+public interface ShuffleBlockMetadata extends Serializable {
 
-  /** Close this writer, passing along whether the map completed */
-  def stop(success: Boolean): Option[MapTaskResult]
 }

@@ -22,6 +22,7 @@ import java.io.{ObjectInputStream, ObjectOutputStream}
 import org.apache.spark.annotation.DeveloperApi
 import org.apache.spark.internal.Logging
 import org.apache.spark.scheduler.AccumulableInfo
+import org.apache.spark.shuffle.api.ShuffleBlockMetadata
 import org.apache.spark.storage.BlockManagerId
 import org.apache.spark.util.{AccumulatorV2, Utils}
 
@@ -84,8 +85,10 @@ case class FetchFailed(
     bmAddress: BlockManagerId,  // Note that bmAddress can be null
     shuffleId: Int,
     mapId: Int,
+    mapAttemptId: Long,
     reduceId: Int,
-    message: String)
+    message: String,
+    blockMetadata: Option[ShuffleBlockMetadata] = None)
   extends TaskFailedReason {
   override def toErrorString: String = {
     val bmAddressString = if (bmAddress == null) "null" else bmAddress.toString

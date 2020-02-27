@@ -15,20 +15,8 @@
  * limitations under the License.
  */
 
-package org.apache.spark.shuffle
+package org.apache.spark.scheduler
 
-import java.io.IOException
+import org.apache.spark.shuffle.api.MapOutputMetadata
 
-import org.apache.spark.scheduler.{MapStatus, MapTaskResult}
-
-/**
- * Obtained inside a map task to write out records to the shuffle system.
- */
-private[spark] abstract class ShuffleWriter[K, V] {
-  /** Write a sequence of records to this task's output */
-  @throws[IOException]
-  def write(records: Iterator[Product2[K, V]]): Unit
-
-  /** Close this writer, passing along whether the map completed */
-  def stop(success: Boolean): Option[MapTaskResult]
-}
+private[spark] case class MapTaskResult(status: MapStatus, metadata: Option[MapOutputMetadata])

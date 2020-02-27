@@ -30,6 +30,7 @@ import scala.Option;
 import scala.Product2;
 import scala.Tuple2;
 import scala.collection.Iterator;
+import scala.compat.java8.OptionConverters;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.io.Closeables;
@@ -39,6 +40,8 @@ import org.slf4j.LoggerFactory;
 import org.apache.spark.Partitioner;
 import org.apache.spark.ShuffleDependency;
 import org.apache.spark.SparkConf;
+import org.apache.spark.scheduler.MapTaskResult;
+import org.apache.spark.shuffle.api.MapOutputMetadata;
 import org.apache.spark.shuffle.api.MapOutputWriterCommitMessage;
 import org.apache.spark.shuffle.api.ShuffleExecutorComponents;
 import org.apache.spark.shuffle.api.ShuffleMapOutputWriter;
@@ -95,6 +98,7 @@ final class BypassMergeSortShuffleWriter<K, V> extends ShuffleWriter<K, V> {
   private DiskBlockObjectWriter[] partitionWriters;
   private FileSegment[] partitionWriterSegments;
   @Nullable private MapStatus mapStatus;
+  @Nullable private Optional<MapOutputMetadata> outputMetadata;
   private MapOutputWriterCommitMessage commitMessage;
 
   /**
@@ -139,6 +143,7 @@ final class BypassMergeSortShuffleWriter<K, V> extends ShuffleWriter<K, V> {
             commitMessage.getLocation().orElse(null),
             commitMessage.getPartitionLengths(),
             mapTaskAttemptId);
+        outputMetadata = commitMessage.getMetadata();
         return;
       }
       final SerializerInstance serInstance = serializer.newInstance();
@@ -175,6 +180,7 @@ final class BypassMergeSortShuffleWriter<K, V> extends ShuffleWriter<K, V> {
           commitMessage.getLocation().orElse(null),
           commitMessage.getPartitionLengths(),
           mapTaskAttemptId);
+      outputMetadata = commitMessage.getMetadata();
     } catch (Exception e) {
       try {
         mapOutputWriter.abort(e);
@@ -268,7 +274,7 @@ final class BypassMergeSortShuffleWriter<K, V> extends ShuffleWriter<K, V> {
   }
 
   @Override
-  public Option<MapStatus> stop(boolean success) {
+  public Option<MapTaskResult> stop(boolean success) {
     if (stopping) {
       return None$.empty();
     } else {
@@ -277,7 +283,8 @@ final class BypassMergeSortShuffleWriter<K, V> extends ShuffleWriter<K, V> {
         if (mapStatus == null) {
           throw new IllegalStateException("Cannot call stop(true) without having called write()");
         }
-        return Option.apply(mapStatus);
+        return Option.apply(new MapTaskResult(
+            mapStatus, OptionConverters.toScala(outputMetadata)));
       } else {
         // The map task failed, so delete our output data.
         if (partitionWriters != null) {

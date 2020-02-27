@@ -229,6 +229,10 @@
       <artifactId>scala-reflect</artifactId>
     </dependency>
     <dependency>
+      <groupId>org.scala-lang.modules</groupId>
+      <artifactId>scala-java8-compat_${scala.binary.version}</artifactId>
+    </dependency>
+    <dependency>
       <groupId>org.json4s</groupId>
       <artifactId>json4s-jackson_${scala.binary.version}</artifactId>
     </dependency>

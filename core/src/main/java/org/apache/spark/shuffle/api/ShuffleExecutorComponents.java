@@ -61,7 +61,8 @@ public interface ShuffleExecutorComponents {
    * through shuffle data, given an iterable for the shuffle blocks to fetch.
    */
   Iterable<ShuffleBlockInputStream> getPartitionReaders(
-      Iterable<ShuffleBlockInfo> blockMetadata) throws IOException;
+      Iterable<ShuffleBlockInfo> blockMetadata,
+      Optional<ShuffleMetadata> shuffleMetadata) throws IOException;
 
   default boolean shouldWrapPartitionReaderStream() {
     return true;

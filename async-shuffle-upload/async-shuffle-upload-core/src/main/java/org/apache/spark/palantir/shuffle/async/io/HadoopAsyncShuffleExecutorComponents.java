@@ -56,6 +56,7 @@ import org.apache.spark.shuffle.api.ShuffleBlockInfo;
 import org.apache.spark.shuffle.api.ShuffleBlockInputStream;
 import org.apache.spark.shuffle.api.ShuffleExecutorComponents;
 import org.apache.spark.shuffle.api.ShuffleMapOutputWriter;
+import org.apache.spark.shuffle.api.ShuffleMetadata;
 import org.apache.spark.util.RpcUtils;
 
 public final class HadoopAsyncShuffleExecutorComponents implements ShuffleExecutorComponents {
@@ -186,11 +187,12 @@ public final class HadoopAsyncShuffleExecutorComponents implements ShuffleExecut
 
   @Override
   public Iterable<ShuffleBlockInputStream> getPartitionReaders(
-      Iterable<ShuffleBlockInfo> blockMetadata) throws IOException {
+      Iterable<ShuffleBlockInfo> blockMetadata,
+      Optional<ShuffleMetadata> shuffleMetadata) throws IOException {
     if (maybeReadSupport.isPresent()) {
       return maybeReadSupport.get().getPartitionReaders(blockMetadata);
     } else {
-      return delegate.getPartitionReaders(blockMetadata);
+      return delegate.getPartitionReaders(blockMetadata, shuffleMetadata);
     }
   }
 

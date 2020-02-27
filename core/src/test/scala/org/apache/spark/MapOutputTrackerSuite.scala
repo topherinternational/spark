@@ -17,6 +17,8 @@
 
 package org.apache.spark
 
+import java.util.Optional
+
 import scala.collection.mutable.ArrayBuffer
 
 import org.mockito.ArgumentMatchers.any
@@ -29,7 +31,7 @@ import org.apache.spark.internal.config.Network.{RPC_ASK_TIMEOUT, RPC_MESSAGE_MA
 import org.apache.spark.rpc.{RpcAddress, RpcCallContext, RpcEnv}
 import org.apache.spark.scheduler.{CompressedMapStatus, MapStatus}
 import org.apache.spark.shuffle.FetchFailedException
-import org.apache.spark.shuffle.api.ShuffleDriverComponents
+import org.apache.spark.shuffle.api.{ShuffleDriverComponents, ShuffleOutputTracker}
 import org.apache.spark.storage.{BlockManagerId, ShuffleBlockAttemptId}
 
 class MapOutputTrackerSuite extends SparkFunSuite {
@@ -39,9 +41,8 @@ class MapOutputTrackerSuite extends SparkFunSuite {
     val broadcastManager = new BroadcastManager(true, sparkConf,
       new SecurityManager(sparkConf))
     val driverComponents = mock(classOf[ShuffleDriverComponents])
-    when(driverComponents.checkIfMapOutputStoredOutsideExecutor(
-      any(), any(), any())).thenReturn(false)
-    new MapOutputTrackerMaster(sparkConf, broadcastManager, true, driverComponents)
+    when(driverComponents.shuffleTracker()).thenReturn(Optional.empty[ShuffleOutputTracker]());
+    new MapOutputTrackerMaster(sparkConf, broadcastManager, true, driverComponents, None)
   }
 
   def createRpcEnv(name: String, host: String = "localhost", port: Int = 0,
@@ -71,8 +72,8 @@ class MapOutputTrackerSuite extends SparkFunSuite {
         Array(1000L, 10000L), 0))
     tracker.registerMapOutput(10, 1, MapStatus(BlockManagerId("b", "hostB", 1000),
         Array(10000L, 1000L), 0))
-    val statuses = tracker.getMapSizesByExecutorId(10, 0)
-    assert(statuses.map(status => (status._1.get, status._2)).toSet ===
+    val statuses = tracker.getPartitionMetadata(10, 0)
+    assert(statuses.blocksByExecutorId.map(status => (status._1.get, status._2)).toSet ===
       Seq((BlockManagerId("b", "hostB", 1000),
             ArrayBuffer((ShuffleBlockAttemptId(10, 1, 0, 0), size10000))),
           (BlockManagerId("a", "hostA", 1000),
@@ -96,11 +97,13 @@ class MapOutputTrackerSuite extends SparkFunSuite {
     tracker.registerMapOutput(10, 1, MapStatus(BlockManagerId("b", "hostB", 1000),
       Array(compressedSize10000, compressedSize1000), 0))
     assert(tracker.containsShuffle(10))
-    assert(tracker.getMapSizesByExecutorId(10, 0).nonEmpty)
+    assert(tracker.getPartitionMetadata(10, 0)
+      .blocksByExecutorId.nonEmpty)
     assert(0 == tracker.getNumCachedSerializedBroadcast)
     tracker.unregisterShuffle(10)
     assert(!tracker.containsShuffle(10))
-    assert(tracker.getMapSizesByExecutorId(10, 0).isEmpty)
+    assert(tracker.getPartitionMetadata(10, 0)
+      .blocksByExecutorId.isEmpty)
 
     tracker.stop()
     rpcEnv.shutdown()
@@ -121,13 +124,15 @@ class MapOutputTrackerSuite extends SparkFunSuite {
 
     assert(0 == tracker.getNumCachedSerializedBroadcast)
     // As if we had two simultaneous fetch failures
-    tracker.unregisterMapOutput(10, 0, BlockManagerId("a", "hostA", 1000))
-    tracker.unregisterMapOutput(10, 0, BlockManagerId("a", "hostA", 1000))
+    tracker.handleFetchFailure(
+      10, 0, 0, 0, BlockManagerId("a", "hostA", 1000))
+    tracker.handleFetchFailure(
+    10, 0, 0, 0, BlockManagerId("a", "hostA", 1000))
 
     // The remaining reduce task might try to grab the output despite the shuffle failure;
     // this should cause it to fail, and the scheduler will ignore the failure due to the
     // stage already being aborted.
-    intercept[FetchFailedException] { tracker.getMapSizesByExecutorId(10, 1) }
+    intercept[FetchFailedException] { tracker.getPartitionMetadata(10, 1) }
 
     tracker.stop()
     rpcEnv.shutdown()
@@ -149,26 +154,27 @@ class MapOutputTrackerSuite extends SparkFunSuite {
     masterTracker.registerShuffle(10, 1)
     slaveTracker.updateEpoch(masterTracker.getEpoch)
     // This is expected to fail because no outputs have been registered for the shuffle.
-    intercept[FetchFailedException] { slaveTracker.getMapSizesByExecutorId(10, 0) }
+    intercept[FetchFailedException] { slaveTracker.getPartitionMetadata(10, 0) }
 
     val size1000 = MapStatus.decompressSize(MapStatus.compressSize(1000L))
     masterTracker.registerMapOutput(10, 0, MapStatus(
       BlockManagerId("a", "hostA", 1000), Array(1000L), 0))
     slaveTracker.updateEpoch(masterTracker.getEpoch)
-    assert(slaveTracker.getMapSizesByExecutorId(10, 0)
+    assert(slaveTracker.getPartitionMetadata(10, 0).blocksByExecutorId
       .map(status => (status._1.get, status._2)).toSeq ===
       Seq((BlockManagerId("a", "hostA", 1000),
         ArrayBuffer((ShuffleBlockAttemptId(10, 0, 0, 0), size1000)))))
     assert(0 == masterTracker.getNumCachedSerializedBroadcast)
 
     val masterTrackerEpochBeforeLossOfMapOutput = masterTracker.getEpoch
-    masterTracker.unregisterMapOutput(10, 0, BlockManagerId("a", "hostA", 1000))
+    masterTracker.handleFetchFailure(
+      10, 0, 0, 0, BlockManagerId("a", "hostA", 1000))
     assert(masterTracker.getEpoch > masterTrackerEpochBeforeLossOfMapOutput)
     slaveTracker.updateEpoch(masterTracker.getEpoch)
-    intercept[FetchFailedException] { slaveTracker.getMapSizesByExecutorId(10, 0) }
+    intercept[FetchFailedException] { slaveTracker.getPartitionMetadata(10, 0) }
 
     // failure should be cached
-    intercept[FetchFailedException] { slaveTracker.getMapSizesByExecutorId(10, 0) }
+    intercept[FetchFailedException] { slaveTracker.getPartitionMetadata(10, 0) }
     assert(0 == masterTracker.getNumCachedSerializedBroadcast)
 
     masterTracker.stop()
@@ -323,7 +329,7 @@ class MapOutputTrackerSuite extends SparkFunSuite {
     tracker.registerMapOutput(10, 1, MapStatus(BlockManagerId("b", "hostB", 1000),
       Array(size10000, size0, size1000, size0), 0))
     assert(tracker.containsShuffle(10))
-    assert(tracker.getMapSizesByExecutorId(10, 0, 4).toSeq ===
+    assert(tracker.getPartitionMetadata(10, 0, 4).blocksByExecutorId.toSeq ===
         Seq(
           (Some(BlockManagerId("b", "hostB", 1000)),
             Seq((ShuffleBlockAttemptId(10, 1, 0, 0), size10000),
@@ -352,8 +358,8 @@ class MapOutputTrackerSuite extends SparkFunSuite {
       Array(1000L, 10000L), 0))
     tracker.registerMapOutput(10, 1, MapStatus(null, Array(10000L, 1000L), 0))
     tracker.registerMapOutput(10, 2, MapStatus(null, Array(1000L, 10000L), 0))
-    var statuses = tracker.getMapSizesByExecutorId(10, 0)
-    assert(statuses.toSet ===
+    var statuses = tracker.getPartitionMetadata(10, 0)
+    assert(statuses.blocksByExecutorId.toSet ===
       Seq(
         (None,
           ArrayBuffer((ShuffleBlockAttemptId(10, 1, 0, 0), size10000),
@@ -366,8 +372,8 @@ class MapOutputTrackerSuite extends SparkFunSuite {
 
     tracker.registerMapOutput(10, 0, MapStatus(BlockManagerId("b", "hostB", 1000),
       Array(1000L, 10000L), 0))
-    statuses = tracker.getMapSizesByExecutorId(10, 0)
-    assert(statuses.toSet ===
+    statuses = tracker.getPartitionMetadata(10, 0)
+    assert(statuses.blocksByExecutorId.toSet ===
       Seq(
         (None,
           ArrayBuffer((ShuffleBlockAttemptId(10, 1, 0, 0), size10000),
@@ -375,12 +381,13 @@ class MapOutputTrackerSuite extends SparkFunSuite {
         (Some(BlockManagerId("b", "hostB", 1000)),
           ArrayBuffer((ShuffleBlockAttemptId(10, 0, 0, 0), size1000))))
         .toSet)
-    tracker.unregisterMapOutput(10, 1, null)
+    tracker.handleFetchFailure(
+      10, 1, 0, 0, null)
 
     tracker.registerMapOutput(10, 1, MapStatus(BlockManagerId("b", "hostB", 1000),
       Array(1000L, 10000L), 0))
-    statuses = tracker.getMapSizesByExecutorId(10, 0)
-    assert(statuses.toSet ===
+    statuses = tracker.getPartitionMetadata(10, 0)
+    assert(statuses.blocksByExecutorId.toSet ===
       Seq(
         (Some(BlockManagerId("b", "hostB", 1000)),
           ArrayBuffer((ShuffleBlockAttemptId(10, 0, 0, 0), size1000),
@@ -408,8 +415,8 @@ class MapOutputTrackerSuite extends SparkFunSuite {
       Array(1000L, 10000L), 0))
     tracker.registerMapOutput(10, 1, MapStatus(BlockManagerId(null, "hostB", 1000),
       Array(10000L, 1000L), 0))
-    var statuses = tracker.getMapSizesByExecutorId(10, 0)
-    assert(statuses.toSet ===
+    var statuses = tracker.getPartitionMetadata(10, 0)
+    assert(statuses.blocksByExecutorId.toSet ===
       Seq(
         (Some(BlockManagerId(null, "hostB", 1000)),
           ArrayBuffer((ShuffleBlockAttemptId(10, 1, 0, 0), size10000))),
@@ -419,20 +426,21 @@ class MapOutputTrackerSuite extends SparkFunSuite {
     assert(0 == tracker.getNumCachedSerializedBroadcast)
     tracker.removeOutputsOnExecutor("a")
 
-    statuses = tracker.getMapSizesByExecutorId(10, 0)
-    assert(statuses.toSet ===
+    statuses = tracker.getPartitionMetadata(10, 0)
+    assert(statuses.blocksByExecutorId.toSet ===
       Seq(
         (Some(BlockManagerId(null, "hostB", 1000)),
           ArrayBuffer((ShuffleBlockAttemptId(10, 1, 0, 0), size10000))),
         (Some(BlockManagerId(null, "hostA", 1000)),
           ArrayBuffer((ShuffleBlockAttemptId(10, 0, 0, 0), size1000))))
         .toSet)
-    tracker.unregisterMapOutput(10, 1, BlockManagerId(null, "hostA", 1000))
+    tracker.handleFetchFailure(
+      10, 1, 0, 0, BlockManagerId(null, "hostA", 1000))
 
     tracker.registerMapOutput(10, 0, MapStatus(BlockManagerId("b", "hostB", 1000),
       Array(1000L, 10000L), 0))
-    statuses = tracker.getMapSizesByExecutorId(10, 0)
-    assert(statuses.toSet ===
+    statuses = tracker.getPartitionMetadata(10, 0)
+    assert(statuses.blocksByExecutorId.toSet ===
       Seq(
         (Some(BlockManagerId(null, "hostB", 1000)),
           ArrayBuffer((ShuffleBlockAttemptId(10, 1, 0, 0), size10000))),
@@ -458,9 +466,9 @@ class MapOutputTrackerSuite extends SparkFunSuite {
     assert(tracker.getExecutorShuffleStatus.keySet.equals(Set("exec1", "exec2")))
     assert(!tracker.hasOutputsOnExecutor("exec3"))
 
-    tracker.unregisterMapOutput(11, 0, bmId1)
+    tracker.handleFetchFailure(11, 0, 0, 0, bmId1)
     assert(tracker.hasOutputsOnExecutor("exec1"))
-    tracker.unregisterMapOutput(11, 1, bmId1)
+    tracker.handleFetchFailure(11, 1, 0, 0, bmId1)
     assert(!tracker.hasOutputsOnExecutor("exec1"))
 
     tracker.markShuffleInactive(11)

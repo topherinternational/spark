@@ -46,6 +46,7 @@ import org.apache.spark.shuffle.api.ShuffleBlockInfo;
 import org.apache.spark.shuffle.api.ShuffleBlockInputStream;
 import org.apache.spark.storage.BlockId;
 import org.apache.spark.storage.BlockManagerId;
+import org.apache.spark.storage.ShuffleBlockAttemptId;
 import org.apache.spark.storage.ShuffleBlockId;
 
 /**
@@ -266,6 +267,10 @@ public final class DefaultHadoopFetcherIterator implements HadoopFetcherIterator
   private static ShuffleBlockId toShuffleBlockId(BlockId blockId) {
     if (blockId instanceof ShuffleBlockId) {
       return (ShuffleBlockId) blockId;
+    } else if (blockId instanceof ShuffleBlockAttemptId) {
+      ShuffleBlockAttemptId asAttemptId = (ShuffleBlockAttemptId) blockId;
+      return new ShuffleBlockId(
+          asAttemptId.shuffleId(), asAttemptId.mapId(), asAttemptId.reduceId());
     }
     throw new SafeRuntimeException("Expected block id to be of instance ShuffleBLockAttemptId");
   }

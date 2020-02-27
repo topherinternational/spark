@@ -18,6 +18,7 @@
 package org.apache.spark.shuffle
 
 import scala.collection.JavaConverters._
+import scala.compat.java8.OptionConverters._
 
 import org.apache.spark._
 import org.apache.spark.api.java.Optional
@@ -53,25 +54,28 @@ private[spark] class BlockStoreShuffleReader[K, C](
 
   /** Read the combined key-values for this reduce task */
   override def read(): Iterator[Product2[K, C]] = {
+    val partitionMetadata = mapOutputTracker.getPartitionMetadata(
+      handle.shuffleId, startPartition, endPartition)
+
+    val convertedBlocks =
+      partitionMetadata
+        .blocksByExecutorId
+        .flatMap { shuffleLocationInfo =>
+          shuffleLocationInfo._2.map { blockInfo =>
+            val block = blockInfo._1.asInstanceOf[ShuffleBlockAttemptId]
+            new ShuffleBlockInfo(
+              block.shuffleId,
+              block.mapId,
+              block.reduceId,
+              blockInfo._2,
+              block.mapTaskAttemptId,
+              Optional.ofNullable(shuffleLocationInfo._1.orNull))
+          }
+        }.toSeq
+
     val streamsIterator =
-      shuffleExecutorComponents.getPartitionReaders(new Iterable[ShuffleBlockInfo] {
-        override def iterator: Iterator[ShuffleBlockInfo] = {
-          mapOutputTracker
-            .getMapSizesByExecutorId(handle.shuffleId, startPartition, endPartition)
-            .flatMap { shuffleLocationInfo =>
-              shuffleLocationInfo._2.map { blockInfo =>
-                val block = blockInfo._1.asInstanceOf[ShuffleBlockAttemptId]
-                new ShuffleBlockInfo(
-                  block.shuffleId,
-                  block.mapId,
-                  block.reduceId,
-                  blockInfo._2,
-                  block.mapTaskAttemptId,
-                  Optional.ofNullable(shuffleLocationInfo._1.orNull))
-              }
-            }
-        }
-      }.asJava).iterator()
+      shuffleExecutorComponents.getPartitionReaders(
+        convertedBlocks.asJava, partitionMetadata.shuffleMetadata.asJava).iterator
 
     val retryingWrappedStreams = streamsIterator.asScala.map { rawReaderStream =>
       if (shuffleExecutorComponents.shouldWrapPartitionReaderStream()) {

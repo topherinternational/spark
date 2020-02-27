@@ -54,6 +54,7 @@ import org.apache.spark.memory.TaskMemoryManager;
 import org.apache.spark.memory.TestMemoryManager;
 import org.apache.spark.network.util.LimitedInputStream;
 import org.apache.spark.scheduler.MapStatus;
+import org.apache.spark.scheduler.MapTaskResult;
 import org.apache.spark.security.CryptoStreamUtils;
 import org.apache.spark.serializer.*;
 import org.apache.spark.shuffle.IndexShuffleBlockResolver;
@@ -260,7 +261,7 @@ public class UnsafeShuffleWriterSuite {
   public void writeEmptyIterator() throws Exception {
     final UnsafeShuffleWriter<Object, Object> writer = createWriter(true);
     writer.write(Iterators.emptyIterator());
-    final Option<MapStatus> mapStatus = writer.stop(true);
+    final Option<MapTaskResult> mapStatus = writer.stop(true);
     assertTrue(mapStatus.isDefined());
     assertTrue(mergedOutputFile.exists());
     assertEquals(0, spillFilesCreated.size());
@@ -280,7 +281,7 @@ public class UnsafeShuffleWriterSuite {
     }
     final UnsafeShuffleWriter<Object, Object> writer = createWriter(true);
     writer.write(dataToWrite.iterator());
-    final Option<MapStatus> mapStatus = writer.stop(true);
+    final Option<MapTaskResult> mapStatus = writer.stop(true);
     assertTrue(mapStatus.isDefined());
     assertTrue(mergedOutputFile.exists());
 
@@ -342,7 +343,7 @@ public class UnsafeShuffleWriterSuite {
     writer.insertRecordIntoSorter(dataToWrite.get(4));
     writer.insertRecordIntoSorter(dataToWrite.get(5));
     writer.closeAndWriteOutput();
-    final Option<MapStatus> mapStatus = writer.stop(true);
+    final Option<MapTaskResult> mapStatus = writer.stop(true);
     assertTrue(mapStatus.isDefined());
     assertTrue(mergedOutputFile.exists());
     assertEquals(2, spillFilesCreated.size());
