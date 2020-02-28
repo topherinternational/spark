@@ -23,7 +23,7 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.compat.java8.OptionConverters._
 
-import org.apache.spark.{FetchFailed, HashPartitioner, ShuffleDependency, SparkConf, Success}
+import org.apache.spark.{FetchFailed, HashPartitioner, ShuffleDependency, Success}
 import org.apache.spark.shuffle.api.{MapOutputMetadata, ShuffleBlockMetadata, ShuffleDriverComponents, ShuffleMetadata, ShuffleOutputTracker}
 import org.apache.spark.storage.BlockManagerId
 
