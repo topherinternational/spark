@@ -15,7 +15,7 @@
 # limitations under the License.
 #
 
-FROM buildpack-deps:cosmic
+FROM buildpack-deps:20.04
 
 # make Apt non-interactive
 RUN echo 'APT::Get::Assume-Yes "true";' > /etc/apt/apt.conf.d/90circleci \
@@ -28,7 +28,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN mkdir -p /usr/share/man/man1 \
   && apt-get update \
   && apt-get install -y \
-    git \
+    git python2 \
     locales sudo openssh-client ca-certificates tar gzip parallel \
     net-tools netcat unzip zip bzip2 gnupg curl wget \
     openjdk-8-jdk rsync pandoc pandoc-citeproc flake8 tzdata \
@@ -59,13 +59,13 @@ RUN JQ_URL="https://circle-downloads.s3.amazonaws.com/circleci-images/cache/linu
 # The output looks like this:
 
 #>    # To install, run the following commands as root:
-#>    curl -fsSLO https://download.docker.com/linux/static/stable/x86_64/docker-17.05.0-ce.tgz && tar --strip-components=1 -xvzf docker-17.05.0-ce.tgz -C /usr/local/bin
+#>    curl -fsSLO https://download.docker.com/linux/static/stable/x86_64/docker-17.05.0.tgz && tar --strip-components=1 -xvzf docker-17.05.0.tgz -C /usr/local/bin
 #>
 #>    # Then start docker in daemon mode:
 #>    /usr/local/bin/dockerd
 
 RUN set -ex \
-  && export DOCKER_VERSION=$(curl --silent --fail --retry 3 https://download.docker.com/linux/static/stable/x86_64/ | grep -o -e 'docker-[.0-9]*-ce\.tgz' | sort -r | head -n 1) \
+  && export DOCKER_VERSION=$(curl --silent --fail --retry 3 https://download.docker.com/linux/static/stable/x86_64/ | grep -o -e 'docker-[.0-9]*\.tgz' | sort -r | head -n 1) \
   && DOCKER_URL="https://download.docker.com/linux/static/stable/x86_64/${DOCKER_VERSION}" \
   && echo Docker URL: $DOCKER_URL \
   && curl --silent --show-error --location --fail --retry 3 --output /tmp/docker.tgz "${DOCKER_URL}" \
