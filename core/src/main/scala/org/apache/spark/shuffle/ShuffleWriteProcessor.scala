@@ -18,7 +18,6 @@
 package org.apache.spark.shuffle
 
 import org.apache.spark.{Partition, ShuffleDependency, SparkEnv, TaskContext}
-
 import org.apache.spark.internal.Logging
 import org.apache.spark.rdd.RDD
 import org.apache.spark.scheduler.{MapStatus, MapTaskResult}
