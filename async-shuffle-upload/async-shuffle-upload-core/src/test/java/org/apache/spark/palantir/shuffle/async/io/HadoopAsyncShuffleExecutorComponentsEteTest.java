@@ -255,6 +255,8 @@ public final class HadoopAsyncShuffleExecutorComponentsEteTest {
       assertThat(partWriter.getNumBytesWritten()).isEqualTo(partitionData.length);
     }
     mapOutputWriter.commitAllPartitions();
+    shuffleStorageStateTracker.registerLocallyWrittenMapOutput(
+        MAPPER_LOCATION, new MapOutputId(0, 0, 0));
     assertThat(shuffleStorageStateTracker.getShuffleStorageState(
         new MapOutputId(0, 0, 0))).isNotNull();
     assertThat(shuffleStorageStateTracker.getShuffleStorageStates(0)).isNotNull();
