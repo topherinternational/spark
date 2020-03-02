@@ -53,7 +53,6 @@ import org.apache.spark.internal.config.package$;
 import org.apache.spark.memory.TaskMemoryManager;
 import org.apache.spark.memory.TestMemoryManager;
 import org.apache.spark.network.util.LimitedInputStream;
-import org.apache.spark.scheduler.MapStatus;
 import org.apache.spark.scheduler.MapTaskResult;
 import org.apache.spark.security.CryptoStreamUtils;
 import org.apache.spark.serializer.*;

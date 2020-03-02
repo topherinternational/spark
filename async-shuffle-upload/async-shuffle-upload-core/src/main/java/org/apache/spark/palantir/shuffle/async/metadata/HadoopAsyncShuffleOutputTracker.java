@@ -44,7 +44,8 @@ public final class HadoopAsyncShuffleOutputTracker implements ShuffleOutputTrack
   }
 
   @Override
-  public void registerMapOutput(int shuffleId, int mapId, long mapAttemptId, Optional<MapOutputMetadata> metadata) {
+  public void registerMapOutput(
+      int shuffleId, int mapId, long mapAttemptId, Optional<MapOutputMetadata> metadata) {
     Preconditions.checkArgument(
         metadata.isPresent(),
         "Expecting the Hadoop async shuffle output tracker to receive map output metadata.",
@@ -104,7 +105,8 @@ public final class HadoopAsyncShuffleOutputTracker implements ShuffleOutputTrack
     return storageStateTracker.getShuffleStorageState(id).visit(
         new ShuffleStorageStateVisitor<Boolean>() {
           @Override
-          public Boolean onExecutorAndRemote(BlockManagerId executorLocation, Optional<Long> mergeId) {
+          public Boolean onExecutorAndRemote(
+              BlockManagerId executorLocation, Optional<Long> mergeId) {
             return true;
           }
 

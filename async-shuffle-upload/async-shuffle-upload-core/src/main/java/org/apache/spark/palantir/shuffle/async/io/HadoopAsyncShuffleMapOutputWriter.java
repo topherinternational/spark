@@ -23,9 +23,7 @@ import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
 
-import org.apache.spark.palantir.shuffle.async.ShuffleDriverEndpointRef;
 import org.apache.spark.palantir.shuffle.async.client.ShuffleClient;
-import org.apache.spark.palantir.shuffle.async.metadata.MapOutputId;
 import org.apache.spark.palantir.shuffle.async.metadata.MapperLocationMetadata;
 import org.apache.spark.shuffle.api.MapOutputWriterCommitMessage;
 import org.apache.spark.shuffle.api.ShuffleMapOutputWriter;

@@ -48,7 +48,6 @@ import org.apache.spark.palantir.shuffle.async.client.BaseHadoopShuffleClientCon
 import org.apache.spark.palantir.shuffle.async.client.ShuffleClient;
 import org.apache.spark.palantir.shuffle.async.client.ShuffleClients;
 import org.apache.spark.palantir.shuffle.async.metadata.HadoopAsyncShuffleMetadata;
-import org.apache.spark.palantir.shuffle.async.metadata.MapperLocationMetadata;
 import org.apache.spark.palantir.shuffle.async.metrics.HadoopAsyncShuffleMetrics;
 import org.apache.spark.palantir.shuffle.async.metrics.HadoopAsyncShuffleMetricsFactory;
 import org.apache.spark.palantir.shuffle.async.metrics.slf4j.Slf4JHadoopAsyncShuffleMetricsFactory;

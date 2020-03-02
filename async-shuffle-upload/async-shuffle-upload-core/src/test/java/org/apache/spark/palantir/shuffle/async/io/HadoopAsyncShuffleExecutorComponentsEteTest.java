@@ -63,7 +63,6 @@ import org.apache.spark.serializer.SerializerManager;
 import org.apache.spark.shuffle.api.ShuffleBlockInfo;
 import org.apache.spark.shuffle.api.ShuffleExecutorComponents;
 import org.apache.spark.shuffle.api.ShuffleMapOutputWriter;
-import org.apache.spark.shuffle.api.ShuffleMetadata;
 import org.apache.spark.shuffle.api.ShufflePartitionWriter;
 import org.apache.spark.storage.BlockManager;
 import org.apache.spark.storage.BlockManagerId;

@@ -22,7 +22,6 @@ import com.google.common.collect.ImmutableList;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -35,8 +34,6 @@ import org.apache.spark.palantir.shuffle.async.metadata.HadoopAsyncShuffleMetada
 import org.apache.spark.palantir.shuffle.async.metadata.MapOutputId;
 import org.apache.spark.palantir.shuffle.async.metadata.ShuffleStorageState;
 import org.apache.spark.palantir.shuffle.async.metadata.ShuffleStorageStateVisitor;
-import org.apache.spark.palantir.shuffle.async.metadata.Unregistered;
-import org.apache.spark.palantir.shuffle.async.metadata.Unregistered$;
 import org.apache.spark.palantir.shuffle.async.metrics.HadoopFetcherIteratorMetrics;
 import org.apache.spark.palantir.shuffle.async.reader.DefaultHadoopFetcherIteratorFactory;
 import org.apache.spark.palantir.shuffle.async.reader.ExecutorThenHadoopFetcherIterator;
