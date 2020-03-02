@@ -187,6 +187,7 @@ py4j-0.10.8.1.jar
 pyrolite-4.13.jar
 safe-logging-1.13.0.jar
 scala-compiler-2.11.12.jar
+scala-java8-compat_2.11-0.9.0.jar
 scala-library-2.11.12.jar
 scala-parser-combinators_2.11-1.1.0.jar
 scala-reflect-2.11.12.jar
