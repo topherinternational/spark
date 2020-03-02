@@ -29,6 +29,7 @@ deployable-branches-and-tags: &deployable-branches-and-tags
     branches:
       only:
         - master
+        - shuffle-tracker-api-async-shuffle-upload
 
 # Step templates
 
