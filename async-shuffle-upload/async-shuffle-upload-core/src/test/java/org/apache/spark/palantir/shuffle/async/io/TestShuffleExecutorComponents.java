@@ -36,6 +36,7 @@ import java.nio.channels.SeekableByteChannel;
 import java.nio.file.Files;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Queue;
 
 import org.apache.spark.network.util.LimitedInputStream;
@@ -45,6 +46,7 @@ import org.apache.spark.shuffle.api.ShuffleBlockInfo;
 import org.apache.spark.shuffle.api.ShuffleBlockInputStream;
 import org.apache.spark.shuffle.api.ShuffleExecutorComponents;
 import org.apache.spark.shuffle.api.ShuffleMapOutputWriter;
+import org.apache.spark.shuffle.api.ShuffleMetadata;
 import org.apache.spark.shuffle.api.ShufflePartitionWriter;
 import org.apache.spark.storage.BlockManagerId;
 import org.apache.spark.storage.ShuffleBlockId;
@@ -77,7 +79,7 @@ public final class TestShuffleExecutorComponents implements ShuffleExecutorCompo
 
   @Override
   public Iterable<ShuffleBlockInputStream> getPartitionReaders(
-      Iterable<ShuffleBlockInfo> blockMetadata) {
+      Iterable<ShuffleBlockInfo> blockMetadata, Optional<ShuffleMetadata> shuffleMetadata) {
     return () -> {
       Iterator<ShuffleBlockInfo> blockMetadataIt = blockMetadata.iterator();
       return new Iterator<ShuffleBlockInputStream>() {
@@ -98,10 +100,12 @@ public final class TestShuffleExecutorComponents implements ShuffleExecutorCompo
             FetchFailedExceptionThrower.throwFetchFailedException(
                 block.getShuffleId(),
                 block.getMapId(),
+                block.getMapTaskAttemptId(),
                 block.getReduceId(),
                 mapperLocation,
                 "Test fetch failed.",
-                null);
+                null,
+                Optional.empty());
           }
           long dataOffset;
           long nextOffset;

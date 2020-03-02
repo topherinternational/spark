@@ -49,6 +49,7 @@ import org.apache.spark.palantir.shuffle.async.InProcessShuffleDriverEndpointRef
 import org.apache.spark.palantir.shuffle.async.api.SparkShuffleApiConstants;
 import org.apache.spark.palantir.shuffle.async.client.ShuffleStorageStrategy;
 import org.apache.spark.palantir.shuffle.async.client.TestClock;
+import org.apache.spark.palantir.shuffle.async.metadata.HadoopAsyncShuffleMetadata;
 import org.apache.spark.palantir.shuffle.async.metadata.MapOutputId;
 import org.apache.spark.palantir.shuffle.async.metadata.ShuffleStorageStateTracker;
 import org.apache.spark.palantir.shuffle.async.metrics.BasicShuffleClientMetrics;
@@ -62,6 +63,7 @@ import org.apache.spark.serializer.SerializerManager;
 import org.apache.spark.shuffle.api.ShuffleBlockInfo;
 import org.apache.spark.shuffle.api.ShuffleExecutorComponents;
 import org.apache.spark.shuffle.api.ShuffleMapOutputWriter;
+import org.apache.spark.shuffle.api.ShuffleMetadata;
 import org.apache.spark.shuffle.api.ShufflePartitionWriter;
 import org.apache.spark.storage.BlockManager;
 import org.apache.spark.storage.BlockManagerId;
@@ -276,7 +278,10 @@ public final class HadoopAsyncShuffleExecutorComponentsEteTest {
     Set<List<Byte>> partBytes =
         ImmutableSet.copyOf(
             StreamSupport.stream(executorComponentsUnderTest
-                .getPartitionReaders(blocksToFetch)
+                .getPartitionReaders(
+                    blocksToFetch,
+                    java.util.Optional.of(new HadoopAsyncShuffleMetadata(
+                        shuffleStorageStateTracker.getShuffleStorageStates(0))))
                 .spliterator(), false)
                 .map(partStream -> {
                   byte[] partByteArray;

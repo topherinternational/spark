@@ -29,15 +29,20 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
 
 import org.apache.spark.io.CompressionCodec;
 import org.apache.spark.palantir.shuffle.async.FetchFailedExceptionThrower;
 import org.apache.spark.palantir.shuffle.async.ShuffleDriverEndpointRef;
+import org.apache.spark.palantir.shuffle.async.metadata.HadoopAsyncShuffleMetadata;
 import org.apache.spark.palantir.shuffle.async.metadata.MapOutputId;
+import org.apache.spark.palantir.shuffle.async.metadata.MapperLocationMetadata;
 import org.apache.spark.palantir.shuffle.async.metadata.OnExecutorOnly;
 import org.apache.spark.palantir.shuffle.async.metadata.OnRemoteOnly;
+import org.apache.spark.palantir.shuffle.async.metadata.ShuffleStorageState;
 import org.apache.spark.serializer.SerializerManager;
 import org.apache.spark.shuffle.FetchFailedException;
 import org.apache.spark.shuffle.api.ShuffleBlockInfo;
@@ -55,6 +60,7 @@ import scala.Option;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -93,7 +99,8 @@ public final class ExecutorThenHadoopFetcherIteratorTest {
   public void testRetrievesFromExecutorOnly() {
     ExecutorThenHadoopFetcherIterator iteratorUnderTest = getIteratorUnderTest(
         new FetchFailedThrowingStreamList().addStream(BLOCK_INFO_1),
-        ImmutableSet.of());
+        ImmutableSet.of(),
+        ImmutableMap.of());
     assertThat(iteratorUnderTest.hasNext()).isTrue();
     assertThat(iteratorUnderTest.next().getBlockId()).isEqualTo(BLOCK_1);
     assertThat(iteratorUnderTest.hasNext()).isFalse();
@@ -103,7 +110,8 @@ public final class ExecutorThenHadoopFetcherIteratorTest {
   public void testRetrievesFromRemoteOnly() {
     ExecutorThenHadoopFetcherIterator iteratorUnderTest = getIteratorUnderTest(
         new FetchFailedThrowingStreamList(),
-        ImmutableSet.of(BLOCK_INFO_1));
+        ImmutableSet.of(BLOCK_INFO_1),
+        ImmutableMap.of());
     assertThat(iteratorUnderTest.hasNext()).isTrue();
     assertThat(iteratorUnderTest.next().getBlockId()).isEqualTo(BLOCK_1);
     assertThat(iteratorUnderTest.hasNext()).isFalse();
@@ -113,7 +121,8 @@ public final class ExecutorThenHadoopFetcherIteratorTest {
   public void testEmpty() {
     ExecutorThenHadoopFetcherIterator iteratorUnderTest = getIteratorUnderTest(
         new FetchFailedThrowingStreamList(),
-        ImmutableSet.of());
+        ImmutableSet.of(),
+        ImmutableMap.of());
     assertThat(iteratorUnderTest.hasNext()).isFalse();
   }
 
@@ -121,7 +130,8 @@ public final class ExecutorThenHadoopFetcherIteratorTest {
   public void testExecutorThenRemote() {
     ExecutorThenHadoopFetcherIterator iteratorUnderTest = getIteratorUnderTest(
         new FetchFailedThrowingStreamList().addStream(BLOCK_INFO_1),
-        ImmutableSet.of(BLOCK_INFO_2));
+        ImmutableSet.of(BLOCK_INFO_2),
+        ImmutableMap.of());
     assertThat(iteratorUnderTest.hasNext()).isTrue();
     assertThat(iteratorUnderTest.next().getBlockId()).isEqualTo(BLOCK_1);
     assertThat(iteratorUnderTest.hasNext()).isTrue();
@@ -133,50 +143,56 @@ public final class ExecutorThenHadoopFetcherIteratorTest {
 
   @Test
   public void testExecutorFailsAndBlocksDoesntExist() {
-    when(driverEndpointRef.getShuffleStorageStates(0)).thenReturn(ImmutableMap.of());
     ExecutorThenHadoopFetcherIterator iteratorUnderTest = getIteratorUnderTest(
         new FetchFailedThrowingStreamList()
-            .addThrownFetchFailed(BLOCK_INFO_1),
+            .addThrownFetchFailed(BLOCK_INFO_1, 0L),
         ImmutableSet.of(),
-        new TestHadoopFetcherIteratorFactory(Collections.emptySet()));
+        new TestHadoopFetcherIteratorFactory(Collections.emptySet()),
+        ImmutableMap.of());
     assertThat(iteratorUnderTest.hasNext()).isTrue();
     assertThatThrownBy(iteratorUnderTest::next).isInstanceOf(FetchFailedException.class);
-    verify(driverEndpointRef, times(1)).blacklistExecutor(
+    // We don't blacklist the executor here, since it will be blacklisted by the
+    // MapOutputTracker.
+    verify(driverEndpointRef, never()).blacklistExecutor(
         BLOCK_INFO_1.getShuffleLocation().get());
   }
 
   @Test
   public void testExecutorFailsAndBlocksNotOnRemote() {
-    when(driverEndpointRef.getShuffleStorageStates(0)).thenReturn(ImmutableMap.of(
+    Map<MapOutputId, ShuffleStorageState> storageStates = ImmutableMap.of(
         new MapOutputId(BLOCK_INFO_1.getShuffleId(), BLOCK_INFO_1.getMapId(),
             BLOCK_INFO_1.getMapTaskAttemptId()),
-        new OnExecutorOnly(BlockManagerId.apply("host", 1234))));
+        new OnExecutorOnly(BlockManagerId.apply("host", 1234)));
     ExecutorThenHadoopFetcherIterator iteratorUnderTest = getIteratorUnderTest(
         new FetchFailedThrowingStreamList()
-            .addThrownFetchFailed(BLOCK_INFO_1),
+            .addThrownFetchFailed(BLOCK_INFO_1, 0L),
         ImmutableSet.of(),
-        new TestHadoopFetcherIteratorFactory(Collections.emptySet()));
+        new TestHadoopFetcherIteratorFactory(Collections.emptySet()),
+        storageStates);
     assertThat(iteratorUnderTest.hasNext()).isTrue();
     assertThatThrownBy(iteratorUnderTest::next).isInstanceOf(FetchFailedException.class);
-    verify(driverEndpointRef, times(1)).blacklistExecutor(
+    // Don't blacklist executor here - ensure that the blacklist occurs when the map output
+    // tracker gets the fetch failed event.
+    verify(driverEndpointRef, never()).blacklistExecutor(
         BLOCK_INFO_1.getShuffleLocation().get());
   }
 
   @Test
   public void testExecutorFailsAndBlocksOnRemote() {
-    when(driverEndpointRef.getShuffleStorageStates(0)).thenReturn(ImmutableMap.of(
+    Map<MapOutputId, ShuffleStorageState> storageStates = ImmutableMap.of(
         new MapOutputId(BLOCK_INFO_1.getShuffleId(), BLOCK_INFO_1.getMapId(),
             BLOCK_INFO_1.getMapTaskAttemptId()),
         new OnRemoteOnly(Option.empty()),
         new MapOutputId(BLOCK_INFO_2.getShuffleId(), BLOCK_INFO_2.getMapId(),
             BLOCK_INFO_2.getMapTaskAttemptId()),
-        new OnRemoteOnly(Option.empty())));
+        new OnRemoteOnly(Option.empty()));
     ExecutorThenHadoopFetcherIterator iteratorUnderTest = getIteratorUnderTest(
         new FetchFailedThrowingStreamList()
-            .addThrownFetchFailed(BLOCK_INFO_1)
-            .addThrownFetchFailed(BLOCK_INFO_2),
+            .addThrownFetchFailed(BLOCK_INFO_1, 0L)
+            .addThrownFetchFailed(BLOCK_INFO_2, 0L),
         ImmutableSet.of(BLOCK_INFO_2),
-        new TestHadoopFetcherIteratorFactory(ImmutableSet.of(BLOCK_INFO_1, BLOCK_INFO_2)));
+        new TestHadoopFetcherIteratorFactory(ImmutableSet.of(BLOCK_INFO_1, BLOCK_INFO_2)),
+        storageStates);
     assertThat(iteratorUnderTest.hasNext()).isTrue();
     assertThat(iteratorUnderTest.next().getBlockId()).isEqualTo(BLOCK_2);
     assertThat(iteratorUnderTest.hasNext()).isTrue();
@@ -191,10 +207,11 @@ public final class ExecutorThenHadoopFetcherIteratorTest {
   private ExecutorThenHadoopFetcherIterator getIteratorUnderTest(
       FetchFailedThrowingStreamList streamsFromExecutors,
       Set<ShuffleBlockInfo> initialRemoteBlocksToFetch,
-      TestHadoopFetcherIteratorFactory hadoopFetcherIteratorFactory) {
+      TestHadoopFetcherIteratorFactory hadoopFetcherIteratorFactory,
+      Map<MapOutputId, ShuffleStorageState> storageStates) {
     this.testHadoopFetcherIteratorFactory = hadoopFetcherIteratorFactory;
     return new ExecutorThenHadoopFetcherIterator(
-        0,
+        new HadoopAsyncShuffleMetadata(storageStates),
         streamsFromExecutors.iterator(),
         ImmutableSet.copyOf(streamsFromExecutors.blockInfos()),
         false,
@@ -207,13 +224,15 @@ public final class ExecutorThenHadoopFetcherIteratorTest {
 
   private ExecutorThenHadoopFetcherIterator getIteratorUnderTest(
       FetchFailedThrowingStreamList streamsFromExecutors,
-      Set<ShuffleBlockInfo> remoteStorageFetchFailedBlocks) {
+      Set<ShuffleBlockInfo> remoteStorageFetchFailedBlocks,
+      Map<MapOutputId, ShuffleStorageState> storageStates) {
     testHadoopFetcherIteratorFactory = new TestHadoopFetcherIteratorFactory(
         remoteStorageFetchFailedBlocks);
     return getIteratorUnderTest(
         streamsFromExecutors,
         remoteStorageFetchFailedBlocks,
-        testHadoopFetcherIteratorFactory);
+        testHadoopFetcherIteratorFactory,
+        storageStates);
   }
 
   private static ShuffleBlockInputStream toBlockInputStream(ShuffleBlockInfo block) {
@@ -222,14 +241,19 @@ public final class ExecutorThenHadoopFetcherIteratorTest {
         new ByteArrayInputStream(new byte[]{0, 1, 2, 3, 4, 5}));
   }
 
-  private static ShuffleBlockInputStream toThrownFetchFailed(ShuffleBlockInfo block) {
+  private static ShuffleBlockInputStream toThrownFetchFailed(
+      ShuffleBlockInfo block, long mapAttemptId) {
     return FetchFailedExceptionThrower.throwFetchFailedException(
         block.getShuffleId(),
         block.getMapId(),
+        mapAttemptId,
         block.getReduceId(),
         block.getShuffleLocation().orNull(),
         "Manually triggered fetch failed.",
-        null);
+        null,
+        Optional.ofNullable(
+            block.getShuffleLocation().orNull())
+            .map(MapperLocationMetadata::new));
   }
 
   private static Supplier<ShuffleBlockInputStream> toBlockInputStreamSupplier(
@@ -238,8 +262,8 @@ public final class ExecutorThenHadoopFetcherIteratorTest {
   }
 
   private static Supplier<ShuffleBlockInputStream> toThrowingFetchFailedSupplier(
-      ShuffleBlockInfo block) {
-    return () -> toThrownFetchFailed(block);
+      ShuffleBlockInfo block, long mapAttemptId) {
+    return () -> toThrownFetchFailed(block, mapAttemptId);
   }
 
   private static final class FetchFailedThrowingStreamList
@@ -254,8 +278,9 @@ public final class ExecutorThenHadoopFetcherIteratorTest {
       return this;
     }
 
-    public FetchFailedThrowingStreamList addThrownFetchFailed(ShuffleBlockInfo blockInfo) {
-      maybeThrowingStreams.add(toThrowingFetchFailedSupplier(blockInfo));
+    public FetchFailedThrowingStreamList addThrownFetchFailed(
+        ShuffleBlockInfo blockInfo, long mapAttemptId) {
+      maybeThrowingStreams.add(toThrowingFetchFailedSupplier(blockInfo, mapAttemptId));
       blockInfos.add(blockInfo);
       return this;
     }

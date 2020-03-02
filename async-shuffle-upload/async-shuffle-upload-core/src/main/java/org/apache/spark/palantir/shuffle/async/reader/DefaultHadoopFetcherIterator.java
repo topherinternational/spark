@@ -20,6 +20,7 @@ package org.apache.spark.palantir.shuffle.async.reader;
 import java.io.InputStream;
 import java.util.Collection;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -39,6 +40,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.spark.palantir.shuffle.async.FetchFailedExceptionThrower;
 import org.apache.spark.palantir.shuffle.async.client.ShuffleClient;
 import org.apache.spark.palantir.shuffle.async.immutables.ImmutablesStyle;
+import org.apache.spark.palantir.shuffle.async.metadata.MapperLocationMetadata;
 import org.apache.spark.palantir.shuffle.async.metrics.HadoopFetcherIteratorMetrics;
 import org.apache.spark.palantir.shuffle.async.util.Suppliers;
 import org.apache.spark.shuffle.FetchFailedException;
@@ -235,6 +237,8 @@ public final class DefaultHadoopFetcherIterator implements HadoopFetcherIterator
   abstract static class BlockDataErrorResult implements BlockDataResult {
     abstract Throwable error();
 
+    abstract long mapAttemptId();
+
     abstract ShuffleBlockId shuffleBlockId();
 
     abstract BlockManagerId blockManagerId();
@@ -253,10 +257,12 @@ public final class DefaultHadoopFetcherIterator implements HadoopFetcherIterator
       return FetchFailedExceptionThrower.throwFetchFailedException(
           shuffleBlockId().shuffleId(),
           shuffleBlockId().mapId(),
+          mapAttemptId(),
           shuffleBlockId().reduceId(),
           blockManagerId(),
           "Exception thrown when fetching data from remote storage.",
-          error());
+          error(),
+          Optional.of(new MapperLocationMetadata(blockManagerId())));
     }
 
     static ImmutableBlockDataErrorResult.Builder builder() {

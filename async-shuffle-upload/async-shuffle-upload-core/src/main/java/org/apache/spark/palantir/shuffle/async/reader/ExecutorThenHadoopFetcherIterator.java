@@ -31,8 +31,11 @@ import java.util.Set;
 
 import org.apache.spark.TaskContext;
 import org.apache.spark.io.CompressionCodec;
+import org.apache.spark.palantir.shuffle.async.FetchFailedExceptionThrower;
 import org.apache.spark.palantir.shuffle.async.ShuffleDriverEndpointRef;
+import org.apache.spark.palantir.shuffle.async.metadata.HadoopAsyncShuffleMetadata;
 import org.apache.spark.palantir.shuffle.async.metadata.MapOutputId;
+import org.apache.spark.palantir.shuffle.async.metadata.MapperLocationMetadata;
 import org.apache.spark.palantir.shuffle.async.metadata.ShuffleStorageState;
 import org.apache.spark.palantir.shuffle.async.metadata.ShuffleStorageStateVisitor;
 import org.apache.spark.serializer.SerializerManager;
@@ -74,6 +77,7 @@ public final class ExecutorThenHadoopFetcherIterator implements Iterator<Shuffle
   private static final Logger LOG = LoggerFactory.getLogger(
       ExecutorThenHadoopFetcherIterator.class);
 
+  private final HadoopAsyncShuffleMetadata shuffleMetadata;
   private final Iterator<ShuffleBlockInputStream> fetchFromExecutorsIterator;
   private final HadoopFetcherIteratorFactory hadoopFetcherIteratorFactory;
   private final Map<ShuffleBlockId, ShuffleBlockInfo> remainingAttemptsByBlock;
@@ -81,12 +85,11 @@ public final class ExecutorThenHadoopFetcherIterator implements Iterator<Shuffle
   private final SerializerManager serializerManager;
   private final CompressionCodec compressionCodec;
   private final ShuffleDriverEndpointRef driverEndpointRef;
-  private final int shuffleId;
 
   private HadoopFetcherIterator hadoopFetcherIterator = null;
 
   public ExecutorThenHadoopFetcherIterator(
-      int shuffleId,
+      HadoopAsyncShuffleMetadata shuffleMetadata,
       Iterator<ShuffleBlockInputStream> fetchFromExecutorsIterator,
       Set<ShuffleBlockInfo> shuffleBlocksFromExecutor,
       boolean shouldCompressShuffle,
@@ -95,7 +98,7 @@ public final class ExecutorThenHadoopFetcherIterator implements Iterator<Shuffle
       Set<ShuffleBlockInfo> shuffleBlocksFromRemote,
       HadoopFetcherIteratorFactory hadoopFetcherIteratorFactory,
       ShuffleDriverEndpointRef driverEndpointRef) {
-    this.shuffleId = shuffleId;
+    this.shuffleMetadata = shuffleMetadata;
     this.fetchFromExecutorsIterator = fetchFromExecutorsIterator;
     this.shouldCompressShuffle = shouldCompressShuffle;
     this.serializerManager = serializerManager;
@@ -130,20 +133,31 @@ public final class ExecutorThenHadoopFetcherIterator implements Iterator<Shuffle
           remainingAttemptsByBlock.remove(resolvedBlockId);
         } catch (Throwable e) {
           if (e instanceof FetchFailedException) {
+            FetchFailedException originalFetchFailed = (FetchFailedException) e;
             LOG.warn(
                 "Failed to fetch block the regular way, due to a fetch failed"
                     + " exception. Fetching from the hadoop file system instead.",
                 e);
             ShuffleBlockInfo blockInfo =
                 remainingAttemptsByBlock.get(((FetchFailedException) e).getShuffleBlockId());
-            driverEndpointRef.blacklistExecutor(blockInfo.getShuffleLocation().get());
+            unsetFetchFailure();
             if (canRetrieveRemainingBlocksFromHadoop()) {
-              unsetFetchFailure();
+              // In the case that we can keep going, we still want to eagerly blacklist the
+              // executor in case we never throw a fetch failed exception.
+              driverEndpointRef.blacklistExecutor(blockInfo.getShuffleLocation().get());
               hadoopFetcherIterator = hadoopFetcherIteratorFactory
                   .createFetcherIteratorForBlocks(remainingAttemptsByBlock.values());
             } else {
-              throw e;
+              // Otherwise, there's no need to blacklist immediately since the MapOutputTracker
+              // should handle that for us.
+
+              // This should throw the exception immediately, so the loop should end here.
+              FetchFailedExceptionThrower.rethrowFetchFailedWithMetadata(
+                  originalFetchFailed,
+                  new MapperLocationMetadata(blockInfo.getShuffleLocation().orNull()));
             }
+          } else {
+            throw e;
           }
         }
       } else if (hadoopFetcherIterator == null) {
@@ -191,8 +205,7 @@ public final class ExecutorThenHadoopFetcherIterator implements Iterator<Shuffle
   }
 
   private boolean canRetrieveRemainingBlocksFromHadoop() {
-    Map<MapOutputId, ShuffleStorageState> registeredMapOutputs = driverEndpointRef
-        .getShuffleStorageStates(shuffleId);
+    Map<MapOutputId, ShuffleStorageState> registeredMapOutputs = shuffleMetadata.storageStates();
     return remainingAttemptsByBlock.values().stream().allMatch(block -> {
       ShuffleStorageState blockStorageState = registeredMapOutputs.get(
           new MapOutputId(block.getShuffleId(), block.getMapId(), block.getMapTaskAttemptId()));

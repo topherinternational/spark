@@ -31,9 +31,12 @@ import org.apache.spark.TaskContext;
 import org.apache.spark.io.CompressionCodec;
 import org.apache.spark.palantir.shuffle.async.ShuffleDriverEndpointRef;
 import org.apache.spark.palantir.shuffle.async.client.ShuffleClient;
+import org.apache.spark.palantir.shuffle.async.metadata.HadoopAsyncShuffleMetadata;
 import org.apache.spark.palantir.shuffle.async.metadata.MapOutputId;
 import org.apache.spark.palantir.shuffle.async.metadata.ShuffleStorageState;
 import org.apache.spark.palantir.shuffle.async.metadata.ShuffleStorageStateVisitor;
+import org.apache.spark.palantir.shuffle.async.metadata.Unregistered;
+import org.apache.spark.palantir.shuffle.async.metadata.Unregistered$;
 import org.apache.spark.palantir.shuffle.async.metrics.HadoopFetcherIteratorMetrics;
 import org.apache.spark.palantir.shuffle.async.reader.DefaultHadoopFetcherIteratorFactory;
 import org.apache.spark.palantir.shuffle.async.reader.ExecutorThenHadoopFetcherIterator;
@@ -99,7 +102,8 @@ public final class HadoopAsyncShuffleReadSupport {
   }
 
   public Iterable<ShuffleBlockInputStream> getPartitionReaders(
-      Iterable<ShuffleBlockInfo> blockMetadata) throws IOException {
+      Iterable<ShuffleBlockInfo> blockMetadata,
+      HadoopAsyncShuffleMetadata shuffleMetadata) throws IOException {
     LOG.debug("Creating hadoop shuffle partition reader");
     Iterator<ShuffleBlockInfo> blockInfoIterator = blockMetadata.iterator();
     if (!blockInfoIterator.hasNext()) {
@@ -107,11 +111,8 @@ public final class HadoopAsyncShuffleReadSupport {
     }
     final Set<ShuffleBlockInfo> shuffleBlocksFromExecutors = new HashSet<>();
     final Set<ShuffleBlockInfo> shuffleBlocksFromRemote = new HashSet<>();
-    int shuffleId = blockInfoIterator.next().getShuffleId();
-    Map<MapOutputId, ShuffleStorageState> registeredMapOutputs = driverEndpointRef
-        .getShuffleStorageStates(shuffleId);
     blockMetadata.forEach(blockInfo -> {
-      ShuffleStorageState blockStorageState = registeredMapOutputs.get(
+      ShuffleStorageState blockStorageState = shuffleMetadata.storageStates().get(
           new MapOutputId(
               blockInfo.getShuffleId(),
               blockInfo.getMapId(),
@@ -149,7 +150,7 @@ public final class HadoopAsyncShuffleReadSupport {
         shuffleBlocksFromExecutors, Optional.empty());
     return () -> {
       ExecutorThenHadoopFetcherIterator iterator = new ExecutorThenHadoopFetcherIterator(
-          shuffleId,
+          shuffleMetadata,
           inputStreams.iterator(),
           shuffleBlocksFromExecutors,
           shouldCompressShuffle,

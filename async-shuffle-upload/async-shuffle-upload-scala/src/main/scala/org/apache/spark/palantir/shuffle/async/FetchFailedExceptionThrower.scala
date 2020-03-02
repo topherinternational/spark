@@ -17,7 +17,10 @@
 
 package org.apache.spark.palantir.shuffle.async
 
+import scala.compat.java8.OptionConverters._
+
 import org.apache.spark.shuffle.FetchFailedException
+import org.apache.spark.shuffle.api.ShuffleBlockMetadata
 import org.apache.spark.storage.BlockManagerId
 
 object FetchFailedExceptionThrower {
@@ -29,11 +32,26 @@ object FetchFailedExceptionThrower {
   def throwFetchFailedException[T](
       shuffleId: Int,
       mapId: Int,
+      mapAttemptId: Long,
       reduceId: Int,
       bmId: BlockManagerId,
       errorMessage: String,
-      cause: Throwable): T = {
+      cause: Throwable,
+      blockMetadata: java.util.Optional[ShuffleBlockMetadata]): T = {
     throw new FetchFailedException(
-      bmId, shuffleId, mapId, reduceId, errorMessage, cause)
+      bmId,
+      shuffleId,
+      mapId,
+      mapAttemptId,
+      reduceId,
+      errorMessage,
+      cause,
+      blockMetadata.asScala)
+  }
+
+  def rethrowFetchFailedWithMetadata[T](
+      originalFetchFailed: FetchFailedException,
+      blockMetadata: ShuffleBlockMetadata): T = {
+    throw originalFetchFailed.withShuffleBlockMetadata(blockMetadata)
   }
 }

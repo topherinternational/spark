@@ -82,12 +82,10 @@ class ShuffleStorageStateTracker {
     updateStorageState(
       mapOutputId,
       OnExecutorOnly(executorLocation),
-      prev => {
-        throw new SafeIllegalStateException(
-          "Map output should only be registered as locally written as an initial state.",
-          mapOutputIdArg(mapOutputId),
-          invalidPrevStateArg(prev)
-        )
+      {
+        case Unregistered => OnExecutorOnly(executorLocation)
+        case OnRemoteOnly(mergeId) => OnExecutorAndRemote(executorLocation, mergeId)
+        case prev @ (OnExecutorAndRemote(_, _) | OnExecutorOnly(_)) => prev
       })
   }
 
@@ -95,12 +93,16 @@ class ShuffleStorageStateTracker {
     updateStorageState(
       mapOutputId,
       defaultStateFunc = {
-        throw mapOutputNotWrittenLocallyBeforeBackedUp(mapOutputId)
+        // This is a weird case, but with the registration of written map outputs
+        // occurring after the task to back up the files has kicked off, it's possible
+        // that the backup completes before the map task's report back to the driver
+        // through MapOutputTracker occurs.
+        OnRemoteOnly()
       },
       nextStateFunc = {
+        case Unregistered => OnRemoteOnly(None)
         case OnExecutorOnly(executorLocation) => OnExecutorAndRemote(executorLocation)
-        case invalidPrevState: ShuffleStorageState =>
-          throw mapOutputNotWrittenLocallyBeforeBackedUp(mapOutputId, Some(invalidPrevState))
+        case prev @ (OnRemoteOnly(_) | OnExecutorAndRemote(_, _)) => prev
       })
   }
 
@@ -108,12 +110,12 @@ class ShuffleStorageStateTracker {
     updateStorageState(
       mapOutputId,
       defaultStateFunc = {
-        throw mapOutputNotWrittenLocallyBeforeBackedUp(mapOutputId)
+        OnRemoteOnly(mergeId)
       },
       nextStateFunc = {
+        case Unregistered => OnRemoteOnly(mergeId)
         case OnExecutorOnly(executorLocation) => OnExecutorAndRemote(executorLocation, mergeId)
-        case invalidPrevState: ShuffleStorageState =>
-          throw mapOutputNotWrittenLocallyBeforeBackedUp(mapOutputId, Some(invalidPrevState))
+        case prev @ (OnRemoteOnly(_) | OnExecutorAndRemote(_, _)) => prev
       })
   }
 

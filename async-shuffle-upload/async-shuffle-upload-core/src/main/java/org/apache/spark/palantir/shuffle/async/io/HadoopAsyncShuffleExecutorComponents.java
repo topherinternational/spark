@@ -28,6 +28,7 @@ import java.util.function.Supplier;
 import scala.compat.java8.OptionConverters;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -46,6 +47,8 @@ import org.apache.spark.palantir.shuffle.async.api.SparkShuffleApiConstants;
 import org.apache.spark.palantir.shuffle.async.client.BaseHadoopShuffleClientConfiguration;
 import org.apache.spark.palantir.shuffle.async.client.ShuffleClient;
 import org.apache.spark.palantir.shuffle.async.client.ShuffleClients;
+import org.apache.spark.palantir.shuffle.async.metadata.HadoopAsyncShuffleMetadata;
+import org.apache.spark.palantir.shuffle.async.metadata.MapperLocationMetadata;
 import org.apache.spark.palantir.shuffle.async.metrics.HadoopAsyncShuffleMetrics;
 import org.apache.spark.palantir.shuffle.async.metrics.HadoopAsyncShuffleMetricsFactory;
 import org.apache.spark.palantir.shuffle.async.metrics.slf4j.Slf4JHadoopAsyncShuffleMetricsFactory;
@@ -57,6 +60,7 @@ import org.apache.spark.shuffle.api.ShuffleBlockInputStream;
 import org.apache.spark.shuffle.api.ShuffleExecutorComponents;
 import org.apache.spark.shuffle.api.ShuffleMapOutputWriter;
 import org.apache.spark.shuffle.api.ShuffleMetadata;
+import org.apache.spark.storage.BlockManagerId;
 import org.apache.spark.util.RpcUtils;
 
 public final class HadoopAsyncShuffleExecutorComponents implements ShuffleExecutorComponents {
@@ -79,6 +83,7 @@ public final class HadoopAsyncShuffleExecutorComponents implements ShuffleExecut
   private Optional<ShuffleClient> maybeClient;
   private boolean shouldCompressShuffle;
   private ShuffleDriverEndpointRef shuffleDriverEndpointRef;
+  private BlockManagerId mapperLocation;
 
   // Read support is split off primarily to reduce the number of lines in the class.
   private Optional<HadoopAsyncShuffleReadSupport> maybeReadSupport;
@@ -148,6 +153,7 @@ public final class HadoopAsyncShuffleExecutorComponents implements ShuffleExecut
         .sparkConf(sparkConf)
         .metrics(resolvedMetrics)
         .build();
+    this.mapperLocation = sparkEnv.blockManager().blockManagerId();
     resolvedMetrics.markUsingAsyncShuffleUploadPlugin();
     this.maybeReadSupport = maybeClient.map(client ->
         new HadoopAsyncShuffleReadSupport(
@@ -177,7 +183,7 @@ public final class HadoopAsyncShuffleExecutorComponents implements ShuffleExecut
             delegateWriter,
             client,
             shuffleFileLocatorSupplier.get(),
-            shuffleDriverEndpointRef,
+            mapperLocation,
             shuffleId,
             mapId,
             mapTaskAttemptId
@@ -187,10 +193,19 @@ public final class HadoopAsyncShuffleExecutorComponents implements ShuffleExecut
 
   @Override
   public Iterable<ShuffleBlockInputStream> getPartitionReaders(
-      Iterable<ShuffleBlockInfo> blockMetadata,
-      Optional<ShuffleMetadata> shuffleMetadata) throws IOException {
+      Iterable<ShuffleBlockInfo> blockMetadata, Optional<ShuffleMetadata> shuffleMetadata)
+      throws IOException {
     if (maybeReadSupport.isPresent()) {
-      return maybeReadSupport.get().getPartitionReaders(blockMetadata);
+      Preconditions.checkArgument(
+          shuffleMetadata.isPresent(),
+          "Expected shuffle metadata to be provided, but it was absent.");
+      Preconditions.checkArgument(
+          shuffleMetadata.get() instanceof HadoopAsyncShuffleMetadata,
+          "Expected shuffle metadata to be of the correct type.",
+          SafeArg.of("expectedType", HadoopAsyncShuffleMetadata.class),
+          SafeArg.of("actualType", shuffleMetadata.get().getClass()));
+      return maybeReadSupport.get().getPartitionReaders(
+          blockMetadata, (HadoopAsyncShuffleMetadata) shuffleMetadata.get());
     } else {
       return delegate.getPartitionReaders(blockMetadata, shuffleMetadata);
     }

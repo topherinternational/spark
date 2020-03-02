@@ -29,7 +29,7 @@ public final class MapOutputWriterCommitMessage {
   private final Optional<BlockManagerId> location;
   private final Optional<MapOutputMetadata> metadata;
 
-  private MapOutputWriterCommitMessage(
+  public MapOutputWriterCommitMessage(
       long[] partitionLengths,
       Optional<BlockManagerId> location,
       Optional<MapOutputMetadata> metadata) {

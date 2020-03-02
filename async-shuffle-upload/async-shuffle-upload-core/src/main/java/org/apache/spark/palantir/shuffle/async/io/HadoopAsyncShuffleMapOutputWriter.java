@@ -20,14 +20,17 @@ package org.apache.spark.palantir.shuffle.async.io;
 import java.io.File;
 import java.io.IOException;
 import java.util.HashSet;
+import java.util.Optional;
 import java.util.Set;
 
 import org.apache.spark.palantir.shuffle.async.ShuffleDriverEndpointRef;
 import org.apache.spark.palantir.shuffle.async.client.ShuffleClient;
 import org.apache.spark.palantir.shuffle.async.metadata.MapOutputId;
+import org.apache.spark.palantir.shuffle.async.metadata.MapperLocationMetadata;
 import org.apache.spark.shuffle.api.MapOutputWriterCommitMessage;
 import org.apache.spark.shuffle.api.ShuffleMapOutputWriter;
 import org.apache.spark.shuffle.api.ShufflePartitionWriter;
+import org.apache.spark.storage.BlockManagerId;
 
 /**
  * Implementation of {@link ShuffleMapOutputWriter} that delegates to a
@@ -41,7 +44,7 @@ public final class HadoopAsyncShuffleMapOutputWriter implements ShuffleMapOutput
   private final ShuffleClient shuffleClient;
   private final ShuffleFileLocator shuffleFileLocator;
   private final Set<ShufflePartitionWriter> shufflePartitionWriters;
-  private final ShuffleDriverEndpointRef shuffleDriverEndpointRef;
+  private final BlockManagerId mapperLocation;
   private final int shuffleId;
   private final int mapId;
   private final long attemptId;
@@ -50,13 +53,14 @@ public final class HadoopAsyncShuffleMapOutputWriter implements ShuffleMapOutput
       ShuffleMapOutputWriter delegate,
       ShuffleClient shuffleClient,
       ShuffleFileLocator shuffleFileLocator,
-      ShuffleDriverEndpointRef shuffleDriverEndpointRef, int shuffleId,
+      BlockManagerId mapperLocation,
+      int shuffleId,
       int mapId,
       long attemptId) {
     this.delegate = delegate;
     this.shuffleClient = shuffleClient;
     this.shuffleFileLocator = shuffleFileLocator;
-    this.shuffleDriverEndpointRef = shuffleDriverEndpointRef;
+    this.mapperLocation = mapperLocation;
     this.shuffleId = shuffleId;
     this.mapId = mapId;
     this.attemptId = attemptId;
@@ -76,8 +80,6 @@ public final class HadoopAsyncShuffleMapOutputWriter implements ShuffleMapOutput
 
     File dataFile = shuffleFileLocator.getDataFile(shuffleId, mapId);
     File indexFile = shuffleFileLocator.getIndexFile(shuffleId, mapId);
-    shuffleDriverEndpointRef.registerLocallyWrittenMapOutput(new MapOutputId(
-        shuffleId, mapId, attemptId));
     if (dataFile.exists()) {
       shuffleClient.asyncWriteDataAndIndexFilesAndClose(
           dataFile.toPath(),
@@ -93,7 +95,10 @@ public final class HadoopAsyncShuffleMapOutputWriter implements ShuffleMapOutput
           attemptId);
     }
 
-    return delegateCommitMessage;
+    return new MapOutputWriterCommitMessage(
+        delegateCommitMessage.getPartitionLengths(),
+        delegateCommitMessage.getLocation(),
+        Optional.of(new MapperLocationMetadata(mapperLocation)));
   }
 
   @Override

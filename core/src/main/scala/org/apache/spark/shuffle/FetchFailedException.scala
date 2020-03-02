@@ -67,10 +67,23 @@ private[spark] class FetchFailedException(
       mapId,
       mapAttemptId,
       reduceId,
-      Utils.exceptionString(this))
+      Utils.exceptionString(this),
+      blockMetadata)
   }
 
   def getShuffleBlockId(): ShuffleBlockId = ShuffleBlockId(shuffleId, mapId, reduceId)
+
+  def withShuffleBlockMetadata(newBlockMetadata: ShuffleBlockMetadata): FetchFailedException = {
+    new FetchFailedException(
+      bmAddress,
+      shuffleId,
+      mapId,
+      mapAttemptId,
+      reduceId,
+      message,
+      cause,
+      blockMetadata = Some(newBlockMetadata))
+  }
 }
 
 /**
