@@ -200,8 +200,8 @@ class DAGSchedulerSuite extends SparkFunSuite with LocalSparkContext with TimeLi
   var dagEventProcessLoopTester: DAGSchedulerEventProcessLoop = null
   var shuffleDriverComponents: ShuffleDriverComponents = null
 
-  def loadShuffleDriverComponents(): ShuffleDriverComponents = {
-    new LocalDiskShuffleDriverComponents(conf, blockManagerMaster)
+  def loadShuffleDriverComponents(sparkConf: SparkConf): ShuffleDriverComponents = {
+    new LocalDiskShuffleDriverComponents(sparkConf, blockManagerMaster)
   }
 
   /**
@@ -258,7 +258,7 @@ class DAGSchedulerSuite extends SparkFunSuite with LocalSparkContext with TimeLi
     results.clear()
     securityMgr = new SecurityManager(conf)
     broadcastManager = new BroadcastManager(true, conf, securityMgr)
-    shuffleDriverComponents = loadShuffleDriverComponents()
+    shuffleDriverComponents = loadShuffleDriverComponents(testConf)
     mapOutputTracker = new MapOutputTrackerMaster(
       conf,
       broadcastManager,
