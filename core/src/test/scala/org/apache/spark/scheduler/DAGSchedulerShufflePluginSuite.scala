@@ -16,7 +16,7 @@
  */
 package org.apache.spark.scheduler
 
-import java.util.{Collections, Optional, List => JList, Map => JMap}
+import java.util.{Collections, List => JList, Map => JMap, Optional}
 import java.util.concurrent.ConcurrentHashMap
 
 import scala.collection.JavaConverters._
@@ -24,7 +24,6 @@ import scala.collection.mutable
 import scala.compat.java8.OptionConverters._
 
 import org.apache.spark.{FetchFailed, HashPartitioner, ShuffleDependency, SparkConf, Success}
-
 import org.apache.spark.shuffle.api.{MapOutputMetadata, ShuffleBlockMetadata, ShuffleDriverComponents, ShuffleMetadata, ShuffleOutputTracker}
 import org.apache.spark.storage.BlockManagerId
 
