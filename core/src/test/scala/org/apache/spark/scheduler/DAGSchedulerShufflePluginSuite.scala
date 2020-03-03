@@ -16,106 +16,15 @@
  */
 package org.apache.spark.scheduler
 
-import java.util.{Collections, List => JList, Map => JMap, Optional}
-import java.util.concurrent.ConcurrentHashMap
-
-import scala.collection.JavaConverters._
-import scala.collection.mutable
-import scala.compat.java8.OptionConverters._
-
 import org.apache.spark.{FetchFailed, HashPartitioner, ShuffleDependency, SparkConf, Success}
-import org.apache.spark.shuffle.api.{MapOutputMetadata, ShuffleBlockMetadata, ShuffleDriverComponents, ShuffleMetadata, ShuffleOutputTracker}
+import org.apache.spark.shuffle.{ExternalOutput, LocalOnlyOutput, TestPluginShuffleDriverComponents}
+import org.apache.spark.shuffle.api.ShuffleDriverComponents
 import org.apache.spark.storage.BlockManagerId
-
-class PluginShuffleDriverComponents extends ShuffleDriverComponents {
-
-  private val outputTracker = new TestShuffleOutputTracker()
-
-  override def initializeApplication(): JMap[String, String] = Collections.emptyMap()
-
-  override def unregisterOutputOnHostOnFetchFailure(): Boolean = true
-
-  override def shuffleTracker(): Optional[ShuffleOutputTracker] =
-    Some[ShuffleOutputTracker](outputTracker).asJava
-}
-
-case class ShuffleDataAttemptId(shuffleId: Int, mapId: Int, mapAttemptId: Long)
-
-case object LocalOnlyOutput extends MapOutputMetadata
-
-case object ExternalOutput extends MapOutputMetadata
-
-case class ExternalShuffleMetadata(externalOutputs: Set[ShuffleDataAttemptId])
-  extends ShuffleMetadata
-
-class TestShuffleOutputTracker extends ShuffleOutputTracker {
-
-  private val externalOutputs =
-    new ConcurrentHashMap[Int, mutable.Set[ShuffleDataAttemptId]]().asScala
-
-  override def registerShuffle(shuffleId: Int, numMaps: Int): Unit = {
-    externalOutputs.putIfAbsent(
-      shuffleId, ConcurrentHashMap.newKeySet[ShuffleDataAttemptId]().asScala)
-  }
-
-  override def registerMapOutput(
-      shuffleId: Int,
-      mapId: Int,
-      mapAttemptId: Long,
-      metadata: Optional[MapOutputMetadata]): Unit = {
-    metadata.asScala.getOrElse(LocalOnlyOutput) match {
-      case ExternalOutput =>
-        externalOutputs(shuffleId) += ShuffleDataAttemptId(shuffleId, mapId, mapAttemptId)
-      case _ =>
-    }
-  }
-
-  override def handleFetchFailure(
-      shuffleId: Int,
-      mapId: Int,
-      mapAttemptId: Long,
-      partitionId: Long,
-      block: Optional[ShuffleBlockMetadata]): Unit = {
-
-  }
-
-  override def invalidateShuffle(shuffleId: Int): Unit = {
-    externalOutputs(shuffleId).clear()
-  }
-
-  override def unregisterShuffle(shuffleId: Int): Unit = {
-    externalOutputs -= shuffleId
-  }
-
-  override def shuffleMetadata(shuffleId: Int): Optional[ShuffleMetadata] = {
-    externalOutputs.get(shuffleId).map(
-      dataAttemptIds =>
-        ExternalShuffleMetadata(dataAttemptIds.toSet)
-          .asInstanceOf[ShuffleMetadata])
-      .asJava
-  }
-
-  override def areAllPartitionsAvailableExternally(
-      shuffleId: Int, mapId: Int, mapAttemptId: Long): Boolean = {
-    externalOutputs.get(shuffleId).exists(
-      _.contains(ShuffleDataAttemptId(shuffleId, mapId, mapAttemptId)))
-  }
-
-  override def preferredMapOutputLocations(
-      shuffleId: Int, mapId: Int): JList[String] = {
-    Seq.empty[String].asJava
-  }
-
-  override def preferredPartitionLocations(
-      shuffleId: Int, mapId: Int): JList[String] = {
-    Seq.empty[String].asJava
-  }
-}
 
 class DAGSchedulerShufflePluginSuite extends DAGSchedulerSuite {
 
   override def loadShuffleDriverComponents(sparkConf: SparkConf): ShuffleDriverComponents = {
-    new PluginShuffleDriverComponents()
+    new TestPluginShuffleDriverComponents()
   }
 
   def setupRdds(): (MyRDD, Int) = {

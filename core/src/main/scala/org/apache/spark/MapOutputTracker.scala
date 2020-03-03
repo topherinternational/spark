@@ -1065,7 +1065,7 @@ private[spark] object MapOutputTracker extends SafeLogging {
 
   def deserializeShuffleMetadata(shuffleMetadataBytes: Array[Byte]): ShuffleMetadata = {
     val in = new ByteArrayInputStream(shuffleMetadataBytes)
-    val objIn = new ObjectInputStream(in)
+    val objIn = new ObjectInputStream(new GZIPInputStream(in))
     objIn.readObject().asInstanceOf[ShuffleMetadata]
   }
 }
