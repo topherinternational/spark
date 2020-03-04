@@ -399,7 +399,7 @@ jobs:
             - "/tmp/test-results"
       - run:
           name: Increase SBT memory
-          command: echo "export SBT_OPTS=-Xmx2g -Xms2g$SBT_OPTS" >> $BASH_ENV 
+          command: echo "export SBT_OPTS=-Xms5g -Xmx10g" >> $BASH_ENV 
       - run:
           name: Run all tests
           command: ./dev/run-scala-tests.py \
