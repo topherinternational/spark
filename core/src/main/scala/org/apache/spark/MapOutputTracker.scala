@@ -50,7 +50,7 @@ private[spark] case class PartitionMetadata(
     shuffleMetadata: Option[ShuffleMetadata], blocksByExecutorId: BlocksByExecutorId)
 
 private[spark] case class SerializedMapOutputs(
-    shuffleMetadatBytes: Option[Array[Byte]], serializedMapStatuses: Array[Byte])
+    shuffleMetadatBytes: Array[Byte], serializedMapStatuses: Array[Byte])
 
 private[spark] case class FetchedMapStatusesWithMetadata(
     shuffleMetadata: Option[ShuffleMetadata], mapStatuses: Array[MapStatus])
@@ -448,7 +448,7 @@ private[spark] class MapOutputTrackerMaster(
             val shuffleMetadata = shuffleOutputTracker.flatMap(_.shuffleMetadata(shuffleId).asScala)
             context.reply(
               SerializedMapOutputs(
-                shuffleMetadata.map(MapOutputTracker.serializeShuffleMetadata),
+                MapOutputTracker.serializeShuffleMetadata(shuffleMetadata),
                 shuffleStatus.serializedMapStatus(broadcastManager, isLocal, minSizeForBroadcast)))
           } catch {
             case NonFatal(e) => logError(e.getMessage, e)
@@ -880,8 +880,8 @@ private[spark] class MapOutputTrackerWorker(conf: SparkConf) extends MapOutputTr
           val fetchedBytes = askTracker[SerializedMapOutputs](GetMapOutputStatuses(shuffleId))
           val deserializedMapStatuses = MapOutputTracker.deserializeMapStatuses(
             fetchedBytes.serializedMapStatuses)
-          val deserializedMetadata = fetchedBytes.shuffleMetadatBytes.map(
-            MapOutputTracker.deserializeShuffleMetadata)
+          val deserializedMetadata = MapOutputTracker.deserializeShuffleMetadata(
+            fetchedBytes.shuffleMetadatBytes)
           logInfo("Got the output locations")
           fetchedStatuses = FetchedMapStatusesWithMetadata(
             deserializedMetadata, deserializedMapStatuses)
@@ -1052,10 +1052,16 @@ private[spark] object MapOutputTracker extends SafeLogging {
     splitsByAddress.iterator
   }
 
-  def serializeShuffleMetadata(shuffleMetadata: ShuffleMetadata): Array[Byte] = {
+  def serializeShuffleMetadata(
+      shuffleMetadata: Option[ShuffleMetadata]): Array[Byte] = {
     val out = new ByteArrayOutputStream
     val objOut = new ObjectOutputStream(new GZIPOutputStream(out))
-    objOut.writeObject(shuffleMetadata)
+    if (shuffleMetadata.isDefined) {
+      objOut.writeBoolean(true)
+      objOut.writeObject(shuffleMetadata.get)
+    } else {
+      objOut.writeBoolean(false)
+    }
     objOut.flush()
     out.flush()
     objOut.close()
@@ -1063,9 +1069,14 @@ private[spark] object MapOutputTracker extends SafeLogging {
     out.toByteArray
   }
 
-  def deserializeShuffleMetadata(shuffleMetadataBytes: Array[Byte]): ShuffleMetadata = {
+  def deserializeShuffleMetadata(shuffleMetadataBytes: Array[Byte]): Option[ShuffleMetadata] = {
     val in = new ByteArrayInputStream(shuffleMetadataBytes)
     val objIn = new ObjectInputStream(new GZIPInputStream(in))
-    objIn.readObject().asInstanceOf[ShuffleMetadata]
+    val isPresent = objIn.readBoolean()
+    if (isPresent) {
+      Some(objIn.readObject().asInstanceOf[ShuffleMetadata])
+    } else {
+      None
+    }
   }
 }
