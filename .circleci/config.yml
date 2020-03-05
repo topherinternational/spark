@@ -338,7 +338,7 @@ jobs:
   run-scala-tests:
     <<: *test-defaults
     # project/CirclePlugin.scala does its own test splitting in SBT based on CIRCLE_NODE_INDEX, CIRCLE_NODE_TOTAL
-    parallelism: 6
+    parallelism: 10
     # Spark runs a lot of tests in parallel, we need 16 GB of RAM for this
     resource_class: xlarge
     steps:
@@ -398,13 +398,10 @@ jobs:
           paths:
             - "/tmp/test-results"
       - run:
-          name: Increase SBT memory
-          command: echo "export SBT_OPTS=-Xms5g -Xmx10g" >> $BASH_ENV 
-      - run:
           name: Run all tests
           command: ./dev/run-scala-tests.py \
               | tee -a "/tmp/run-scala-tests.log"
-          no_output_timeout: 20m
+          no_output_timeout: 40m
 
       - store_artifacts:
           path: /tmp/run-scala-tests.log
