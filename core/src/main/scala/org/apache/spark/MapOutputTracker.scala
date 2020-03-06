@@ -818,7 +818,8 @@ private[spark] class MapOutputTrackerMaster(
  */
 private[spark] class MapOutputTrackerWorker(conf: SparkConf) extends MapOutputTracker(conf) {
 
-  private val mapStatuses = new ConcurrentHashMap[Int, FetchedMapStatusesWithMetadata]().asScala
+  private val mapStatuses = new ConcurrentHashMap[Int, Array[MapStatus]]().asScala
+  private val shuffleMetadata = new ConcurrentHashMap[Int, ShuffleMetadata]().asScala
 
   /** Remembers which map output locations are currently being fetched on an executor. */
   private val fetching = new HashSet[Int]
@@ -849,10 +850,12 @@ private[spark] class MapOutputTrackerWorker(conf: SparkConf) extends MapOutputTr
    */
   private def getStatuses(shuffleId: Int): FetchedMapStatusesWithMetadata = {
     val statuses = mapStatuses.get(shuffleId).orNull
+    val metadata = shuffleMetadata.get(shuffleId)
     if (statuses == null) {
       logInfo("Don't have map outputs for shuffle " + shuffleId + ", fetching them")
       val startTime = System.currentTimeMillis
-      var fetchedStatuses: FetchedMapStatusesWithMetadata = null
+      var fetchedStatuses: Array[MapStatus] = null
+      var fetchedMetadata: Option[ShuffleMetadata] = None
       fetching.synchronized {
         // Someone else is fetching it; wait for them to be done
         while (fetching.contains(shuffleId)) {
@@ -866,6 +869,7 @@ private[spark] class MapOutputTrackerWorker(conf: SparkConf) extends MapOutputTr
         // Either while we waited the fetch happened successfully, or
         // someone fetched it in between the get and the fetching.synchronized.
         fetchedStatuses = mapStatuses.get(shuffleId).orNull
+        fetchedMetadata = shuffleMetadata.get(shuffleId)
         if (fetchedStatuses == null) {
           // We have to do the fetch, get others to wait for us.
           fetching += shuffleId
@@ -878,14 +882,13 @@ private[spark] class MapOutputTrackerWorker(conf: SparkConf) extends MapOutputTr
         // This try-finally prevents hangs due to timeouts:
         try {
           val fetchedBytes = askTracker[SerializedMapOutputs](GetMapOutputStatuses(shuffleId))
-          val deserializedMapStatuses = MapOutputTracker.deserializeMapStatuses(
+          fetchedStatuses = MapOutputTracker.deserializeMapStatuses(
             fetchedBytes.serializedMapStatuses)
-          val deserializedMetadata = MapOutputTracker.deserializeShuffleMetadata(
+          fetchedMetadata = MapOutputTracker.deserializeShuffleMetadata(
             fetchedBytes.shuffleMetadatBytes)
           logInfo("Got the output locations")
-          fetchedStatuses = FetchedMapStatusesWithMetadata(
-            deserializedMetadata, deserializedMapStatuses)
           mapStatuses.put(shuffleId, fetchedStatuses)
+          fetchedMetadata.foreach { shuffleMetadata.put(shuffleId, _) }
         } finally {
           fetching.synchronized {
             fetching -= shuffleId
@@ -897,14 +900,14 @@ private[spark] class MapOutputTrackerWorker(conf: SparkConf) extends MapOutputTr
         s"${System.currentTimeMillis - startTime} ms")
 
       if (fetchedStatuses != null) {
-        fetchedStatuses
+        FetchedMapStatusesWithMetadata(fetchedMetadata, fetchedStatuses)
       } else {
         logError("Missing all output locations for shuffle " + shuffleId)
         throw new MetadataFetchFailedException(
           shuffleId, -1, "Missing all output locations for shuffle " + shuffleId)
       }
     } else {
-      statuses
+      FetchedMapStatusesWithMetadata(metadata, statuses)
     }
   }
 
