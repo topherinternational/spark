@@ -512,10 +512,10 @@ workflows:
           requires:
             - build-sbt
           <<: *all-branches-and-tags
-      - run-scala-tests:
-          requires:
-            - build-sbt
-          <<: *all-branches-and-tags
+#- run-scala-tests:
+#         requires:
+#           - build-sbt
+#         <<: *all-branches-and-tags
       - run-spark-docker-gradle-plugin-tests:
           requires:
             - build-spark-docker-gradle-plugin
@@ -544,7 +544,7 @@ workflows:
             - run-style-tests
             - run-build-tests
             - run-backcompat-tests
-            - run-scala-tests
+#- run-scala-tests
             - run-python-tests
             - run-r-tests
             - build-maven-versioned
