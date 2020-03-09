@@ -369,10 +369,10 @@ private[spark] object ExecutorShuffleStatus extends Enumeration {
 private[spark] class MapOutputTrackerMaster(
     conf: SparkConf,
     broadcastManager: BroadcastManager,
-    isLocal: Boolean,
-    val shuffleDriverComponents: ShuffleDriverComponents,
-    val shuffleOutputTracker: Option[ShuffleOutputTracker])
+    isLocal: Boolean)
   extends MapOutputTracker(conf) {
+
+  private var shuffleOutputTracker: Option[ShuffleOutputTracker] = None
 
   // The size at which we use Broadcast to send the map output statuses to the executors
   private val minSizeForBroadcast = conf.get(SHUFFLE_MAPOUTPUT_MIN_SIZE_FOR_BROADCAST).toInt
@@ -421,6 +421,10 @@ private[spark] class MapOutputTrackerMaster(
       "rpc message that is too large."
     logError(msg)
     throw new IllegalArgumentException(msg)
+  }
+
+  def setShuffleOutputTracker(tracker: Option[ShuffleOutputTracker]): Unit = {
+    shuffleOutputTracker = tracker
   }
 
   def post(message: GetMapOutputMessage): Unit = {

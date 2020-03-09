@@ -26,6 +26,7 @@ import java.util.concurrent.atomic.{AtomicBoolean, AtomicInteger, AtomicReferenc
 import scala.collection.JavaConverters._
 import scala.collection.Map
 import scala.collection.mutable.HashMap
+import scala.compat.java8.OptionConverters._
 import scala.language.implicitConversions
 import scala.reflect.{classTag, ClassTag}
 import scala.util.control.NonFatal
@@ -57,6 +58,7 @@ import org.apache.spark.rpc.RpcEndpointRef
 import org.apache.spark.scheduler._
 import org.apache.spark.scheduler.cluster.StandaloneSchedulerBackend
 import org.apache.spark.scheduler.local.LocalSchedulerBackend
+import org.apache.spark.shuffle.ShuffleDataIOUtils
 import org.apache.spark.shuffle.api.{ShuffleDataIO, ShuffleDriverComponents}
 import org.apache.spark.status.{AppStatusSource, AppStatusStore}
 import org.apache.spark.status.api.v1.ThreadStackTrace
@@ -495,9 +497,11 @@ class SparkContext(config: SparkConf) extends SafeLogging {
     executorEnvs ++= _conf.getExecutorEnv
     executorEnvs("SPARK_USER") = sparkUser
 
-    _shuffleDriverComponents = _env.shuffleDataIo.driver()
+    _shuffleDriverComponents = ShuffleDataIOUtils.loadShuffleDataIO(conf).driver()
     _shuffleDriverComponents.initializeApplication().asScala.foreach {
       case (k, v) => _conf.set(ShuffleDataIO.SHUFFLE_SPARK_CONF_PREFIX + k, v) }
+    _env.mapOutputTracker.asInstanceOf[MapOutputTrackerMaster].setShuffleOutputTracker(
+      _shuffleDriverComponents.shuffleTracker().asScala)
 
     // We need to register "HeartbeatReceiver" before "createTaskScheduler" because Executor will
     // retrieve "HeartbeatReceiver" in the constructor. (SPARK-6640)

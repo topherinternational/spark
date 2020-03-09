@@ -73,7 +73,6 @@ class SparkEnv (
     val metricsSystem: MetricsSystem,
     val memoryManager: MemoryManager,
     val outputCommitCoordinator: OutputCommitCoordinator,
-    val shuffleDataIo: ShuffleDataIO,
     val conf: SparkConf) extends Logging {
 
   private[spark] var isStopped = false
@@ -343,16 +342,8 @@ object SparkEnv extends Logging {
 
     val broadcastManager = new BroadcastManager(isDriver, conf, securityManager)
 
-    val shuffleDataIo = ShuffleDataIOUtils.loadShuffleDataIO(conf)
-
     val mapOutputTracker = if (isDriver) {
-      val shuffleDriverComponents = shuffleDataIo.driver()
-      new MapOutputTrackerMaster(
-        conf,
-        broadcastManager,
-        isLocal,
-        shuffleDriverComponents,
-        shuffleDriverComponents.shuffleTracker().asScala)
+      new MapOutputTrackerMaster(conf, broadcastManager, isLocal)
     } else {
       new MapOutputTrackerWorker(conf)
     }
@@ -430,7 +421,6 @@ object SparkEnv extends Logging {
       metricsSystem,
       memoryManager,
       outputCommitCoordinator,
-      shuffleDataIo,
       conf)
 
     // Add a reference to tmp dir created by driver, we will delete this tmp dir when stop() is
