@@ -262,13 +262,12 @@ class DAGSchedulerSuite extends SparkFunSuite with LocalSparkContext with TimeLi
     mapOutputTracker = new MapOutputTrackerMaster(
       conf,
       broadcastManager,
-      true,
-      shuffleDriverComponents,
-      shuffleDriverComponents.shuffleTracker().asScala) {
+      true) {
       override def sendTracker(message: Any): Unit = {
         // no-op, just so we can stop this to avoid leaking threads
       }
     }
+    mapOutputTracker.setShuffleOutputTracker(shuffleDriverComponents.shuffleTracker().asScala)
     scheduler = new DAGScheduler(
       sc,
       taskScheduler,

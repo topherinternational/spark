@@ -134,7 +134,7 @@ private[spark] class DAGScheduler(
       mapOutputTracker = sc.env.mapOutputTracker.asInstanceOf[MapOutputTrackerMaster],
       blockManagerMaster = sc.env.blockManager.master,
       env = sc.env,
-      shuffleDriverComponents = sc.env.shuffleDataIo.driver())
+      shuffleDriverComponents = sc.shuffleDriverComponents)
   }
 
   def this(sc: SparkContext) = this(sc, sc.taskScheduler)

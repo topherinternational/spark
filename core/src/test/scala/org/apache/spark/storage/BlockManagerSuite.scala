@@ -21,6 +21,7 @@ import java.nio.ByteBuffer
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable.ArrayBuffer
+import scala.compat.java8.OptionConverters._
 import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.language.{implicitConversions, postfixOps}
@@ -135,7 +136,9 @@ class BlockManagerSuite extends SparkFunSuite with Matchers with BeforeAndAfterE
         new LiveListenerBus(conf))), conf, true)
     driverComponents = new LocalDiskShuffleDriverComponents(master)
     mapOutputTracker = new MapOutputTrackerMaster(
-      new SparkConf(false), bcastManager, true, driverComponents, None)
+      new SparkConf(false), bcastManager, true)
+    mapOutputTracker.setShuffleOutputTracker(
+      driverComponents.shuffleTracker().asScala)
 
     val initialize = PrivateMethod[Unit]('initialize)
     SizeEstimator invokePrivate initialize()

@@ -20,6 +20,7 @@ package org.apache.spark.storage
 import java.util.Locale
 
 import scala.collection.mutable.ArrayBuffer
+import scala.compat.java8.OptionConverters._
 import scala.concurrent.duration._
 import scala.language.implicitConversions
 import scala.language.postfixOps
@@ -106,7 +107,8 @@ trait BlockManagerReplicationBehavior extends SparkFunSuite
         new LiveListenerBus(conf))), conf, true)
     driverComponents = new LocalDiskShuffleDriverComponents(master)
     mapOutputTracker = new MapOutputTrackerMaster(
-      conf, bcastManager, true, driverComponents, None)
+      conf, bcastManager, true)
+    mapOutputTracker.setShuffleOutputTracker(driverComponents.shuffleTracker().asScala)
     allStores.clear()
   }
 

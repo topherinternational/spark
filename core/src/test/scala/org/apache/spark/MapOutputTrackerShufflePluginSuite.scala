@@ -97,9 +97,8 @@ class MapOutputTrackerShufflePluginSuite extends SparkFunSuite with BeforeAndAft
     val master = new MapOutputTrackerMaster(
       conf,
       broadcastManager,
-      true,
-      driverComponents,
-      driverComponents.shuffleTracker().asScala)
+      true)
+    master.setShuffleOutputTracker(driverComponents.shuffleTracker().asScala)
     val endpoint = env.setupEndpoint(
       MASTER_ENDPOINT_NAME, new MapOutputTrackerMasterEndpoint(env, master, conf))
     master.trackerEndpoint = endpoint

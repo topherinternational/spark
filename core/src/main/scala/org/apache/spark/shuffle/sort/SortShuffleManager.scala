@@ -222,8 +222,7 @@ private[spark] object SortShuffleManager extends Logging {
   private def loadShuffleExecutorComponents(conf: SparkConf): ShuffleExecutorComponents = {
     val extraConfigs = conf.getAllWithPrefix(ShuffleDataIO.SHUFFLE_SPARK_CONF_PREFIX)
       .toMap
-    val env = SparkEnv.get
-    val executorComponents = env.shuffleDataIo.executor()
+    val executorComponents = ShuffleDataIOUtils.loadShuffleDataIO(conf).executor()
     executorComponents.initializeExecutor(
       conf.getAppId,
       SparkEnv.get.executorId,

@@ -40,9 +40,9 @@ class MapOutputTrackerSuite extends SparkFunSuite {
   private def newTrackerMaster(sparkConf: SparkConf = conf) = {
     val broadcastManager = new BroadcastManager(true, sparkConf,
       new SecurityManager(sparkConf))
-    val driverComponents = mock(classOf[ShuffleDriverComponents])
-    when(driverComponents.shuffleTracker()).thenReturn(Optional.empty[ShuffleOutputTracker]());
-    new MapOutputTrackerMaster(sparkConf, broadcastManager, true, driverComponents, None)
+    val master = new MapOutputTrackerMaster(sparkConf, broadcastManager, true)
+    master.setShuffleOutputTracker(None)
+    master
   }
 
   def createRpcEnv(name: String, host: String = "localhost", port: Int = 0,
