@@ -21,6 +21,7 @@ import java.io.File
 import java.nio.ByteBuffer
 
 import scala.collection.mutable.ArrayBuffer
+import scala.compat.java8.OptionConverters._
 import scala.concurrent.duration._
 import scala.language.postfixOps
 import scala.reflect.ClassTag
@@ -96,7 +97,8 @@ abstract class BaseReceivedBlockHandlerSuite(enableEncryption: Boolean)
         new LiveListenerBus(conf))), conf, true)
     driverComponents = new LocalDiskShuffleDriverComponents(blockManagerMaster)
     mapOutputTracker = new MapOutputTrackerMaster(
-      conf, broadcastManager, true, driverComponents, Option.empty);
+      conf, broadcastManager, true)
+    mapOutputTracker.setShuffleOutputTracker(driverComponents.shuffleTracker().asScala)
 
     storageLevel = StorageLevel.MEMORY_ONLY_SER
     blockManager = createBlockManager(blockManagerSize, conf)
