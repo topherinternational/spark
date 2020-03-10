@@ -25,12 +25,14 @@ import java.util.Optional;
 
 import org.apache.spark.SparkEnv;
 import org.apache.spark.palantir.shuffle.async.AsyncShuffleUploadDriverEndpoint;
+import org.apache.spark.palantir.shuffle.async.metadata.HadoopAsyncShuffleOutputTracker;
 import org.apache.spark.palantir.shuffle.async.metadata.MapOutputId;
 import org.apache.spark.palantir.shuffle.async.metadata.ShuffleStorageStateTracker;
 import org.apache.spark.palantir.shuffle.async.metadata.ShuffleStorageStateVisitor;
 import org.apache.spark.rpc.RpcEndpoint;
 import org.apache.spark.rpc.RpcEnv;
 import org.apache.spark.shuffle.api.ShuffleDriverComponents;
+import org.apache.spark.shuffle.api.ShuffleOutputTracker;
 import org.apache.spark.storage.BlockManagerId;
 
 import org.slf4j.Logger;
@@ -43,6 +45,7 @@ public final class HadoopAsyncShuffleDriverComponents implements ShuffleDriverCo
 
   private final ShuffleDriverComponents delegate;
   private final ShuffleStorageStateTracker shuffleStorageStateTracker;
+  private final ShuffleOutputTracker outputTracker;
 
   private RpcEndpoint shuffleUploadDriverEndpoint;
 
@@ -51,6 +54,7 @@ public final class HadoopAsyncShuffleDriverComponents implements ShuffleDriverCo
       ShuffleStorageStateTracker shuffleStorageStateTracker) {
     this.delegate = delegate;
     this.shuffleStorageStateTracker = shuffleStorageStateTracker;
+    this.outputTracker = new HadoopAsyncShuffleOutputTracker(shuffleStorageStateTracker);
   }
 
   @Override
@@ -127,5 +131,10 @@ public final class HadoopAsyncShuffleDriverComponents implements ShuffleDriverCo
   @Override
   public boolean unregisterOutputOnHostOnFetchFailure() {
     return delegate.unregisterOutputOnHostOnFetchFailure();
+  }
+
+  @Override
+  public Optional<ShuffleOutputTracker> shuffleTracker() {
+    return Optional.of(outputTracker);
   }
 }
