@@ -1,3 +1,8 @@
+resolvers += Resolver.url(
+  "bintray-typesafe-sbt-plugins",
+  url("http://dl.bintray.com/typesafe/sbt-plugins"))(
+  Resolver.ivyStylePatterns)
+
 addSbtPlugin("com.typesafe.sbt" % "sbt-git" % "0.8.5")
 
 addSbtPlugin("com.etsy" % "sbt-checkstyle-plugin" % "3.1.1")
