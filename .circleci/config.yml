@@ -52,10 +52,10 @@ step_templates:
   restore-home-sbt-cache: &restore-home-sbt-cache
     restore_cache:
       keys:
-        - v2-home-sbt-{{ checksum "build/sbt" }}-{{ checksum "project/target/streams/$global/update/$global/streams/update_cache_2.10/inputs" }}
+        - v3-home-sbt-{{ checksum "build/sbt" }}-{{ checksum "project/target/streams/$global/update/$global/streams/update_cache_2.10/inputs" }}
   restore-build-sbt-cache: &restore-build-sbt-cache
     restore_cache:
-      key: v2-build-sbt-{{ .Branch }}-{{ .Revision }}
+      key: v3-build-sbt-{{ .Branch }}-{{ .Revision }}
   link-in-build-sbt-cache: &link-in-build-sbt-cache
     run:
       name: Hard link cache contents into current build directory
@@ -245,7 +245,7 @@ jobs:
           path: /tmp/build-apache-spark.log
           destination: build-apache-spark.log
       - save_cache:
-          key: v2-home-sbt-{{ checksum "build/sbt" }}-{{ checksum "project/target/streams/$global/update/$global/streams/update_cache_2.10/inputs" }}
+          key: v3-home-sbt-{{ checksum "build/sbt" }}-{{ checksum "project/target/streams/$global/update/$global/streams/update_cache_2.10/inputs" }}
           paths: ~/.sbt
       # Also hard link all the things so we can save it as a cache and restore it in future builds
       - run:
