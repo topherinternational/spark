@@ -17,19 +17,13 @@
 
 package org.apache.spark.sql.streaming
 
-import java.io.{File, InterruptedIOException, IOException, UncheckedIOException}
+import java.io.{File, IOException, InterruptedIOException, UncheckedIOException}
 import java.nio.channels.ClosedByInterruptException
-import java.util.concurrent.{CountDownLatch, ExecutionException, TimeoutException, TimeUnit}
-
-import scala.reflect.ClassTag
-import scala.util.control.ControlThrowable
+import java.util.concurrent.{CountDownLatch, ExecutionException, TimeUnit, TimeoutException}
 
 import com.google.common.util.concurrent.UncheckedExecutionException
 import org.apache.commons.io.FileUtils
 import org.apache.hadoop.conf.Configuration
-import org.scalatest.time.SpanSugar._
-
-import org.apache.spark.{SparkConf, SparkContext, TaskContext}
 import org.apache.spark.scheduler.{SparkListener, SparkListenerJobStart}
 import org.apache.spark.sql._
 import org.apache.spark.sql.catalyst.plans.logical.Range
@@ -45,6 +39,11 @@ import org.apache.spark.sql.sources.StreamSourceProvider
 import org.apache.spark.sql.streaming.util.StreamManualClock
 import org.apache.spark.sql.types.{IntegerType, StructField, StructType}
 import org.apache.spark.util.Utils
+import org.apache.spark.{SparkConf, SparkContext, TaskContext}
+import org.scalatest.time.SpanSugar._
+
+import scala.reflect.ClassTag
+import scala.util.control.ControlThrowable
 
 class StreamSuite extends StreamTest {
 
@@ -219,6 +218,8 @@ class StreamSuite extends StreamTest {
     }
 
     val df = spark.readStream.format(classOf[FakeDefaultSource].getName).load()
+    val longs: Dataset[Long] = df.select("a").as[Long];
+    checkDataset[Long](longs, (0L to 10L).toArray: _*)
     assertDF(df)
     assertDF(df)
   }
