@@ -98,9 +98,9 @@ final class CondaEnvironment(
   }
 
   def setPackageUrls(urls: Seq[String]): Unit = {
-    if (bootstrapMode.equals(CondaBootstrapMode.Solve)) {
+    if (!bootstrapMode.equals(CondaBootstrapMode.File)) {
       throw new SparkException(
-        "Package URLs are not supported if CondaEnvironment was created with solve.")
+        "Package URLs are only supported if CondaEnvironment was created with CondaBootstrapMode.File.")
     }
     packageUrls.clear();
     packageUrls ++= urls;
