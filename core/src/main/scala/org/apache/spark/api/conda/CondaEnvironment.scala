@@ -49,6 +49,7 @@ final class CondaEnvironment(
 
   private[this] val packages = mutable.Buffer(bootstrapPackages: _*)
   private[this] val channels = bootstrapChannels.iterator.map(AuthenticatedChannel.apply).toBuffer
+  private[this] val packageUrls = mutable.Buffer(bootstrapPackageUrls: _*)
 
   val condaEnvDir: Path = rootPath.resolve("envs").resolve(envName)
 
@@ -96,6 +97,15 @@ final class CondaEnvironment(
     this.packages ++= packages
   }
 
+  def setPackageUrls(urls: Seq[String]): Unit = {
+    if (bootstrapMode.equals(CondaBootstrapMode.Solve)) {
+      throw new SparkException(
+        "Package URLs are not supported if CondaEnvironment was created with solve.")
+    }
+    packageUrls.clear();
+    packageUrls ++= urls;
+  }
+
   /**
    * Clears the given java environment and replaces all variables with the environment
    * produced after calling `activate` inside this conda environment.
@@ -114,7 +124,7 @@ final class CondaEnvironment(
     CondaSetupInstructions(
       bootstrapMode,
       packages.toList,
-      bootstrapPackageUrls,
+      packageUrls.toList,
       channels.toList,
       extraArgs,
       envVars)
