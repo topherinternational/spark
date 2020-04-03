@@ -455,7 +455,7 @@ class YarnClusterSuite extends BaseYarnClusterSuite {
       extraEnv = extraEnvVars,
       extraConf = extraConf,
       outFile = outFile,
-      timeoutDuration = 4.minutes) // give it a bit longer
+      timeoutDuration = 5.minutes) // give it a bit longer
     checkResult(finalState, result, outFile = outFile)
   }
 
