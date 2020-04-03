@@ -951,9 +951,6 @@ class SparkContext(object):
     def addCondaChannel(self, url):
         self._jsc.sc().addCondaChannel(url)
 
-    def setCondaPackageUrls(self, urls):
-        self._jsc.sc().setCondaPackageUrls(urls)
-
     def _build_conda_instructions(self):
         return self._jsc.sc().buildCondaInstructions()
 

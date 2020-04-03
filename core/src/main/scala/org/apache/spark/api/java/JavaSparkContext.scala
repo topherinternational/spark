@@ -608,14 +608,6 @@ class JavaSparkContext(val sc: SparkContext) extends Closeable {
   }
 
   /**
-   * Replace the set of packageUrls Conda passes to executors with the given set of URLs.
-   * This can be used to modify authentication parameters for an existing Conda environment.
-   */
-  def setCondaPackageUrls(urls: java.util.List[String]): Unit = {
-    sc.setCondaPackageUrls(urls.asScala)
-  }
-
-  /**
    * Returns the Hadoop configuration used for the Hadoop code (e.g. file systems) we reuse.
    *
    * @note As it will be reused in all Hadoop RDDs, it's better not to modify it unless you
