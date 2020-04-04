@@ -52,7 +52,8 @@ object CondaRunner {
     if (CondaEnvironmentManager.isConfigured(sparkConf)) {
       val condaBootstrapMode = CondaBootstrapMode.fromString(sparkConf.get(CONDA_BOOTSTRAP_MODE))
       val condaBootstrapDeps = sparkConf.get(CONDA_BOOTSTRAP_PACKAGES)
-      val condaBootstrapDepUrls = sparkConf.get(CONDA_BOOTSTRAP_PACKAGE_URLS)
+      val condaBootstrapPackageUrls = sparkConf.get(CONDA_BOOTSTRAP_PACKAGE_URLS)
+      val condaBootstrapPackageUrlsUserInfo = sparkConf.get(CONDA_BOOTSTRAP_PACKAGE_URLS_USER_INFO)
       val condaChannelUrls = sparkConf.get(CONDA_CHANNEL_URLS)
       val condaExtraArgs = sparkConf.get(CONDA_EXTRA_ARGUMENTS)
       val condaEnvVariables = extractEnvVariables(sparkConf)
@@ -63,7 +64,8 @@ object CondaRunner {
           condaBaseDir,
           condaBootstrapMode,
           condaBootstrapDeps,
-          condaBootstrapDepUrls,
+          condaBootstrapPackageUrls,
+          condaBootstrapPackageUrlsUserInfo,
           condaChannelUrls,
           condaExtraArgs,
           condaEnvVariables)

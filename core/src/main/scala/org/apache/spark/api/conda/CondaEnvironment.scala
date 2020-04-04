@@ -41,6 +41,7 @@ final class CondaEnvironment(
     bootstrapMode: CondaBootstrapMode,
     bootstrapPackages: Seq[String],
     bootstrapPackageUrls: Seq[String],
+    private var bootstrapPackageUrlsUserInfo: Option[String],
     bootstrapChannels: Seq[String],
     extraArgs: Seq[String] = Nil,
     envVars: Map[String, String] = Map.empty) extends Logging {
@@ -49,7 +50,6 @@ final class CondaEnvironment(
 
   private[this] val packages = mutable.Buffer(bootstrapPackages: _*)
   private[this] val channels = bootstrapChannels.iterator.map(AuthenticatedChannel.apply).toBuffer
-  private[this] val packageUrls = mutable.Buffer(bootstrapPackageUrls: _*)
 
   val condaEnvDir: Path = rootPath.resolve("envs").resolve(envName)
 
@@ -75,6 +75,10 @@ final class CondaEnvironment(
     channels ++= urls.iterator.map(AuthenticatedChannel.apply)
   }
 
+  def setPackageUrlsUserInfo(userInfo: Option[String]): Unit = {
+    bootstrapPackageUrlsUserInfo = userInfo
+  }
+
   def getTransitivePackageUrls(): List[String] = {
     manager.listPackagesExplicit(condaEnvDir.toAbsolutePath.toString)
   }
@@ -97,16 +101,6 @@ final class CondaEnvironment(
     this.packages ++= packages
   }
 
-  def setPackageUrls(urls: Seq[String]): Unit = {
-    if (!bootstrapMode.equals(CondaBootstrapMode.File)) {
-      throw new SparkException(
-        "Package URLs are only supported if CondaEnvironment was created with " +
-          "CondaBootstrapMode.File.")
-    }
-    packageUrls.clear();
-    packageUrls ++= urls;
-  }
-
   /**
    * Clears the given java environment and replaces all variables with the environment
    * produced after calling `activate` inside this conda environment.
@@ -125,7 +119,8 @@ final class CondaEnvironment(
     CondaSetupInstructions(
       bootstrapMode,
       packages.toList,
-      packageUrls.toList,
+      bootstrapPackageUrls,
+      bootstrapPackageUrlsUserInfo,
       channels.toList,
       extraArgs,
       envVars)
@@ -188,6 +183,7 @@ object CondaEnvironment {
       mode: CondaBootstrapMode,
       packages: Seq[String],
       packageUrls: Seq[String],
+      packageUrlsUserInfo: Option[String],
       unauthenticatedChannels: Seq[UnauthenticatedChannel],
       extraArgs: Seq[String],
       envVars: Map[String, String])
@@ -211,11 +207,12 @@ object CondaEnvironment {
         mode: CondaBootstrapMode,
         packages: Seq[String],
         packageUrls: Seq[String],
+        packageUrlsUserInfo: Option[String],
         channels: Seq[AuthenticatedChannel],
         extraArgs: Seq[String],
         envVars: Map[String, String]): CondaSetupInstructions = {
       val ChannelsWithCreds(unauthed, userInfos) = unauthenticateChannels(channels)
-      CondaSetupInstructions(mode, packages, packageUrls, unauthed, extraArgs, envVars)(userInfos)
+      CondaSetupInstructions(mode, packages, packageUrls, packageUrlsUserInfo, unauthed, extraArgs, envVars)(userInfos)
     }
   }
 }

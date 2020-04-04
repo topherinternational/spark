@@ -524,6 +524,13 @@ package object config {
       .toSequence
       .createWithDefault(Nil)
 
+  private[spark] val CONDA_BOOTSTRAP_PACKAGE_URLS_USER_INFO =
+    ConfigBuilder("spark.conda.bootstrapPackageUrlsUserInfo")
+      .doc("Basic auth information (in 'user:pw' format) to be added to package urls that will " +
+        "be added to the conda environment. Only relevant when main class is CondaRunner.")
+      .stringConf
+      .createOptional
+
   private[spark] val CONDA_CHANNEL_URLS = ConfigBuilder("spark.conda.channelUrls")
     .doc("The URLs the Conda channels to use when resolving the conda packages. "
       + "Only relevant when main class is CondaRunner.")
