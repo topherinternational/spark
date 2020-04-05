@@ -16,6 +16,7 @@
  */
 package org.apache.spark.api.conda
 
+import java.net.URI
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
@@ -146,6 +147,9 @@ final class CondaEnvironmentManager(condaBinaryPath: String,
       condaExtraArgs: Seq[String] = Nil,
       condaEnvVars: Map[String, String] = Map.empty): CondaEnvironment = {
     require(condaPackageUrls.nonEmpty, "Expected at least one conda package url.")
+    require(condaPackageUrlsUserInfo.isEmpty
+      || condaPackageUrls.find(packageUrl => new URI(packageUrl).getUserInfo() != null).nonEmpty,
+      "Cannot pass both a condaPackageUrlsUserInfo and condaPackageUrls with inlined auth.")
     val name = "conda-env"
 
     // must link in /tmp to reduce path length in case baseDir is very long...
