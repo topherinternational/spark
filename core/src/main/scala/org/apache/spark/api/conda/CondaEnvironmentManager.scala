@@ -160,8 +160,8 @@ final class CondaEnvironmentManager(condaBinaryPath: String,
     // Authenticate URLs if we have a UserInfo argument
     var finalCondaPackageUrls = condaPackageUrls
     if (condaPackageUrlsUserInfo.isDefined) {
-      finalCondaPackageUrls = condaPackageUrls.map { channelUrl =>
-        UriBuilder.fromUri(channelUrl).userInfo(condaPackageUrlsUserInfo.get).build().toString
+      finalCondaPackageUrls = condaPackageUrls.map { packageUrl =>
+        UriBuilder.fromUri(packageUrl).userInfo(condaPackageUrlsUserInfo.get).build().toString
       }
     }
 
