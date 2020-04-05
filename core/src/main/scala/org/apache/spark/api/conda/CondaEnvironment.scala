@@ -212,7 +212,8 @@ object CondaEnvironment {
         extraArgs: Seq[String],
         envVars: Map[String, String]): CondaSetupInstructions = {
       val ChannelsWithCreds(unauthed, userInfos) = unauthenticateChannels(channels)
-      CondaSetupInstructions(mode, packages, packageUrls, packageUrlsUserInfo, unauthed, extraArgs, envVars)(userInfos)
+      CondaSetupInstructions(
+        mode, packages, packageUrls, packageUrlsUserInfo, unauthed, extraArgs, envVars)(userInfos)
     }
   }
 }

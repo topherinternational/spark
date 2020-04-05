@@ -91,7 +91,8 @@ final class CondaEnvironmentManager(condaBinaryPath: String,
       case CondaBootstrapMode.Solve =>
         create(baseDir, condaPackages, condaChannelUrls, condaExtraArgs, condaEnvVars)
       case CondaBootstrapMode.File =>
-        createWithFile(baseDir, condaPackageUrls, condaPackageUrlsUserInfo, condaExtraArgs, condaEnvVars)
+        createWithFile(
+          baseDir, condaPackageUrls, condaPackageUrlsUserInfo, condaExtraArgs, condaEnvVars)
     }
   }
 
