@@ -51,18 +51,20 @@ class CondaEnvironmentManagerTest extends org.apache.spark.SparkFunSuite with Te
       "https://myuser:password@x-5.bar/whatever/else/linux-64/package-0.0.1-py_0.tar.bz2"
     val userInfo = "anotheruser:theirpassword"
 
-    val path = tempDir.toPath.resolve("dummy-conda.bin")
-    Files.createFile(path)
+    val binaryPath = tempDir.toPath.resolve("dummy-conda.bin")
+    val condaEnvDir = tempDir.toPath.resolve("test-conda-env")
+    Files.createFile(binaryPath)
+    Files.createDirectory(condaEnvDir)
 
     val conf = new SparkConf()
-    conf.set(CONDA_BINARY_PATH, path.toString)
+    conf.set(CONDA_BINARY_PATH, binaryPath.toString)
     conf.set(CONDA_BOOTSTRAP_MODE, "File")
     conf.set(CONDA_BOOTSTRAP_PACKAGE_URLS, Seq(packageUrl))
     conf.set(CONDA_BOOTSTRAP_PACKAGE_URLS_USER_INFO, userInfo)
 
     val thrown = intercept[IllegalArgumentException] {
       CondaEnvironmentManager.fromConf(conf)
-        .createWithFile("test-conda-env", Seq(packageUrl), Some(userInfo))
+        .createWithFile(condaEnvDir.toString, Seq(packageUrl), Some(userInfo))
     }
 
     assert(thrown.getMessage ===
