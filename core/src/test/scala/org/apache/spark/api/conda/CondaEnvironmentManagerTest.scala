@@ -51,8 +51,11 @@ class CondaEnvironmentManagerTest extends org.apache.spark.SparkFunSuite with Te
       "https://myuser:password@x-5.bar/whatever/else/linux-64/package-0.0.1-py_0.tar.bz2"
     val userInfo = "anotheruser:theirpassword"
 
+    val path = tempDir.toPath.resolve("dummy-conda.bin")
+    Files.createFile(path)
+
     val conf = new SparkConf()
-    conf.set(CONDA_BINARY_PATH, "dummy-conda.bin")
+    conf.set(CONDA_BINARY_PATH, path.toString)
     conf.set(CONDA_BOOTSTRAP_MODE, "File")
     conf.set(CONDA_BOOTSTRAP_PACKAGE_URLS, Seq(packageUrl))
     conf.set(CONDA_BOOTSTRAP_PACKAGE_URLS_USER_INFO, userInfo)
