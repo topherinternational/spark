@@ -47,10 +47,6 @@ class CondaEnvironmentManagerTest extends org.apache.spark.SparkFunSuite with Te
   test("CondaEnvironmentManager.failOnUserInfoAndAuthenticatedPackageUrls") {
     val packageUrl = "https://myuser:password@x-5.bar/whatever/else/linux-64/package-0.0.1-py0.tar.bz2"
     val userInfo = "anotheruser:theirpassword"
-    assert(CondaEnvironmentManager.createWithFile(
-      "test-conda-env",
-      packageUrl,
-      userInfo) == null)
-    ))
+    assert(CondaEnvironmentManager.createWithFile("test-conda-env", packageUrl, userInfo) == null)
   }
 }
