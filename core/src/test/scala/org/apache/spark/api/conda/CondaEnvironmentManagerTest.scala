@@ -18,7 +18,9 @@ package org.apache.spark.api.conda
 
 import java.nio.file.Files
 
+import org.apache.spark.SparkConf
 import org.apache.spark.util.TempDirectory
+import org.apache.spark.internal.config._
 
 class CondaEnvironmentManagerTest extends org.apache.spark.SparkFunSuite with TempDirectory {
   test("CondaEnvironmentManager.ensureExecutable") {
@@ -44,9 +46,21 @@ class CondaEnvironmentManagerTest extends org.apache.spark.SparkFunSuite with Te
     assert(CondaEnvironmentManager.redactCredentials(original) == redacted)
   }
 
-  test("CondaEnvironmentManager.failOnUserInfoAndAuthenticatedPackageUrls") {
+  test("CondaEnvironmentManager.failOnBothUserInfoAndAuthenticatedPackageUrls") {
     val packageUrl = "https://myuser:password@x-5.bar/whatever/else/linux-64/package-0.0.1-py0.tar.bz2"
     val userInfo = "anotheruser:theirpassword"
-    assert(CondaEnvironmentManager.createWithFile("test-conda-env", packageUrl, userInfo) == null)
+
+    val conf = new SparkConf()
+    conf.set(CONDA_BINARY_PATH, "dummy-conda.bin")
+    conf.set(CONDA_BOOTSTRAP_MODE, "File")
+    conf.set(CONDA_BOOTSTRAP_PACKAGE_URLS, Seq(packageUrl))
+    conf.set(CONDA_BOOTSTRAP_PACKAGE_URLS_USER_INFO, userInfo)
+
+    val thrown = intercept[IllegalArgumentException] {
+      CondaEnvironmentManager.fromConf(conf).createWithFile("test-conda-env", Seq(packageUrl), Some(userInfo))
+    }
+
+    assert(thrown.getMessage ===
+      "Cannot pass both a condaPackageUrlsUserInfo and condaPackageUrls with inlined auth.")
   }
 }
