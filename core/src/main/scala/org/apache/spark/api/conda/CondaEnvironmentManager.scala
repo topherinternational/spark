@@ -164,11 +164,12 @@ final class CondaEnvironmentManager(condaBinaryPath: String,
     val verbosityFlags = 0.until(verbosity).map(_ => "-v").toList
 
     // Authenticate URLs if we have a UserInfo argument
-    var finalCondaPackageUrls = condaPackageUrls
-    if (condaPackageUrlsUserInfo.isDefined) {
-      finalCondaPackageUrls = condaPackageUrls.map { packageUrl =>
+    val finalCondaPackageUrls = if (condaPackageUrlsUserInfo.isDefined) {
+      condaPackageUrls.map { packageUrl =>
         UriBuilder.fromUri(packageUrl).userInfo(condaPackageUrlsUserInfo.get).build().toString
       }
+    } else {
+      condaPackageUrls
     }
 
     // Create spec file with URLs
