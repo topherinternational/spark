@@ -150,7 +150,7 @@ final class CondaEnvironmentManager(condaBinaryPath: String,
     logInfo("condaPackageUrlsUserInfo argument: " + condaPackageUrlsUserInfo)
     require(condaPackageUrls.nonEmpty, "Expected at least one conda package url.")
     require(condaPackageUrlsUserInfo.isEmpty
-      || condaPackageUrls.find(packageUrl => new URI(packageUrl).getUserInfo() != null).nonEmpty,
+      || condaPackageUrls.find(packageUrl => new URI(packageUrl).getUserInfo() != null).isEmpty,
       "Cannot pass both a condaPackageUrlsUserInfo and condaPackageUrls with inlined auth.")
     val name = "conda-env"
 
