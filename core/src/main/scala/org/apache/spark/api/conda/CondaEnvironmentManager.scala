@@ -146,8 +146,6 @@ final class CondaEnvironmentManager(condaBinaryPath: String,
       condaPackageUrlsUserInfo: Option[String],
       condaExtraArgs: Seq[String] = Nil,
       condaEnvVars: Map[String, String] = Map.empty): CondaEnvironment = {
-    logInfo("condaPackageUrls argument: " + condaPackageUrls)
-    logInfo("condaPackageUrlsUserInfo argument: " + condaPackageUrlsUserInfo)
     require(condaPackageUrls.nonEmpty, "Expected at least one conda package url.")
     require(condaPackageUrlsUserInfo.isEmpty
       || condaPackageUrls.find(packageUrl => new URI(packageUrl).getUserInfo() != null).isEmpty,
