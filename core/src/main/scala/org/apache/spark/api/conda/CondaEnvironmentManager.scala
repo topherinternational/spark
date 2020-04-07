@@ -148,7 +148,8 @@ final class CondaEnvironmentManager(condaBinaryPath: String,
       condaEnvVars: Map[String, String] = Map.empty): CondaEnvironment = {
     require(condaPackageUrls.nonEmpty, "Expected at least one conda package url.")
     require(condaPackageUrls.find(packageUrl => new URI(packageUrl).getUserInfo != null).isEmpty,
-      "Cannot pass condaPackageUrls with inlined auth; pass UserInfo via spark.conda.bootstrapPackageUrlsUserInfo.")
+      "Cannot pass condaPackageUrls with inlined auth; pass UserInfo " +
+        "via spark.conda.bootstrapPackageUrlsUserInfo.")
     val name = "conda-env"
 
     // must link in /tmp to reduce path length in case baseDir is very long...

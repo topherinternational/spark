@@ -46,7 +46,7 @@ class CondaEnvironmentManagerTest extends org.apache.spark.SparkFunSuite with Te
     assert(CondaEnvironmentManager.redactCredentials(original) == redacted)
   }
 
-  test("CondaEnvironmentManager.failOnBothUserInfoAndAuthenticatedPackageUrls") {
+  test("CondaEnvironmentManager.failOnAuthenticatedPackageUrls") {
     val packageUrl =
       "https://myuser:password@x-5.bar/whatever/else/linux-64/package-0.0.1-py_0.tar.bz2"
     val userInfo = "anotheruser:theirpassword"
@@ -67,7 +67,8 @@ class CondaEnvironmentManagerTest extends org.apache.spark.SparkFunSuite with Te
         .createWithFile(condaEnvDir.toString, Seq(packageUrl), Some(userInfo))
     }
 
-    assert(thrown.getMessage ===
-      "Cannot pass both a condaPackageUrlsUserInfo and condaPackageUrls with inlined auth.")
+    assert("Cannot pass condaPackageUrls with inlined auth; pass UserInfo " +
+      "via spark.conda.bootstrapPackageUrlsUserInfo."
+        .equals(thrown.getMessage))
   }
 }
