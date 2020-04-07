@@ -67,8 +67,8 @@ class CondaEnvironmentManagerTest extends org.apache.spark.SparkFunSuite with Te
         .createWithFile(condaEnvDir.toString, Seq(packageUrl), Some(userInfo))
     }
 
-    assert("Cannot pass condaPackageUrls with inlined auth; pass UserInfo " +
-      "via spark.conda.bootstrapPackageUrlsUserInfo."
+    assert(("Cannot pass condaPackageUrls with inlined auth; pass UserInfo " +
+      "via spark.conda.bootstrapPackageUrlsUserInfo.")
         .equals(thrown.getMessage))
   }
 }
